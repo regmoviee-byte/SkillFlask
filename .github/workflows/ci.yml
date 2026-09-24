@@ -1,13 +1,19 @@
 name: CI
 
+# Test environment: every push to the working branches is tested, built and published
+# to GitHub Pages, so the latest state is always available for review at the Pages URL.
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -22,14 +28,15 @@ jobs:
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         with:
           path: dist
 
   # Publishes the build to GitHub Pages — the HTTPS URL used for the Telegram Mini App.
-  # Requires Settings → Pages → Source: "GitHub Actions".
+  # Requires Settings → Pages → Source: "GitHub Actions". The github-pages environment only
+  # accepts deployments from the repository's default branch unless its rules are relaxed.
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
