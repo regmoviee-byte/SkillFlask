@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../data/db';
 import { addDays, localDate } from '../lib/dates';
-import { installFreshDb, withClock } from '../test/harness';
+import { setClock } from '../lib/clock';
+import { installFreshDb, tickingClock, todayNoon, withClock } from '../test/harness';
+import { resetStoragePersistRequest } from './completions';
 import { verifyJournal } from './journal';
 import { getSkillDetails, listSkillSummaries } from './queries';
 import { getSetting } from './settings';
@@ -30,6 +32,8 @@ const english: SkillInput = {
 };
 
 installFreshDb();
+// Repeated completions of one step must sit further apart than the double-submit window.
+beforeEach(() => setClock(tickingClock(todayNoon())));
 
 async function details(id: string) {
   const d = await getSkillDetails(id);
@@ -156,6 +160,7 @@ describe('completeStep', () => {
   });
 
   it('requests persistent storage once, after the first completion', async () => {
+    resetStoragePersistRequest();
     const persist = vi.fn(() => Promise.resolve(true));
     vi.stubGlobal('navigator', { storage: { persist } });
     try {
@@ -166,6 +171,25 @@ describe('completeStep', () => {
       await completeStep(stepId);
       expect(persist).toHaveBeenCalledTimes(1);
       expect(await getSetting('storagePersistRequested', false)).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('asks for persistent storage again in a later session when it was refused', async () => {
+    resetStoragePersistRequest();
+    const persist = vi.fn(() => Promise.resolve(false));
+    vi.stubGlobal('navigator', { storage: { persist } });
+    try {
+      const skillId = await createSkill(english);
+      const stepId = await createStep({ skillId, name: 'Чтение', points: 7 });
+      await completeStep(stepId);
+      await completeStep(stepId);
+      expect(persist).toHaveBeenCalledTimes(1); // once per session
+      expect(await getSetting('storagePersistRequested', false)).toBe(false);
+      resetStoragePersistRequest(); // next app start
+      await completeStep(stepId);
+      expect(persist).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -210,7 +234,7 @@ describe('milestone', () => {
     const crossing = await withClock('2026-09-10T09:00:00', async () => {
       for (let i = 0; i < 5; i++) await completeStep(stepId);
       return (await completeStep(stepId)).completionId; // 60 points: flask 3 filled
-    });
+    }, 2000);
     const crossingAt = (await db.transactions.where('completionId').equals(crossing).first())!.createdAt;
     expect((await details(skillId)).milestone?.reachedAt).toBe(crossingAt);
 

@@ -1,46 +1,70 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { listSkillSummaries } from '../../services/queries';
-import { createStep, ValidationError } from '../../services/skills';
+import { getSkillFormData, listSkillSummaries } from '../../services/queries';
+import { createStep, getStep, setStepActive, updateStep } from '../../services/steps';
+import type { StepDefinition } from '../../domain/types';
+import { flaskCapacity, pointsToFill } from '../../domain/progression';
 import { useUnsavedGuard } from '../../platform/buttons';
+import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
-import { Screen } from '../components/Screen';
+import { errorMessage } from '../completionFeedback';
+import { Screen, useGoBack } from '../components/Screen';
+import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
+const t = copy.stepForm;
+const DEFAULT_POINTS = '5';
+
+const digitsOnly = (value: string) => value.replace(/\D/g, '');
+
+/** `/steps/new` (prefills ?skill, ?name, ?points; ?from=add returns to «Задним числом») and `/steps/:stepId/edit`. */
 export function StepFormScreen() {
+  const { stepId } = useParams();
+  return stepId ? <EditStep key={stepId} stepId={stepId} /> : <CreateStep />;
+}
+
+function CreateStep() {
   const [params] = useSearchParams();
   const origin = params.get('skill') ?? '';
+  const fromAdd = params.get('from') === 'add';
+  const initialName = (params.get('name') ?? '').slice(0, 100);
+  const initialPoints = digitsOnly(params.get('points') ?? '') || DEFAULT_POINTS;
   const skills = useLiveQuery(async () => (await listSkillSummaries()).filter((s) => s.skill.status === 'ACTIVE'));
   const [skillId, setSkillId] = useState(origin);
-  const [name, setName] = useState('');
-  const [points, setPoints] = useState('5');
+  const [name, setName] = useState(initialName);
+  const [points, setPoints] = useState(initialPoints);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const goBack = useGoBack(origin ? `/skills/${origin}` : '/skills');
   const { showToast } = useToast();
-  const t = copy.stepForm;
   const formRef = useRef<HTMLFormElement>(null);
-  useUnsavedGuard(!busy && name.trim() !== '');
+  useUnsavedGuard(!busy && (name.trim() !== initialName.trim() || points !== initialPoints));
 
-  const effectiveSkillId = skillId || skills?.[0]?.skill.id || '';
+  // The query string is untrusted: fall back to the first active skill.
+  const effectiveSkillId = skills?.some((s) => s.skill.id === skillId) ? skillId : (skills?.[0]?.skill.id ?? '');
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const id = await createStep({ skillId: effectiveSkillId, name, points: Number(points.trim()) });
+      const id = await createStep({ skillId: effectiveSkillId, name, points: Number(points) });
       haptics.success();
       showToast(t.created);
-      // This screen replaced the "Добавить действие" entry; replace it back with the new step
-      // pre-selected via the query string, so the selection survives reloads and does not
-      // live in module state.
-      navigate(`/skills/${effectiveSkillId}/add?step=${id}`, { replace: true });
+      if (fromAdd) {
+        // This screen replaced «Задним числом»; replace it back with the new step pre-selected.
+        navigate(`/skills/${effectiveSkillId}/add?step=${id}`, { replace: true });
+      } else if (effectiveSkillId === origin) {
+        goBack();
+      } else {
+        navigate(`/skills/${effectiveSkillId}`, { replace: true });
+      }
     } catch (e) {
       haptics.error();
-      setError(e instanceof ValidationError ? e.message : copy.errors.save);
+      setError(errorMessage(e));
       setBusy(false);
     }
   }
@@ -48,23 +72,12 @@ export function StepFormScreen() {
   return (
     <Screen
       title={t.title}
-      back={origin ? `/skills/${origin}/add` : '/skills'}
-      replaceBack={origin !== ''}
+      back={fromAdd ? `/skills/${origin}/add` : origin ? `/skills/${origin}` : '/skills'}
+      replaceBack={fromAdd}
       primary={{ text: t.submit, onClick: () => formRef.current?.requestSubmit(), disabled: !effectiveSkillId, loading: busy }}
     >
       <form id="step-form" className="form" ref={formRef} onSubmit={submit}>
-        <label className="field">
-          <span className="field-label">{t.name}</span>
-          <input
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t.namePlaceholder}
-            maxLength={100}
-            autoFocus
-            required
-          />
-        </label>
+        <NameField value={name} onChange={setName} autoFocus={!initialName} />
 
         <label className="field">
           <span className="field-label">{t.skill}</span>
@@ -77,42 +90,153 @@ export function StepFormScreen() {
           </select>
         </label>
 
-        <div className="field">
-          <span className="field-label">{t.type}</span>
-          <div className="segmented">
-            <button type="button" className="active" aria-pressed="true" onClick={() => haptics.select()}>
-              {t.typeBoolean}
-            </button>
-            <button type="button" disabled title={copy.common.soon}>
-              {t.typeTimedSoon}
-            </button>
-          </div>
-        </div>
-
-        <label className="field">
-          <span className="field-label">{t.repeat}</span>
-          <select className="input" value="MANUAL" onChange={() => {}}>
-            <option value="MANUAL">{t.repeatManual}</option>
-            <option disabled>{t.repeatDailySoon}</option>
-            <option disabled>{t.repeatWeekdaysSoon}</option>
-            <option disabled>{t.repeatTimesPerWeekSoon}</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span className="field-label">{t.points}</span>
-          <input
-            className="input"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={points}
-            onChange={(e) => setPoints(e.target.value.replace(/\D/g, ''))}
-            required
-          />
-        </label>
+        <PointsField value={points} onChange={setPoints} skillId={effectiveSkillId} />
 
         {error && <p className="error">{error}</p>}
       </form>
     </Screen>
+  );
+}
+
+function EditStep({ stepId }: { stepId: string }) {
+  const step = useLiveQuery(() => getStep(stepId), [stepId]);
+  const skill = useLiveQuery(async () => (step ? (await getSkillFormData(step.skillId))?.skill : undefined), [step?.skillId]);
+
+  if (step === null) {
+    return (
+      <Screen title={t.titleEdit} back="/skills">
+        <p className="hint center">{t.notFound}</p>
+      </Screen>
+    );
+  }
+  return <EditStepForm step={step} active={skill ? skill.status === 'ACTIVE' : undefined} />;
+}
+
+function EditStepForm({ step, active }: { step: StepDefinition | undefined; active: boolean | undefined }) {
+  // The loaded values plus the user's edits, so the form mounts before the step arrives.
+  const [edits, setEdits] = useState<{ name?: string; points?: string }>({});
+  const name = edits.name ?? step?.name ?? '';
+  const points = edits.points ?? (step ? String(step.points) : '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const back = step ? `/skills/${step.skillId}` : '/skills';
+  const goBack = useGoBack(back);
+  const { showToast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+  const loading = step === undefined || active === undefined;
+  const dirty = !busy && step !== undefined && (name.trim() !== step.name || points !== String(step.points));
+  useUnsavedGuard(dirty);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!step) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateStep(step.id, { name, points: Number(points) });
+      haptics.success();
+      showToast(copy.common.saved);
+      goBack();
+    } catch (e) {
+      haptics.error();
+      setError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  async function toggleHidden() {
+    if (!step || busy) return;
+    if (step.isActive) {
+      // Rule: dialogs.confirm runs synchronously in the click handler, before any await.
+      const ok = await dialogs.confirm(t.confirmHide, { okLabel: t.hideConfirmButton, danger: true });
+      if (!ok) return;
+    }
+    setBusy(true);
+    try {
+      await setStepActive(step.id, !step.isActive);
+      haptics.success();
+      showToast(step.isActive ? t.hidden : copy.skill.unhidden);
+      goBack();
+    } catch (e) {
+      haptics.error();
+      showToast(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Screen
+      title={t.titleEdit}
+      back={back}
+      primary={!loading && active ? { text: copy.common.save, onClick: () => formRef.current?.requestSubmit(), loading: busy } : undefined}
+    >
+      <Skeleton layout="form" loading={loading}>
+        {step && active === false ? (
+          <p className="hint center">{t.readOnly}</p>
+        ) : (
+          step && (
+            <form id="step-form" className="form" ref={formRef} onSubmit={submit}>
+              <NameField value={name} onChange={(value) => setEdits((prev) => ({ ...prev, name: value }))} />
+              <PointsField value={points} onChange={(value) => setEdits((prev) => ({ ...prev, points: value }))} skillId={step.skillId} />
+              <p className="hint small field-hint">{t.futureHint}</p>
+
+              {error && <p className="error">{error}</p>}
+
+              <button type="button" className={`button button-block${step.isActive ? ' button-danger' : ''}`} disabled={busy} onClick={toggleHidden}>
+                {step.isActive ? t.hide : t.unhide}
+              </button>
+            </form>
+          )
+        )}
+      </Skeleton>
+    </Screen>
+  );
+}
+
+function NameField({ value, onChange, autoFocus = false }: { value: string; onChange(value: string): void; autoFocus?: boolean }) {
+  return (
+    <label className="field">
+      <span className="field-label">{t.name}</span>
+      <input
+        className="input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={t.namePlaceholder}
+        maxLength={100}
+        autoFocus={autoFocus}
+        required
+      />
+    </label>
+  );
+}
+
+/** Points with a live «≈ N выполнений» estimate against the skill's flask capacities. */
+function PointsField({ value, onChange, skillId }: { value: string; onChange(value: string): void; skillId: string }) {
+  const form = useLiveQuery(() => (skillId ? getSkillFormData(skillId) : null), [skillId]);
+  const points = Number(value);
+  let preview: string | null = null;
+  if (form && points >= 1) {
+    const config = { base: form.skill.capacityBase, increment: form.skill.capacityIncrement, manual: form.manual };
+    const target = form.milestone?.targetFlaskNumber ?? 1;
+    preview = t.preview(Math.ceil(flaskCapacity(1, config) / points), Math.ceil(pointsToFill(target, config) / points));
+  }
+  return (
+    <div className="field">
+      <label className="field">
+        <span className="field-label">{t.points}</span>
+        <input
+          className="input"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={value}
+          onChange={(e) => onChange(digitsOnly(e.target.value))}
+          aria-describedby="step-points-preview"
+          required
+        />
+      </label>
+      <span id="step-points-preview" className="hint small field-hint" aria-live="polite">
+        {preview}
+      </span>
+    </div>
   );
 }

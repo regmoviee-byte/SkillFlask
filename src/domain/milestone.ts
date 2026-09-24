@@ -23,6 +23,9 @@ export function reconcileMilestone(
 ): Partial<Milestone> | null {
   const reached = isMilestoneReached(milestone, progress);
   if (reached) {
+    // syncMilestone derives `progress` and `derivedReachedAt` from the same timeline, so a
+    // reached milestone always has a crossing date; `now` only covers a caller passing an
+    // inconsistent pair and must never become the normal path (FR-MS-007).
     const reachedAt = derivedReachedAt ?? now;
     return milestone.reachedAt === reachedAt ? null : { reachedAt, updatedAt: now };
   }

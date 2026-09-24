@@ -6,10 +6,10 @@ import { API, tgCall, type PopupButton } from './telegram';
 // handler so the native dialog keeps its user-gesture context; later calls wait their turn.
 
 export interface ConfirmOptions {
-  /** Label of the confirming button in the in-app sheet (Telegram's showConfirm always says OK). */
+  /** Label of the confirming button; inside Telegram it turns the dialog into a labelled popup. */
   okLabel?: string;
   cancelLabel?: string;
-  /** Renders the confirming button in the danger colour (in-app sheet only). */
+  /** Renders the confirming button in the danger colour (destructive popup button in Telegram). */
   danger?: boolean;
 }
 
@@ -59,7 +59,24 @@ function fallbackConfirm(message: string): Promise<boolean> {
 
 export function confirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
   return enqueue(() => {
-    const native = tgCall(API.confirm, (tg) => new Promise<boolean>((resolve) => tg.showConfirm(message, (ok) => resolve(Boolean(ok)))));
+    // showConfirm always says OK / Cancel; with a custom label («Отменить» / «Оставить») the
+    // answer only reads right as a labelled popup (same Bot API version).
+    const native = tgCall(API.confirm, (tg) =>
+      options.okLabel
+        ? new Promise<boolean>((resolve) =>
+            tg.showPopup(
+              {
+                message: message.slice(0, 256),
+                buttons: [
+                  { id: 'cancel', type: 'default', text: options.cancelLabel ?? 'Отмена' },
+                  { id: 'ok', type: options.danger ? 'destructive' : 'default', text: options.okLabel },
+                ],
+              },
+              (id) => resolve(id === 'ok'),
+            ),
+          )
+        : new Promise<boolean>((resolve) => tg.showConfirm(message, (ok) => resolve(Boolean(ok)))),
+    );
     if (native) return native;
     return host ? host.confirm(message, options) : fallbackConfirm(message);
   });

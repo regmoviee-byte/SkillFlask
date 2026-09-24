@@ -80,38 +80,109 @@ await page.getByRole('link', { name: 'Создать навык' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Английский');
 await page.getByLabel('Сейчас').fill('B1');
 await page.getByLabel('Цель').fill('C1');
+await settled();
+await shot('skill-form');
+// Milestone and capacities sit in the «Дополнительно» disclosure.
+await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('3');
 await page.getByLabel('Первая колба').fill('10');
 await page.getByLabel('Прирост за уровень', { exact: true }).fill('5');
 await settled();
-await shot('skill-form');
+await shot('skill-form-advanced');
 await page.getByRole('button', { name: 'Создать навык' }).click();
 await page.getByText('Достичь C1').waitFor();
 await shot('skill-empty');
 
-await page.getByRole('button', { name: 'Добавить действие' }).click();
-await page.getByText('Действий пока нет').waitFor();
-await shot('add-action-empty');
-await page.getByRole('button', { name: 'Создать новое действие' }).click();
+// First action from the skill screen's bottom button; the form returns to the skill.
+await page.getByRole('button', { name: 'Создать первое действие' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Разговорная практика');
 await page.getByLabel('Очки за выполнение').fill('5');
 await settled();
 await shot('step-form');
 await page.getByRole('button', { name: 'Создать действие' }).click();
-await page.getByText('Разговорная практика').waitFor();
-await shot('add-action');
+const check = page.locator('.check-button').first();
+await check.waitFor();
+await shot('skill-actions');
 
+// The ✓ records a completion in one tap; the toast offers «Отменить» for 6 s. The ✓ stays
+// busy (aria-busy) through completeStep's 1.5 s same-tap window: wait it out between taps.
+const idleCheck = page.locator('.check-button[aria-busy="false"]').first();
+const tapCheck = async () => {
+  await idleCheck.waitFor();
+  await check.click();
+  await page.getByRole('button', { name: 'Отменить', exact: true }).waitFor();
+};
+await tapCheck();
+// A second tap ~0.8 s later is swallowed: no second completion, the undo toast stays.
+await page.waitForTimeout(800);
+await check.click();
+await page.waitForTimeout(300);
+if (await page.getByText('Уже отмечено', { exact: false }).count()) throw new Error('a quick second tap reached the same-tap guard');
+if (!(await page.getByRole('button', { name: 'Отменить', exact: true }).count())) throw new Error('a quick second tap replaced the undo toast');
+await shot('toast-undo');
+await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+await page.getByText('Отменено · Колба 1: 0/10').waitFor();
+await shot('toast-undone');
 for (let i = 0; i < 9; i++) {
-  if (i > 0) {
-    await page.getByRole('button', { name: 'Добавить действие' }).click();
-    await page.locator('.radio-row').first().click();
-  }
-  await page.getByRole('button', { name: 'Отметить выполненным' }).click();
-  await page.getByRole('button', { name: 'Добавить действие' }).waitFor();
+  await tapCheck();
   if (i === 2) await shot('skill-progress');
 }
 await page.getByRole('button', { name: 'Завершить', exact: true }).waitFor();
 await shot('skill-milestone');
+
+// History: the cancelled completion stays, struck through; a row opens the completion sheet.
+await page.waitForTimeout(6000); // let the toast time out
+await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await shot('history');
+await page.locator('button.history-row').first().click();
+const sheet = page.locator('.completion-sheet');
+await sheet.waitFor();
+await sheet.getByLabel('Заметка').fill('Говорили про путешествия, 20 минут без пауз.');
+await shot('completion-sheet');
+await sheet.getByRole('button', { name: 'Сохранить' }).click();
+await page.getByText('Заметка сохранена').waitFor();
+await sheet.waitFor({ state: 'detached' });
+await page.getByText('Говорили про путешествия', { exact: false }).first().waitFor();
+// Cancel from the sheet, through the confirmation, then restore it.
+await page.locator('button.history-row').first().click();
+await sheet.getByRole('button', { name: 'Отменить выполнение' }).click();
+const confirmSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Оставить' }) });
+await confirmSheet.waitFor();
+await shot('completion-confirm-cancel');
+await confirmSheet.getByRole('button', { name: 'Отменить', exact: true }).click();
+await page.getByText(/^Отменено · Колба/).waitFor();
+await sheet.waitFor({ state: 'detached' });
+await page.locator('button.history-row.cancelled').first().click();
+await sheet.getByRole('button', { name: 'Вернуть' }).click();
+await page.getByText('Возвращено').waitFor();
+await sheet.waitFor({ state: 'detached' });
+// A typed note survives dismissing the sheet without «Сохранить».
+await page.locator('button.history-row').first().click();
+await sheet.getByLabel('Заметка').fill('Короткая заметка без кнопки');
+await page.keyboard.press('Escape');
+await page.getByText('Заметка сохранена').waitFor();
+await sheet.waitFor({ state: 'detached' });
+await page.getByText('Короткая заметка без кнопки').first().waitFor();
+
+// Edit mode: rows link to the step form; «Убрать из списка» hides, «Вернуть» brings back.
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.getByRole('button', { name: 'Изменить', exact: true }).click();
+await shot('actions-edit');
+await page.getByRole('link', { name: /Разговорная практика/ }).click();
+await page.getByText('Прошлое не пересчитывается', { exact: false }).waitFor();
+await settled();
+await shot('step-edit');
+await page.getByRole('button', { name: 'Убрать из списка' }).click();
+const hideSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Убрать', exact: true }) });
+await hideSheet.getByRole('button', { name: 'Убрать', exact: true }).click();
+await page.getByText('Действие убрано из списка').waitFor();
+// The only action is hidden: the card says so and lists it openly with «Вернуть».
+await page.getByText('Все действия убраны из списка', { exact: false }).waitFor();
+await page.locator('.toast').waitFor({ state: 'detached' });
+await shot('actions-hidden');
+await page.getByRole('button', { name: 'Вернуть', exact: true }).click();
+await check.waitFor();
+
 await page.getByRole('button', { name: 'Завершить', exact: true }).click();
 // Outside Telegram the confirmation is the in-app sheet.
 const dialog = page.getByRole('dialog');
@@ -128,22 +199,29 @@ await page.getByRole('tab', { name: 'Достигнутые' }).click();
 await shot('skills-completed');
 
 // A second skill whose single 25-point action fills flasks 1 (10) and 2 (15) at once:
-// the toast must name both filled flasks.
+// the toast must name both filled flasks. The action starts from an example chip.
 await page.getByRole('link', { name: 'Новый навык' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Тренировки');
+await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('5');
 await page.getByLabel('Первая колба').fill('10');
 await page.getByLabel('Прирост за уровень', { exact: true }).fill('5');
 await page.getByRole('button', { name: 'Создать навык' }).click();
-await page.getByRole('button', { name: 'Добавить действие' }).click();
-await page.getByRole('button', { name: 'Создать новое действие' }).click();
-await page.getByLabel('Название', { exact: true }).fill('Длинная тренировка');
+await page.getByRole('link', { name: 'Тренировка · 20' }).click();
 await page.getByLabel('Очки за выполнение').fill('25');
+await page.getByText('≈ 1 выполнение до первой колбы', { exact: false }).waitFor();
+await settled();
+await shot('step-form-chip');
 await page.getByRole('button', { name: 'Создать действие' }).click();
-await page.getByText('Длинная тренировка').waitFor();
-await page.getByRole('button', { name: 'Отметить выполненным' }).click();
-await page.getByText('Заполнено колб: 2, теперь колба 3').waitFor();
+await check.click();
+await page.getByRole('status').getByText('Заполнено колб: 2').waitFor();
 await shot('toast-flasks-filled');
+
+// «Задним числом»: the full-screen form for another date.
+await page.getByRole('link', { name: 'Задним числом' }).click();
+await page.getByRole('button', { name: 'Отметить выполненным' }).waitFor();
+await shot('backdate');
+await page.getByRole('button', { name: 'Назад' }).click();
 
 // Edit form: the delete confirmation is a danger sheet; cancel it.
 await page.getByRole('link', { name: 'Изм.' }).click();

@@ -57,4 +57,13 @@ describe('dialogs', () => {
     expect(id).toBe('1');
     expect(fake.calls).toContain('showPopup');
   });
+
+  it('turns a labelled confirm into a popup inside Telegram', async () => {
+    fake = installFakeTelegram('6.2');
+    // The fake answers with the first button: the cancelling one.
+    expect(await dialogs.confirm('Отменить выполнение?', { okLabel: 'Отменить', cancelLabel: 'Оставить', danger: true })).toBe(false);
+    expect(fake.calls).toContain('showPopup');
+    expect(await dialogs.confirm('Точно?')).toBe(true);
+    expect(fake.calls.some((c) => c.startsWith('showConfirm'))).toBe(true);
+  });
 });

@@ -2,7 +2,7 @@
 // arithmetic on Date.UTC parts, so DST changes in the device time zone never shift a day.
 
 export { localDate, nowIso } from './clock';
-import { localDate } from './clock';
+import { localDate, nowDate } from './clock';
 
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -67,7 +67,7 @@ function toDate(value: string): Date {
 /** "24 сентября" for the current year, "24 сентября 2025 г." otherwise. Accepts YYYY-MM-DD or ISO. */
 export function formatDate(value: string): string {
   const date = toDate(value);
-  return (date.getFullYear() === new Date().getFullYear() ? dateFormat : dateFormatWithYear).format(date);
+  return (date.getFullYear() === nowDate().getFullYear() ? dateFormat : dateFormatWithYear).format(date);
 }
 
 /** "24 сентября, 14:02" in the device time zone. */

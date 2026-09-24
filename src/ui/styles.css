@@ -403,6 +403,7 @@ button {
   border-radius: var(--r-full);
   background: #1e1e20;
   color: #fff;
+  font-size: 15px;
   font-weight: 500;
   text-align: center;
   touch-action: pan-x;
@@ -429,6 +430,21 @@ button {
   min-width: 0;
 }
 
+/* With «Отменить» beside it the message reads left-aligned, like a snackbar: «+5 · Чтение»
+   fits one line; a flask message may take two; a long step name stops at two with an ellipsis. */
+.toast.has-action {
+  text-align: start;
+}
+
+.toast.has-action .toast-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .toast-icon {
   flex: none;
   display: inline-flex;
@@ -446,8 +462,15 @@ button {
   cursor: pointer;
 }
 
+/* Dark themes invert the pill to near-white: a darkened accent keeps «Отменить» above 4.5:1. */
 :root[data-theme='dark'] .toast-action {
-  color: var(--color-accent);
+  color: #1f5fa8;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root[data-theme='dark'] .toast-action {
+    color: color-mix(in srgb, var(--color-accent) 62%, black);
+  }
 }
 
 /* ---------- Sheet ---------- */
@@ -470,7 +493,8 @@ button {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 31;
+  /* Same layer as the scrim: DOM order stacks them, so a nested sheet's scrim dims its parent. */
+  z-index: 30;
   display: flex;
   flex-direction: column;
   max-width: 560px;
@@ -563,7 +587,8 @@ html[data-motion='reduced'] .sheet[data-state='open'] {
   flex-direction: column;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-5) 0;
-  padding-bottom: var(--kb);
+  /* Keeps the last button off the screen edge on phones without a bottom inset. */
+  padding-bottom: calc(var(--kb) + var(--sp-3));
   background: var(--color-bg-elevated);
 }
 
@@ -628,10 +653,6 @@ html[data-motion='reduced'] .sheet[data-state='open'] {
   background: linear-gradient(90deg, transparent, var(--color-bg-elevated), transparent);
   opacity: 0.6;
   animation: shimmer 1.4s var(--ease-out) infinite;
-}
-
-.skeleton-line {
-  border-radius: 6px;
 }
 
 .skeleton-row {
@@ -852,6 +873,35 @@ textarea.input {
 .segmented button:disabled {
   color: var(--color-fg-secondary);
   cursor: default;
+}
+
+.field-hint {
+  padding-left: var(--sp-1);
+}
+
+.labels-row {
+  align-items: flex-end;
+}
+
+.labels-arrow {
+  flex: none;
+  margin-bottom: 13px;
+  color: var(--color-fg-tertiary);
+}
+
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset:disabled .input {
+  opacity: 0.55;
+}
+
+.danger-zone {
+  margin-top: var(--sp-4);
 }
 
 .preview {
@@ -1082,7 +1132,272 @@ textarea.input {
 }
 
 .history-delta.negative {
-  color: var(--color-danger);
+  color: var(--color-fg-secondary);
+}
+
+/* A history row that opens the completion sheet. */
+button.history-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-row.cancelled .history-name {
+  color: var(--color-fg-tertiary);
+  text-decoration: line-through;
+}
+
+.history-row.cancelled .history-delta {
+  color: var(--color-fg-tertiary);
+}
+
+.history-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.history-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.history-badges .badge {
+  margin: 0;
+}
+
+.badge-muted {
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-secondary);
+}
+
+/* ---------- Actions card (skill screen) ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 calc(-1 * var(--sp-1));
+}
+
+.section-head .section-title {
+  margin: 0 var(--sp-1);
+  padding: 0;
+}
+
+.section-head .text-button {
+  min-height: 32px;
+  margin-right: calc(-1 * var(--sp-2));
+  font-size: 15px;
+}
+
+.actions-card {
+  overflow: hidden;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding: 6px var(--sp-2) 6px var(--card-padding);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.step-row {
+  padding-right: var(--sp-3);
+}
+
+.step-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.step-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-row-meta {
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.step-row-chevron {
+  flex: none;
+  color: var(--color-fg-tertiary);
+}
+
+.check-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  padding: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: 50%;
+  background: none;
+  color: var(--color-fg-tertiary);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.check-button:active {
+  transform: scale(0.9);
+}
+
+.check-button.done {
+  border-color: var(--color-positive);
+  background: var(--color-positive);
+  color: #fff;
+  animation: check-pop var(--dur-slow) var(--ease-spring);
+}
+
+.check-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@keyframes check-pop {
+  from {
+    transform: scale(0.7);
+  }
+}
+
+html[data-motion='reduced'] .check-button.done {
+  animation: none;
+}
+
+.ghost-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--row-min-height);
+  padding: 0 var(--card-padding);
+  border-top: 0.5px solid var(--color-border);
+  color: var(--color-link);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.actions-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--card-padding);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a.chip {
+  text-decoration: none;
+}
+
+.actions-all-hidden {
+  margin: 0;
+  padding: var(--card-padding);
+}
+
+.hidden-steps {
+  border-top: 0.5px solid var(--color-border);
+}
+
+.hidden-steps summary {
+  padding: 0 var(--card-padding);
+}
+
+.hidden-steps .list {
+  border-top: 0.5px solid var(--color-border);
+}
+
+.backdate-link {
+  align-self: center;
+  gap: 6px;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+/* ---------- Disclosure (<details>) ---------- */
+
+.disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: var(--tap-target);
+  color: var(--color-link);
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-chevron {
+  flex: none;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.disclosure[open] > summary .disclosure-chevron {
+  transform: rotate(180deg);
+}
+
+.disclosure-body {
+  padding-top: var(--sp-2);
+}
+
+/* ---------- Completion sheet ---------- */
+
+.sheet.completion-sheet {
+  max-height: 85vh;
+  max-height: 85dvh;
+}
+
+.completion-meta {
+  margin-bottom: var(--sp-3);
+}
+
+.completion-note {
+  margin-top: var(--sp-1);
+}
+
+.note-input {
+  line-height: 1.35;
+  overflow-y: auto;
+}
+
+.note-counter {
+  align-self: flex-end;
 }
 
 /* ---------- Add action ---------- */

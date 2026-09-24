@@ -9,9 +9,12 @@ export function setClock(fn: (() => Date) | null): void {
   lastNow = 0;
 }
 
-function now(): Date {
+/** The current time from the injectable clock. */
+export function nowDate(): Date {
   return clock ? clock() : new Date();
 }
+
+const now = nowDate;
 
 /** Local calendar date as YYYY-MM-DD, using the device time zone (FR-TD-006). */
 export function localDate(date: Date = now()): string {

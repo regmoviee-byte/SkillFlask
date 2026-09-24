@@ -48,6 +48,7 @@ function Shell() {
               <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
               <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
               <Route path="/steps/new" element={<StepFormScreen />} />
+              <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
               <Route path="/achievements" element={<AchievementsScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />
               <Route path="/todo" element={<Navigate to="/today" replace />} />

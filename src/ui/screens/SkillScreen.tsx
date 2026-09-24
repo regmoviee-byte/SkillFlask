@@ -3,17 +3,21 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillDetails, type HistoryEntry, type SkillDetails } from '../../services/queries';
 import { completeSkill, continueAfterMilestone } from '../../services/skills';
+import { setStepActive } from '../../services/steps';
 import { canCompleteSkill } from '../../domain/milestone';
 import { formatDate } from '../../lib/dates';
 import { formatDelta, formatNumber } from '../../lib/format';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
+import { errorMessage } from '../completionFeedback';
 import { Flask } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
+import { StepRow } from '../components/StepRow';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { CompletionSheet } from '../sheets/CompletionSheet';
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -44,7 +48,16 @@ export function SkillScreen() {
           </Link>
         )
       }
-      primary={skill && active ? { text: t.addAction, onClick: () => navigate(`/skills/${skill.id}/add`) } : undefined}
+      // With actions on screen the ✓ is the main path; the bottom button only starts the first
+      // one, or a new one when every action was taken off the list.
+      primary={
+        skill && active && details.steps.length === 0
+          ? {
+              text: details.hiddenSteps.length > 0 ? t.newAction : t.firstAction,
+              onClick: () => navigate(`/steps/new?skill=${skill.id}`),
+            }
+          : undefined
+      }
     >
       <Skeleton layout="skill" loading={details === undefined}>
         {details && <SkillContent details={details} />}
@@ -58,6 +71,7 @@ function SkillContent({ details }: { details: SkillDetails }) {
   const active = skill.status === 'ACTIVE';
   const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
   const t = copy.skill;
+  const [openCompletion, setOpenCompletion] = useState<string | null>(null);
 
   return (
     <>
@@ -78,6 +92,8 @@ function SkillContent({ details }: { details: SkillDetails }) {
         </div>
       </section>
 
+      <ActionsCard details={details} />
+
       <MilestoneCard details={details} />
 
       <section>
@@ -87,12 +103,120 @@ function SkillContent({ details }: { details: SkillDetails }) {
         ) : (
           <ul className="card list">
             {details.history.map((entry) => (
-              <HistoryRow key={entry.transaction.id} entry={entry} />
+              <HistoryRow key={entry.transaction.id} entry={entry} onOpen={setOpenCompletion} />
             ))}
           </ul>
         )}
       </section>
+
+      <CompletionSheet completionId={openCompletion} onClose={() => setOpenCompletion(null)} />
     </>
+  );
+}
+
+function ActionsCard({ details: { skill, steps, hiddenSteps, todayCounts } }: { details: SkillDetails }) {
+  const t = copy.skill;
+  const [editing, setEditing] = useState(false);
+  const { showToast } = useToast();
+  const active = skill.status === 'ACTIVE';
+  if (!active && steps.length === 0) return null;
+  // With every action taken off the list there is nothing to edit: the hidden ones show openly.
+  const allHidden = active && steps.length === 0 && hiddenSteps.length > 0;
+  const canEdit = active && steps.length > 0;
+  const isEditing = canEdit && editing;
+  const newStep = `/steps/new?skill=${skill.id}`;
+
+  async function unhide(stepId: string) {
+    try {
+      await setStepActive(stepId, true);
+      haptics.success();
+      showToast(t.unhidden);
+    } catch (error) {
+      haptics.error();
+      showToast(errorMessage(error));
+    }
+  }
+
+  return (
+    <section className="actions">
+      <div className="section-head">
+        <h2 className="section-title">{t.actions}</h2>
+        {canEdit && (
+          <button
+            type="button"
+            className="text-button"
+            aria-pressed={isEditing}
+            onClick={() => {
+              haptics.select();
+              setEditing(!isEditing);
+            }}
+          >
+            {isEditing ? t.actionsDone : t.actionsEdit}
+          </button>
+        )}
+      </div>
+      <div className="card actions-card">
+        {allHidden ? (
+          <p className="actions-all-hidden hint">{t.allHidden}</p>
+        ) : steps.length === 0 ? (
+          <div className="actions-empty">
+            <p>{t.actionsIntro}</p>
+            <ul className="chips" aria-label={t.examplesLabel}>
+              {t.examples.map((example) => (
+                <li key={example.name}>
+                  <Link
+                    className="chip"
+                    to={`${newStep}&name=${encodeURIComponent(example.name)}&points=${example.points}`}
+                    onClick={() => haptics.tap()}
+                  >
+                    {t.exampleChip(example.name, example.points)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <ul className="list">
+            {steps.map((step) => (
+              <StepRow key={step.id} step={step} skill={skill} todayCount={todayCounts[step.id] ?? 0} mode={isEditing ? 'edit' : 'complete'} />
+            ))}
+          </ul>
+        )}
+        {active && steps.length > 0 && (
+          <Link to={newStep} className="ghost-row pressable-row">
+            <Icon name="plus" size={20} />
+            {t.newAction}
+          </Link>
+        )}
+        {(isEditing || allHidden) && hiddenSteps.length > 0 && (
+          <details className="disclosure hidden-steps" open={allHidden || undefined}>
+            <summary>
+              {t.hiddenSteps(hiddenSteps.length)}
+              <Icon name="chevron-down" size={18} className="disclosure-chevron" />
+            </summary>
+            <ul className="list">
+              {hiddenSteps.map((step) => (
+                <li key={step.id} className="step-row">
+                  <span className="step-row-main">
+                    <span className="step-row-name">{step.name}</span>
+                    <span className="step-row-meta">{copy.stepRow.meta(step.points, 0)}</span>
+                  </span>
+                  <button type="button" className="text-button" onClick={() => unhide(step.id)}>
+                    {t.unhide}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+      {active && steps.length > 0 && (
+        <Link to={`/skills/${skill.id}/add`} className="text-button backdate-link">
+          <Icon name="calendar" size={18} />
+          {t.backdate}
+        </Link>
+      )}
+    </section>
   );
 }
 
@@ -189,25 +313,52 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
   );
 }
 
-function HistoryRow({ entry }: { entry: HistoryEntry }) {
+function HistoryRow({ entry, onOpen }: { entry: HistoryEntry; onOpen(completionId: string): void }) {
   const { transaction, completion, after, levelChange } = entry;
   const t = copy.history;
-  return (
-    <li className="history-row">
-      <div className="history-main">
-        <span className="history-name">{completion?.stepName ?? t.correction}</span>
+  const isCompletion = transaction.reason === 'COMPLETION';
+  const cancelled = isCompletion && completion?.status === 'CANCELLED';
+  const name = !completion
+    ? t.correction
+    : transaction.reason === 'CANCELLATION'
+      ? t.cancellationOf(completion.stepName)
+      : transaction.reason === 'RESTORE'
+        ? t.restoreOf(completion.stepName)
+        : transaction.reason === 'CORRECTION'
+          ? t.correctionOf(completion.stepName)
+          : completion.stepName;
+  // The completion row carries the day it was done; later rows the day they were written.
+  const date = isCompletion && completion ? completion.date : transaction.createdAt;
+
+  const content = (
+    <>
+      <span className="history-main">
+        <span className="history-name">{name}</span>
         <span className="hint small">
-          {completion ? formatDate(completion.date) : formatDate(transaction.createdAt)} ·{' '}
-          {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
+          {formatDate(date)} · {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
         </span>
-        {levelChange > 0 && (
-          <span className="badge badge-level">
-            {levelChange === 1 ? t.flaskFilledBadge(after.completedFlasks) : t.flasksFilledBadge(levelChange)}
+        {isCompletion && completion?.note && <span className="history-note">{completion.note}</span>}
+        {(cancelled || levelChange !== 0) && (
+          <span className="history-badges">
+            {cancelled && <span className="badge badge-muted">{t.cancelledBadge}</span>}
+            {levelChange > 0 && (
+              <span className="badge">{levelChange === 1 ? t.flaskFilledBadge(after.completedFlasks) : t.flasksFilledBadge(levelChange)}</span>
+            )}
+            {levelChange < 0 && <span className="badge badge-muted">{t.flaskRollbackBadge(after.currentFlask)}</span>}
           </span>
         )}
-        {levelChange < 0 && <span className="badge">{t.flaskRollbackBadge(after.currentFlask)}</span>}
-      </div>
+      </span>
       <span className={`history-delta${transaction.delta < 0 ? ' negative' : ''}`}>{formatDelta(transaction.delta)}</span>
+    </>
+  );
+
+  const className = `history-row${cancelled ? ' cancelled' : ''}`;
+  if (!completion) return <li className={className}>{content}</li>;
+  return (
+    <li>
+      <button type="button" className={`${className} pressable-row`} onClick={() => onOpen(completion.id)}>
+        {content}
+      </button>
     </li>
   );
 }

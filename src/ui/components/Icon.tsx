@@ -16,6 +16,7 @@ const STROKE: Record<string, string> = {
   'chevron-left': 'M15 5l-7 7 7 7',
   'chevron-right': 'M9 5l7 7-7 7',
   'chevron-down': 'M5 9l7 7 7-7',
+  'arrow-right': 'M5 12h14M13 6l6 6-6 6',
   check: 'M5 12.5l4.5 4.5L19 7',
   calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',

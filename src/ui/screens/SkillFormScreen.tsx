@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillFormData } from '../../services/queries';
 import { createSkill, deleteSkill, updateSkill, ValidationError, type SkillInput } from '../../services/skills';
@@ -9,6 +9,7 @@ import { formatNumber } from '../../lib/format';
 import { useUnsavedGuard } from '../../platform/buttons';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
+import { Icon } from '../components/Icon';
 import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
@@ -62,8 +63,23 @@ function toInput(form: FormState): SkillInput {
   };
 }
 
+/** `?template=english` on /skills/new: a filled-in example the user only has to confirm. */
+function templateForm(name: string | null): FormState {
+  if (name !== 'english') return emptyForm;
+  const template = t.templates.english;
+  return {
+    ...emptyForm,
+    name: template.name,
+    startLabel: template.startLabel,
+    targetLabel: template.targetLabel,
+    milestoneName: template.milestoneName,
+    milestoneTarget: String(template.milestoneTarget),
+  };
+}
+
 export function SkillFormScreen() {
   const { skillId } = useParams();
+  const [params] = useSearchParams();
   const editing = skillId !== undefined;
   const existing = useLiveQuery(async () => (skillId ? getSkillFormData(skillId) : null), [skillId]);
 
@@ -90,12 +106,14 @@ export function SkillFormScreen() {
       }
     : editing
       ? undefined
-      : emptyForm;
+      : templateForm(params.get('template'));
+  // Capacities re-interpret the whole journal; they stay fixed once a skill left the active state.
+  const capacityLocked = existing ? existing.skill.status !== 'ACTIVE' : false;
 
-  return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} />;
+  return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} capacityLocked={capacityLocked} />;
 }
 
-function SkillForm({ skillId, initial }: { skillId: string | undefined; initial: FormState | undefined }) {
+function SkillForm({ skillId, initial, capacityLocked }: { skillId: string | undefined; initial: FormState | undefined; capacityLocked: boolean }) {
   // The form is the loaded values plus the user's edits, so it can mount (and keep its
   // skeleton mounted) before the values arrive; nothing can be typed while they are hidden.
   const [edits, setEdits] = useState<Partial<FormState>>({});
@@ -168,79 +186,97 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
       primary={loading ? undefined : { text: skillId ? copy.common.save : t.create, onClick: () => formRef.current?.requestSubmit(), loading: busy }}
     >
       <Skeleton layout="form" loading={loading}>
-        <form id="skill-form" className="form" ref={formRef} onSubmit={submit}>
+        {/* noValidate: a required field may sit inside the closed disclosure, where the browser
+            cannot show its bubble; the service validates and the error shows under the form. */}
+        <form id="skill-form" className="form" ref={formRef} onSubmit={submit} noValidate>
           <label className="field">
             <span className="field-label">{t.name}</span>
             <input className="input" value={form.name} onChange={set('name')} placeholder={t.namePlaceholder} maxLength={100} required />
           </label>
-          <label className="field">
-            <span className="field-label">{t.description}</span>
-            <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder={copy.common.optional} />
-          </label>
-          <div className="field-row">
+          <div className="field-row labels-row">
             <label className="field">
               <span className="field-label">{t.startLabel}</span>
               <input className="input" value={form.startLabel} onChange={set('startLabel')} placeholder={t.startPlaceholder} maxLength={40} />
             </label>
+            <Icon name="arrow-right" size={20} className="labels-arrow" />
             <label className="field">
               <span className="field-label">{t.targetLabel}</span>
               <input className="input" value={form.targetLabel} onChange={set('targetLabel')} placeholder={t.targetPlaceholder} maxLength={40} />
             </label>
           </div>
-
-          <h2 className="section-title">{t.milestoneSection}</h2>
-          <div className="field-row">
-            <label className="field field-grow">
-              <span className="field-label">{t.milestoneName}</span>
-              <input
-                className="input"
-                value={form.milestoneName}
-                onChange={set('milestoneName')}
-                placeholder={t.defaultMilestoneName(form.targetLabel.trim())}
-                maxLength={100}
-              />
-            </label>
-            <label className="field field-narrow">
-              <span className="field-label">{t.milestoneFlasks}</span>
-              <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
-            </label>
-          </div>
-
-          <h2 className="section-title">{t.capacitySection}</h2>
-          <div className="field-row">
-            <label className="field">
-              <span className="field-label">{t.capacityBase}</span>
-              <input className="input" inputMode="numeric" value={form.capacityBase} onChange={digits('capacityBase')} required />
-            </label>
-            <label className="field">
-              <span className="field-label">{t.capacityIncrement}</span>
-              <input className="input" inputMode="numeric" value={form.capacityIncrement} onChange={digits('capacityIncrement')} required />
-            </label>
-          </div>
-          <div className="field">
-            <label className="field">
-              <span className="field-label">{t.manualCapacities}</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={form.manualCapacities}
-                onChange={set('manualCapacities')}
-                placeholder={t.manualPlaceholder}
-                aria-describedby="manual-capacities-hint"
-              />
-            </label>
-            <span id="manual-capacities-hint" className="hint small">
-              {t.manualHint}
-            </span>
-          </div>
           <CapacityPreview form={form} />
+
+          {/* Defaults live in the form state, so the skill can be created with this closed. */}
+          <details className="disclosure" open={skillId !== undefined}>
+            <summary>
+              {t.advanced}
+              <Icon name="chevron-down" size={18} className="disclosure-chevron" />
+            </summary>
+            <div className="disclosure-body form">
+              <label className="field">
+                <span className="field-label">{t.description}</span>
+                <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder={copy.common.optional} />
+              </label>
+
+              <h2 className="section-title">{t.milestoneSection}</h2>
+              <div className="field-row">
+                <label className="field field-grow">
+                  <span className="field-label">{t.milestoneName}</span>
+                  <input
+                    className="input"
+                    value={form.milestoneName}
+                    onChange={set('milestoneName')}
+                    placeholder={t.defaultMilestoneName(form.targetLabel.trim())}
+                    maxLength={100}
+                  />
+                </label>
+                <label className="field field-narrow">
+                  <span className="field-label">{t.milestoneFlasks}</span>
+                  <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
+                </label>
+              </div>
+
+              <h2 className="section-title">{t.capacitySection}</h2>
+              <fieldset className="fieldset form" disabled={capacityLocked} aria-describedby="capacity-hint">
+                <div className="field-row">
+                  <label className="field">
+                    <span className="field-label">{t.capacityBase}</span>
+                    <input className="input" inputMode="numeric" value={form.capacityBase} onChange={digits('capacityBase')} required />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">{t.capacityIncrement}</span>
+                    <input className="input" inputMode="numeric" value={form.capacityIncrement} onChange={digits('capacityIncrement')} required />
+                  </label>
+                </div>
+                <label className="field">
+                  <span className="field-label">{t.manualCapacities}</span>
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    value={form.manualCapacities}
+                    onChange={set('manualCapacities')}
+                    placeholder={t.manualPlaceholder}
+                    aria-describedby="manual-capacities-hint"
+                  />
+                  <span id="manual-capacities-hint" className="hint small field-hint">
+                    {t.manualHint}
+                  </span>
+                </label>
+              </fieldset>
+              <p id="capacity-hint" className="hint small field-hint">
+                {t.capacityHint}
+              </p>
+            </div>
+          </details>
 
           {error && <p className="error">{error}</p>}
 
           {skillId && (
-            <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
-              {t.remove}
-            </button>
+            <div className="danger-zone">
+              <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
+                {t.remove}
+              </button>
+            </div>
           )}
         </form>
       </Skeleton>
@@ -248,6 +284,7 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
   );
 }
 
+/** «Веха: 10 колб · 100 · 150 · … · 550 · всего 3 250 очков», always visible under the labels. */
 function CapacityPreview({ form }: { form: FormState }) {
   const manual = parseManual(form.manualCapacities);
   const base = Number(form.capacityBase);
@@ -256,15 +293,9 @@ function CapacityPreview({ form }: { form: FormState }) {
   if (!manual || !(base > 0) || !(target > 0)) return null;
 
   const config = { base, increment, manual };
-  const shown = Math.min(target, 5);
+  const shown = Math.min(target, 3);
   const capacities = Array.from({ length: shown }, (_, i) => formatNumber(flaskCapacity(i + 1, config)));
   if (target > shown) capacities.push('…', formatNumber(flaskCapacity(target, config)));
 
-  return (
-    <p className="preview">
-      {capacities.join(' · ')}
-      <br />
-      <span className="hint">{t.preview(target, pointsToFill(target, config))}</span>
-    </p>
-  );
+  return <p className="preview">{t.preview(target, capacities.join(' · '), pointsToFill(target, config))}</p>;
 }

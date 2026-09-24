@@ -87,7 +87,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastState; onDismiss(): void 
 
   return (
     <div
-      className={`toast${hasTabBar ? ' above-tab-bar' : aboveFooter ? ' above-footer' : ''}`}
+      className={`toast${toast.action ? ' has-action' : ''}${hasTabBar ? ' above-tab-bar' : aboveFooter ? ' above-footer' : ''}`}
       style={aboveFooter && footerHeight > 0 ? { bottom: `calc(var(--kb) + ${footerHeight}px + var(--sp-4))` } : undefined}
       role="status"
       onClick={onDismiss}

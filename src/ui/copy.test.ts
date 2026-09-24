@@ -53,9 +53,23 @@ describe('copy dictionary', () => {
     expect([...loud].sort()).toEqual(['copy.toast.milestoneReached', 'copy.toast.skillCompleted']);
   });
 
-  it('names every flask a single completion filled', () => {
-    expect(copy.toast.flaskFilled(5, 2)).toBe('+5 · Колба 1 заполнена, теперь колба 2');
-    expect(copy.toast.flaskFilled(35, 3, 2)).toBe('+35 · Заполнено колб: 2, теперь колба 3');
+  it('names the filled flask and the carried remainder', () => {
+    expect(copy.toast.flaskFilled(1, 1)).toBe('Колба 1 заполнена · остаток 1 очко');
+    expect(copy.toast.flaskFilled(2, 5, 2)).toBe('Заполнено колб: 2 · остаток 5 очков');
+    expect(copy.toast.flaskFilled(2, 0)).toBe('Колба 2 заполнена');
+  });
+
+  it('describes a completion toast and its undo', () => {
+    expect(copy.completion.added(5, 'Чтение')).toBe('+5 · Чтение');
+    expect(copy.completion.cancelled(1, 96, 100)).toBe('Отменено · Колба 1: 96/100');
+    expect(copy.stepRow.meta(5, 0)).toBe('+5');
+    expect(copy.stepRow.meta(5, 2)).toBe('+5 · сегодня ×2');
+    expect(copy.stepRow.check('Чтение', 5)).toBe('Отметить: Чтение, +5 очков');
+  });
+
+  it('never calls a level rollback a demotion in toasts', () => {
+    const toasts = strings.filter(([path]) => path.startsWith('copy.toast') || path.startsWith('copy.completion'));
+    expect(toasts.filter(([, text]) => /понижен/i.test(text))).toEqual([]);
   });
 
   it('is frozen', () => {

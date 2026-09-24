@@ -1,4 +1,5 @@
 import { db } from '../data/db';
+import { localDate } from '../lib/dates';
 import { buildTimeline, compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress, type TimelineEntry } from '../domain/progression';
 import type { Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 
@@ -17,7 +18,14 @@ export interface HistoryEntry extends TimelineEntry<PointTransaction> {
 
 export interface SkillDetails extends SkillSummary {
   config: CapacityConfig;
+  /** Active steps, oldest first. */
   steps: StepDefinition[];
+  /** Steps removed from the list («Убранные действия»), most recently changed first. */
+  hiddenSteps: StepDefinition[];
+  /** ACTIVE completions dated today, per active step id (steps without any are absent). */
+  todayCounts: Record<string, number>;
+  /** Local date of the latest ACTIVE completion per step id (active and hidden), null without one. */
+  lastDoneAt: Record<string, string | null>;
   /** Newest first. */
   history: HistoryEntry[];
 }
@@ -68,6 +76,23 @@ export async function getSkillDetails(id: string): Promise<SkillDetails | null> 
         db.completions.where('skillId').equals(id).toArray(),
         db.transactions.where('skillId').equals(id).toArray(),
       ]);
+      const activeSteps = steps.filter((s) => s.isActive).sort(byCreatedAt);
+      const today = localDate();
+      const doneToday = activeSteps.length
+        ? await db.completions
+            .where('[stepId+date]')
+            .anyOf(activeSteps.map((s) => [s.id, today]))
+            .filter((c) => c.status === 'ACTIVE')
+            .toArray()
+        : [];
+      const todayCounts: Record<string, number> = {};
+      for (const c of doneToday) todayCounts[c.stepId] = (todayCounts[c.stepId] ?? 0) + 1;
+      const lastDoneAt: Record<string, string | null> = Object.fromEntries(steps.map((s) => [s.id, null]));
+      for (const c of completions) {
+        const last = lastDoneAt[c.stepId];
+        if (c.status === 'ACTIVE' && (last == null || c.date > last)) lastDoneAt[c.stepId] = c.date;
+      }
+
       const config = configOf(skill, thresholds.map((t) => t.requiredPoints));
       const completionById = new Map(completions.map((c) => [c.id, c]));
       const timeline = buildTimeline(transactions.sort(compareJournalOrder), config);
@@ -76,7 +101,10 @@ export async function getSkillDetails(id: string): Promise<SkillDetails | null> 
         milestone,
         config,
         progress: timeline.at(-1)?.after ?? computeProgress(0, config),
-        steps: steps.filter((s) => s.isActive).sort(byCreatedAt),
+        steps: activeSteps,
+        hiddenSteps: steps.filter((s) => !s.isActive).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)),
+        todayCounts,
+        lastDoneAt,
         history: timeline
           .map((entry) => ({
             ...entry,

@@ -20,6 +20,8 @@ export interface SheetProps {
   ariaLabel?: string;
   /** Receives the user-style close (pops history first); ContextSheet closes itself with it. */
   closeRef?: MutableRefObject<() => void>;
+  /** Extra class on the sheet surface. */
+  className?: string;
 }
 
 const EXIT_MS = 260;
@@ -154,7 +156,7 @@ interface Drag {
   fromBody: boolean;
 }
 
-export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef, className }: SheetProps) {
   const id = useId();
   const titleId = `${id}-title`;
   const bodyId = `${id}-body`;
@@ -348,7 +350,7 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
       <div className="sheet-scrim" data-state={state} onClick={dismissible ? requestClose : undefined} />
       <div
         ref={sheetRef}
-        className={`sheet${height === 'full' ? ' is-full' : ''}`}
+        className={`sheet${height === 'full' ? ' is-full' : ''}${className ? ` ${className}` : ''}`}
         data-state={state}
         data-sheet-id={id}
         role="dialog"

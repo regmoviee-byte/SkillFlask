@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillDetails } from '../../services/queries';
-import { completeStep } from '../../services/skills';
+import { completeStep } from '../../services/completions';
 import { localDate } from '../../lib/dates';
 import { haptics } from '../../platform/haptics';
+import { announceCompletion, errorMessage } from '../completionFeedback';
 import { EmptyState } from '../components/EmptyState';
 import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
@@ -34,7 +35,7 @@ export function AddActionScreen() {
   const selectedStep = steps.find((step) => step.id === selected);
   // The step form replaces this entry and, on success, replaces itself with this screen again
   // (step pre-selected), so history never holds two "add" entries.
-  const createNew = () => navigate(`/steps/new?skill=${skillId}`, { replace: true });
+  const createNew = () => navigate(`/steps/new?skill=${skillId}&from=add`, { replace: true });
 
   async function submit() {
     if (!selectedStep) return;
@@ -42,20 +43,12 @@ export function AddActionScreen() {
     setError(null);
     try {
       const result = await completeStep(selectedStep.id, { date });
-      if (result.milestoneReached) haptics.milestone();
-      else if (result.levelChange > 0) haptics.levelUp(result.levelChange);
-      else haptics.success();
-      showToast(
-        result.milestoneReached
-          ? copy.toast.milestoneReached(result.pointsAwarded)
-          : result.levelChange > 0
-            ? copy.toast.flaskFilled(result.pointsAwarded, result.after.currentFlask, result.levelChange)
-            : copy.toast.pointsAdded(result.pointsAwarded),
-      );
+      // The toast carries «Отменить» and outlives the navigation back to the skill.
+      announceCompletion(result, selectedStep.name, showToast);
       goBack();
     } catch (e) {
       haptics.error();
-      setError(e instanceof Error ? e.message : copy.errors.save);
+      setError(errorMessage(e));
       setBusy(false);
     }
   }
@@ -65,7 +58,8 @@ export function AddActionScreen() {
       title={t.title}
       back={back}
       primary={steps.length > 0 ? { text: t.submit, onClick: submit, disabled: !selectedStep, loading: busy } : undefined}
-      secondary={available ? { text: t.createNew, onClick: createNew, disabled: busy } : undefined}
+      // 'bottom': stacked under the MainButton as in the HTML footer; side by side both labels truncate.
+      secondary={available ? { text: t.createNew, onClick: createNew, disabled: busy, position: 'bottom' } : undefined}
     >
       <Skeleton layout="form" loading={loading}>
         {!available ? (

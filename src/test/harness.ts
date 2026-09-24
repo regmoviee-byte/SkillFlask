@@ -26,10 +26,28 @@ export function installFreshDb(): void {
   });
 }
 
-/** Runs `fn` with the clock frozen at `iso` (nowIso still increases by 1 ms per call). */
-export async function withClock<T>(iso: string, fn: () => Promise<T>): Promise<T> {
+/**
+ * A clock that starts at `iso` and moves `stepMs` forward on every read. Journal writes of
+ * the same step then sit further apart than the double-submit window of completeStep.
+ */
+export function tickingClock(iso: string, stepMs = 2000): () => Date {
+  let t = new Date(iso).getTime() - stepMs;
+  return () => new Date((t += stepMs));
+}
+
+/** Local noon of today (real clock), as an ISO string without zone: a safe start for tickingClock. */
+export function todayNoon(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T12:00:00`;
+}
+
+/**
+ * Runs `fn` with the clock frozen at `iso` (nowIso still increases by 1 ms per call), or
+ * ticking by `stepMs` per read when given.
+ */
+export async function withClock<T>(iso: string, fn: () => Promise<T>, stepMs = 0): Promise<T> {
   const fixed = new Date(iso);
-  setClock(() => fixed);
+  setClock(stepMs > 0 ? tickingClock(iso, stepMs) : () => fixed);
   try {
     return await fn();
   } finally {

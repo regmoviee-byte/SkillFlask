@@ -3,7 +3,9 @@
 
 import { setClock } from '../lib/clock';
 import { addDays, localDate } from '../lib/dates';
-import { completeStep, createSkill, createStep, type SkillInput } from '../services/skills';
+import { completeStep } from '../services/completions';
+import { createSkill, type SkillInput } from '../services/skills';
+import { createStep } from '../services/steps';
 
 export interface SeedOptions {
   /** How many past days to fill, ending today. */
@@ -94,8 +96,11 @@ export async function seedDemoData({ days = 45, seed = 7 }: SeedOptions = {}): P
   const stepIds: string[] = [];
   let completions = 0;
 
-  const at = (date: string, hour: number, minute: number) => {
-    const fixed = new Date(`${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  // The seconds keep completions of one day apart even when two land on the same minute:
+  // completeStep treats the same step twice within 1.5 s as a double submit.
+  const at = (date: string, hour: number, minute: number, second = 0) => {
+    const fixed = new Date(`${date}T${pad(hour)}:${pad(minute)}:${pad(second)}`);
     setClock(() => fixed);
   };
 
@@ -112,7 +117,7 @@ export async function seedDemoData({ days = 45, seed = 7 }: SeedOptions = {}): P
       if (random() > 0.6) continue;
       const count = 1 + Math.floor(random() * 4);
       for (let k = 0; k < count; k++) {
-        at(date, 8 + Math.floor(random() * 13), Math.floor(random() * 60));
+        at(date, 8 + Math.floor(random() * 13), Math.floor(random() * 60), k * 5);
         await completeStep(stepIds[Math.floor(random() * stepIds.length)], { date });
         completions += 1;
       }
