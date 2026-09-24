@@ -181,9 +181,10 @@ async function runSave(auto: boolean, overwrite: boolean): Promise<CloudMeta | n
   try {
     const file = await exportBackup();
     // An emptied journal (all skills deleted, a wipe that kept the cloud copy) never
-    // overwrites the copy automatically; «Сохранить сейчас» still can.
+    // overwrites the copy automatically; «Сохранить сейчас» still can. The status stays
+    // «Есть несохранённые изменения»: the cloud no longer matches the device.
     if (auto && file.tables.skills.length === 0) {
-      update({ state: pending ? 'dirty' : idleState() });
+      update({ state: 'dirty' });
       return null;
     }
     const meta = await saveBackupToCloud(file, {

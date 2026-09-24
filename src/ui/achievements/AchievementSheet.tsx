@@ -38,7 +38,7 @@ function Details({ state, skillName }: { state: AchievementState; skillName: str
       </section>
       <div className="ach-progress">
         <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={state.target} aria-valuenow={state.current} aria-label={t.progress(state.current, state.target)}>
-          <div className={`bar-fill${state.unlocked ? ' is-done' : ''}`} style={{ width: `${Math.round(ratio * 100)}%` }} />
+          <div className={`bar-fill${state.unlocked ? ` is-done rarity--${def.rarity.toLowerCase()}` : ''}`} style={{ width: `${Math.round(ratio * 100)}%` }} />
         </div>
         <span className="t-caption">{t.progress(state.current, state.target)}</span>
       </div>

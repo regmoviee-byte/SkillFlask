@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatDateTime, formatDateTimeRelative } from '../../lib/dates';
@@ -18,7 +18,7 @@ import {
 import { exportToFile, fileBackupReminder } from '../../services/exportFile';
 import { CloudConflictError } from '../../platform/cloud';
 import { dialogs } from '../../platform/dialogs';
-import { clearErrors, getErrors, type LoggedError } from '../../platform/errorLog';
+import { clearErrors, getErrors, onErrorsChange, type LoggedError } from '../../platform/errorLog';
 import { haptics, isHapticsEnabled, setHapticsEnabled } from '../../platform/haptics';
 import { isTelegram } from '../../platform/telegram';
 import { errorMessage } from '../completionFeedback';
@@ -79,10 +79,16 @@ export function SettingsScreen() {
   const [errors, setErrors] = useState<LoggedError[]>(getErrors);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  // Set synchronously on the first tap: the busy state lands a render later, too late for a
+  // fast double tap, and a confirm the handler waits for counts as busy too.
+  const busyRef = useRef(false);
 
   useEffect(() => {
     if (cloudReady) void refreshCloudMeta();
   }, [cloudReady]);
+
+  // An error logged while Settings is open (a failed cloud save) shows up in «Ошибки (n)».
+  useEffect(() => onErrorsChange(() => setErrors(getErrors())), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,8 +101,18 @@ export function SettingsScreen() {
     };
   }, []);
 
+  /** Runs a handler unless another one is still going; the handler starts synchronously. */
+  async function guarded(handler: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      await handler();
+    } finally {
+      busyRef.current = false;
+    }
+  }
+
   async function run(kind: Exclude<Busy, null>, action: () => Promise<void>) {
-    if (busy) return;
     setBusy(kind);
     try {
       await action();
@@ -111,93 +127,96 @@ export function SettingsScreen() {
   const confirmOverwrite = (remote: CloudStatus['remote']) =>
     dialogs.confirm(t.confirmCloudOverwrite(remote ? formatDateTime(remote.at) : null), { okLabel: t.cloudOverwriteOk, danger: true });
 
-  async function saveNow() {
-    if (busy) return;
-    // A copy another device wrote is replaced only after a confirmation; when the conflict is
-    // known already, ask right in the click handler.
-    let overwrite = false;
-    if (cloud.state === 'conflict') {
-      if (!(await confirmOverwrite(cloud.remote))) return;
-      overwrite = true;
-    }
-    await run('save', async () => {
-      try {
-        await cloudBackupNow({ overwrite });
-      } catch (error) {
-        if (!(error instanceof CloudConflictError)) throw error;
-        if (!(await confirmOverwrite(error.remote))) return;
-        await cloudBackupNow({ overwrite: true });
+  const saveNow = () =>
+    guarded(async () => {
+      // A copy another device wrote is replaced only after a confirmation; when the conflict is
+      // known already, ask right in the click handler.
+      let overwrite = false;
+      if (cloud.state === 'conflict') {
+        if (!(await confirmOverwrite(cloud.remote))) return;
+        overwrite = true;
       }
-      haptics.success();
-      showToast(t.cloudSavedToast);
+      await run('save', async () => {
+        try {
+          await cloudBackupNow({ overwrite });
+        } catch (error) {
+          if (!(error instanceof CloudConflictError)) throw error;
+          if (!(await confirmOverwrite(error.remote))) return;
+          await cloudBackupNow({ overwrite: true });
+        }
+        haptics.success();
+        showToast(t.cloudSavedToast);
+      });
     });
-  }
 
-  async function restoreFromCloud() {
-    if (busy || cloud.remote === null) return;
-    let remote: CloudStatus['remote'] = cloud.remote;
-    if (remote === undefined) {
-      // Reading the cloud failed (or is still running): try again, then go on if a copy is there.
-      remote = await refreshCloudMeta();
-      if (remote === null) showToast(t.cloudRemoteNone);
+  const restoreFromCloud = () =>
+    guarded(async () => {
+      if (cloud.remote === null) return;
+      let remote: CloudStatus['remote'] = cloud.remote;
       if (remote === undefined) {
-        haptics.error();
-        showToast(getCloudStatus().remoteError ?? t.cloudRemoteError);
+        // Reading the cloud failed (or is still running): try again, then go on if a copy is there.
+        remote = await refreshCloudMeta();
+        if (remote === null) showToast(t.cloudRemoteNone);
+        if (remote === undefined) {
+          haptics.error();
+          showToast(getCloudStatus().remoteError ?? t.cloudRemoteError);
+        }
+        if (!remote) return;
       }
-      if (!remote) return;
-    }
-    const ok = await dialogs.confirm(t.confirmCloudRestore(formatDateTime(remote.at)), { okLabel: t.replaceOk, danger: true });
-    if (!ok) return;
-    await run('restore', async () => {
-      await cloudRestore(remote);
-      haptics.success();
-      showToast(t.cloudRestored);
-      navigate('/skills');
+      const ok = await dialogs.confirm(t.confirmCloudRestore(formatDateTime(remote.at)), { okLabel: t.replaceOk, danger: true });
+      if (!ok) return;
+      await run('restore', async () => {
+        await cloudRestore(remote);
+        haptics.success();
+        showToast(t.cloudRestored);
+        navigate('/skills');
+      });
     });
-  }
 
-  async function deleteFromCloud() {
-    if (busy) return;
-    const ok = await dialogs.confirm(t.confirmCloudDelete, { okLabel: t.cloudDeleteOk, danger: true });
-    if (!ok) return;
-    await run('delete', async () => {
-      await cloudDelete({ disable: true });
-      haptics.warning();
-      showToast(t.cloudDeleted);
+  const deleteFromCloud = () =>
+    guarded(async () => {
+      const ok = await dialogs.confirm(t.confirmCloudDelete, { okLabel: t.cloudDeleteOk, danger: true });
+      if (!ok) return;
+      await run('delete', async () => {
+        await cloudDelete({ disable: true });
+        haptics.warning();
+        showToast(t.cloudDeleted);
+      });
     });
-  }
 
   const exportFile = () =>
-    run('export', async () => {
-      const outcome = await exportToFile();
-      if (outcome.kind === 'cancelled') return;
-      if (outcome.kind === 'text') {
-        setExportText(outcome.text);
-        return;
-      }
-      haptics.success();
-      if (outcome.kind === 'download') showToast(t.fileSaved);
-      else if (outcome.kind === 'share') showToast(t.fileShared);
-      else showToast(t.fileCopied(outcome.kb), { durationMs: 6000 });
-    });
+    guarded(() =>
+      run('export', async () => {
+        const outcome = await exportToFile();
+        if (outcome.kind === 'cancelled') return;
+        if (outcome.kind === 'text') {
+          setExportText(outcome.text);
+          return;
+        }
+        haptics.success();
+        if (outcome.kind === 'download') showToast(t.fileSaved);
+        else if (outcome.kind === 'share') showToast(t.fileShared);
+        else showToast(t.fileCopied(outcome.kb), { durationMs: 6000 });
+      }),
+    );
 
-  async function deleteEverything() {
-    if (busy) return;
-    const ok = await dialogs.confirm(t.confirmDeleteAll, { okLabel: t.deleteAllOk, danger: true });
-    if (!ok) return;
-    // A kept cloud copy is offered back on the next start (the wipe clears restoreOfferShown).
-    // Asked unless the cloud certainly holds nothing: a failed read may hide a copy.
-    const alsoCloud =
-      cloudReady && cloud.enabled && cloud.remote !== null
-        ? await dialogs.confirm(t.confirmDeleteCloud, { okLabel: t.deleteCloudOk, cancelLabel: t.keepCloud, danger: true })
-        : false;
-    await run('wipe', async () => {
-      await deleteAllData({ cloud: alsoCloud });
-      haptics.warning();
-      showToast(t.deletedAll);
-      navigate('/skills');
+  const deleteEverything = () =>
+    guarded(async () => {
+      const ok = await dialogs.confirm(t.confirmDeleteAll, { okLabel: t.deleteAllOk, danger: true });
+      if (!ok) return;
+      // A kept cloud copy is offered back on the next start (the wipe clears restoreOfferShown).
+      // Asked unless the cloud certainly holds nothing: a failed read may hide a copy.
+      const alsoCloud =
+        cloudReady && cloud.enabled && cloud.remote !== null
+          ? await dialogs.confirm(t.confirmDeleteCloud, { okLabel: t.deleteCloudOk, cancelLabel: t.keepCloud, danger: true })
+          : false;
+      await run('wipe', async () => {
+        await deleteAllData({ cloud: alsoCloud });
+        haptics.warning();
+        showToast(t.deletedAll);
+        navigate('/skills');
+      });
     });
-  }
 
   async function setMotion(reduced: boolean) {
     const next: MotionPreference = reduced ? 'reduced' : 'system';

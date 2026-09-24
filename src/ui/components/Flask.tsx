@@ -85,6 +85,23 @@ function captionYs(ys: number[]): number[] {
   return out;
 }
 
+/** Hero px per viewBox unit (the hero is 140 px wide, flask.css). */
+const HERO_SCALE = 140 / VIEW_W;
+const CAPTION_LINE = 16;
+const CAPTION_PAD_MIN = 4;
+/** Up to 44 px tall (the touch-target guideline) when no other caption is near. */
+const CAPTION_PAD_MAX = 14;
+
+/**
+ * Vertical padding of caption `i` in px: its tap area grows towards 44 px but never reaches
+ * over the text of the nearest caption.
+ */
+function captionPad(ys: number[], i: number): number {
+  const gaps = ys.filter((_, j) => j !== i).map((y) => Math.abs(y - ys[i]!) * HERO_SCALE);
+  const room = gaps.length ? Math.min(...gaps) - CAPTION_LINE : CAPTION_PAD_MAX;
+  return Math.round(Math.min(CAPTION_PAD_MAX, Math.max(CAPTION_PAD_MIN, room)));
+}
+
 export type FlaskState = 'empty' | 'active' | 'complete';
 
 export interface LevelUpOptions {
@@ -179,6 +196,8 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
   const targetRef = useRef(target);
   targetRef.current = target;
   const shown = override ?? target;
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
 
   const svgRef = useRef<SVGSVGElement>(null);
   const liquidRef = useRef<SVGGElement>(null);
@@ -265,9 +284,12 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           if (a) running.push(a);
           return a;
         };
+        // Overlapping celebrations: the stage may still show an earlier snapshot below
+        // `fromFill`; the rise starts from what is on screen instead of jumping up to it.
+        const start = Math.min(clamp(fromFill), shownRef.current);
         flushSync(() => {
           setScripted(true);
-          setOverride(clamp(fromFill));
+          setOverride(start);
         });
 
         try {
@@ -279,7 +301,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
             return;
           }
           const ease = easings();
-          let current = clamp(fromFill);
+          let current = start;
           const move = async (to: number, timing: PhaseTiming) => {
             const a = track(animate(liquid, [{ transform: offset(current) }, { transform: offset(to) }], { duration: timing.duration, easing: ease[timing.easing], fill: 'forwards' }));
             current = to;
@@ -470,7 +492,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           key={mark.id}
           type="button"
           className="flask-mark-caption"
-          style={{ left: `${(CAPTION_X / VIEW_W) * 100}%`, top: `${(captionY[i]! / VIEW_H) * 100}%` }}
+          style={{ left: `${(CAPTION_X / VIEW_W) * 100}%`, top: `${(captionY[i]! / VIEW_H) * 100}%`, paddingBlock: captionPad(captionY, i) }}
           aria-label={copy.marks.onFlask(mark.label)}
           onClick={onMarkTap ? () => onMarkTap(mark.id) : undefined}
         >

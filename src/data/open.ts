@@ -7,6 +7,17 @@ export type OpenResult =
 
 export const PREMIGRATION_KEY = 'sf_premigration_v1';
 
+/** Set after the first successful open at the current schema: a v1 database cannot come back. */
+const openedKey = (name: string) => `sf_opened_${name}`;
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export const openMessages = {
   version: 'Данные созданы более новой версией приложения. Обновите приложение или восстановите резервную копию.',
   quota: 'Недостаточно места на устройстве',
@@ -65,7 +76,8 @@ function onVersionChange(): false {
  */
 export async function openDb(onClosed?: (message: string) => void): Promise<OpenResult> {
   try {
-    const snapshot = await snapshotV1(db.name);
+    // The probe costs two extra IndexedDB opens, so it only runs until the first good open.
+    const snapshot = readFlag(openedKey(db.name)) ? null : await snapshotV1(db.name);
     if (snapshot) {
       try {
         localStorage.setItem(PREMIGRATION_KEY, snapshot);
@@ -91,6 +103,11 @@ export async function openDb(onClosed?: (message: string) => void): Promise<Open
   if (db.backendDB().version / 10 > SCHEMA_VERSION) {
     db.close();
     return { ok: false, kind: 'version', message: openMessages.version };
+  }
+  try {
+    localStorage.setItem(openedKey(db.name), '1');
+  } catch {
+    // Without the flag the probe simply runs again next time.
   }
   return { ok: true };
 }

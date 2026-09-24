@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useScreenFooterHeight } from './Screen';
 import { useHasTabBar } from './TabBar';
@@ -7,6 +7,13 @@ import { useHasTabBar } from './TabBar';
 // («Отменить») keeps it on screen longer. Positioned above the tab bar when there is one.
 // Leaving the screen dismisses a plain toast (a skill-specific message would read as stale on
 // another screen); a toast with an action stays until it is used or times out.
+//
+// The toast floats over the bottom lane (thumb reach for «Отменить») and never moves content
+// under the finger. Two guards keep it from hiding what the user needs next: it never covers
+// the control that was just pressed or a section heading («История» right under the actions)
+// — it rises just above them instead, never past the middle of the screen — and while it is
+// shown the page end gets its height as extra room (--toast-room), so the last rows can
+// always be scrolled out from under it.
 
 export interface ToastOptions {
   action?: { label: string; onClick(): void };
@@ -21,6 +28,27 @@ const WITH_ACTION_MS = 6000;
 // A toast shown by the handler that also navigates («Навык удалён» → /skills) belongs to the
 // new screen: it lands in the same render as the route change and is kept.
 const SAME_NAVIGATION_MS = 100;
+/** A press this recent is what the toast answers (a write takes a moment on a slow phone). */
+const PRESS_MS = 2000;
+const GAP = 8;
+
+// The control pressed last, recorded for the toast that follows it.
+let lastPress: { el: Element; at: number } | null = null;
+
+function rememberPress(event: Event): void {
+  if (event.target instanceof Element) lastPress = { el: event.target, at: performance.now() };
+}
+
+/**
+ * The pressed control the toast must not cover: a recent press on the screen itself — not in
+ * a sheet (it is closing), the footer or the tab bar (the toast already sits above those).
+ */
+function pressedControl(toast: Element): Element | null {
+  if (!lastPress || performance.now() - lastPress.at > PRESS_MS || !lastPress.el.isConnected) return null;
+  const el = lastPress.el.closest('button, a, [role="button"], label') ?? lastPress.el;
+  if (toast.contains(el) || el.closest('.sheet, [role="dialog"], .screen-footer, .tab-bar')) return null;
+  return el;
+}
 
 interface ToastState extends ToastOptions {
   key: number;
@@ -61,6 +89,12 @@ export function ToastProvider({ children, routeKey }: { children: ReactNode; rou
   }, [routeKey]);
 
   useEffect(() => {
+    // Capture phase: recorded before the handler that shows the toast runs.
+    document.addEventListener('click', rememberPress, true);
+    return () => document.removeEventListener('click', rememberPress, true);
+  }, []);
+
+  useEffect(() => {
     globalShow = show;
     return () => {
       globalShow = () => {};
@@ -84,11 +118,45 @@ function ToastView({ toast, onDismiss }: { toast: ToastState; onDismiss(): void 
   const footerHeight = useScreenFooterHeight();
   const aboveFooter = !hasTabBar && footerHeight !== null;
   const startY = useRef<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  // Bottom offset (px) that lifts the toast above the control just pressed; null: its lane.
+  const [lift, setLift] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const root = document.documentElement;
+    root.style.setProperty('--toast-room', `${Math.ceil(rect.height + 2 * GAP)}px`);
+    const obstacles = [pressedControl(el), ...document.querySelectorAll('.screen-body .section-title')]
+      .filter((o): o is Element => o !== null)
+      .map((o) => o.getBoundingClientRect())
+      .filter((r) => r.height > 0);
+    // Rise above whatever sits in the lane, then check the new lane again.
+    let bottom = rect.bottom;
+    for (let moved = true; moved; ) {
+      moved = false;
+      for (const r of obstacles) {
+        if (r.top < bottom && r.bottom > bottom - rect.height - GAP) {
+          bottom = r.top - GAP;
+          moved = true;
+        }
+      }
+    }
+    // Only from the lower half of the screen: it never climbs over the flask.
+    if (bottom < rect.bottom && bottom - rect.height > window.innerHeight / 2) setLift(window.innerHeight - bottom);
+    return () => {
+      root.style.removeProperty('--toast-room');
+    };
+  }, []);
+
+  const offset = lift !== null ? `${lift}px` : aboveFooter && footerHeight > 0 ? `calc(var(--kb) + ${footerHeight}px + var(--sp-4))` : undefined;
 
   return (
     <div
+      ref={ref}
       className={`toast${toast.action ? ' has-action' : ''}${hasTabBar ? ' above-tab-bar' : aboveFooter ? ' above-footer' : ''}`}
-      style={aboveFooter && footerHeight > 0 ? { bottom: `calc(var(--kb) + ${footerHeight}px + var(--sp-4))` } : undefined}
+      style={offset ? { bottom: offset } : undefined}
       role="status"
       onClick={onDismiss}
       onTouchStart={(event) => {

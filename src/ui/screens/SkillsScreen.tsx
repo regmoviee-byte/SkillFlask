@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { SkillStatus } from '../../domain/types';
+import { formatNumber } from '../../lib/format';
 import { getHomeView, type HomeView } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
 import { EmptyState } from '../components/EmptyState';
@@ -26,8 +27,11 @@ const SEGMENTS: { status: SkillStatus; param: string; label: string }[] = [
   { status: 'ARCHIVED', param: 'archived', label: t.filterArchived },
 ];
 
-/** Filled flasks drawn in the «Заполнено» tile, at most. */
-const TILE_FLASKS = 5;
+/**
+ * Filled flasks drawn in the «Заполнено» tile, at most (four fit the tile on a 320 px phone).
+ * Past that, one fewer and «+N» for the rest: the picture always adds up to the number.
+ */
+const TILE_FLASKS = 4;
 
 export function SkillsScreen() {
   const today = useToday();
@@ -99,9 +103,10 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
           <TileNumber value={home.totalFlasks} caption={t.flasksCaption(home.totalFlasks)} />
           {home.totalFlasks > 0 && (
             <span className="tile-flasks" aria-hidden="true">
-              {Array.from({ length: Math.min(TILE_FLASKS, home.totalFlasks) }, (_, i) => (
+              {Array.from({ length: home.totalFlasks > TILE_FLASKS ? TILE_FLASKS - 1 : home.totalFlasks }, (_, i) => (
                 <Flask key={i} size="mini" fill={1} state="complete" />
               ))}
+              {home.totalFlasks > TILE_FLASKS && <span className="tile-flasks-more">+{formatNumber(home.totalFlasks - TILE_FLASKS + 1)}</span>}
             </span>
           )}
         </Tile>

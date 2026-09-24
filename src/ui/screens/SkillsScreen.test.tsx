@@ -59,6 +59,23 @@ describe('SkillsScreen', () => {
     expect(filterGroup()).toBeNull();
   });
 
+  it('draws the filled flasks so that the picture adds up to the number', async () => {
+    const id = await createSkill(input('Английский', 10));
+    const step = await createStep({ skillId: id, name: 'Разговор', points: 10 });
+    const tileFlasks = async () => {
+      const tile = (await screen.findByText('Заполнено')).closest('.tile')!;
+      return { drawn: tile.querySelectorAll('.tile-flasks .flask').length, more: tile.querySelector('.tile-flasks-more')?.textContent ?? null };
+    };
+    for (let i = 0; i < 4; i++) await completeStep(step);
+    renderHome();
+    expect(await tileFlasks()).toEqual({ drawn: 4, more: null });
+    cleanup();
+    for (let i = 0; i < 2; i++) await completeStep(step);
+    renderHome();
+    // Six: three flasks and «+3», never five flasks under «6».
+    expect(await tileFlasks()).toEqual({ drawn: 3, more: '+3' });
+  });
+
   it('shows the bento row and the active skills by last activity, without filter chips', async () => {
     const a = await createSkill(input('Английский'));
     const b = await createSkill(input('Бег'));

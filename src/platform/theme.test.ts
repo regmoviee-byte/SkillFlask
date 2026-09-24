@@ -81,5 +81,9 @@ describe('theme', () => {
     expect(needsFixedLiquid('#2481cc')).toBe(false);
     expect(needsFixedLiquid('#3e88f7')).toBe(false);
     expect(needsFixedLiquid('#ffffff')).toBe(true);
+    expect(needsFixedLiquid('#1a6fb0')).toBe(false);
+    expect(needsFixedLiquid('#2a7a3b')).toBe(false);
+    expect(needsFixedLiquid('#1c1c1e')).toBe(true);
+    expect(needsFixedLiquid('#0b2a4a')).toBe(true);
   });
 });

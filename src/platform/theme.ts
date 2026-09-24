@@ -60,7 +60,9 @@ export function needsFixedLiquid(accent: string): boolean {
   const rgb = parseColor(accent);
   if (!rgb) return false;
   const lum = relativeLuminance(rgb);
-  return lum < 0.18 || lum > 0.82 || saturation(rgb) < 0.15;
+  // Relative luminance runs far below perceived lightness for blues and greens, so the dark
+  // floor sits at 0.10: #1a6fb0 (0.147) still makes a fine liquid, near-black accents do not.
+  return lum < 0.1 || lum > 0.82 || saturation(rgb) < 0.15;
 }
 
 function resolvedAccent(): string {

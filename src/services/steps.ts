@@ -97,12 +97,22 @@ export async function createStep(raw: StepInput): Promise<string> {
   return id;
 }
 
-const sameSchedule = (a: StepSchedule, b: StepSchedule) => JSON.stringify(a) === JSON.stringify(b);
+/** Compared in canonical form: key or day order of a stored schedule (an old backup) is no change. */
+function canonical(schedule: StepSchedule): string {
+  try {
+    return JSON.stringify(validateSchedule(schedule));
+  } catch {
+    return JSON.stringify(schedule);
+  }
+}
+
+const sameSchedule = (a: StepSchedule, b: StepSchedule) => canonical(a) === canonical(b);
 
 /**
  * Renames, re-prices or re-schedules a step. Only the definition changes: past completions
  * keep their snapshot and the journal is untouched (FR-ST-007, FR-XP-008). A new schedule
- * plans from today on (`scheduleFrom`), so past dates keep the plan they had.
+ * plans from today on (`scheduleFrom`): earlier days, this week's included, no longer plan
+ * the step at all (it shows under «Ещё» there), and nothing is recomputed.
  */
 export async function updateStep(id: string, raw: StepPatch): Promise<void> {
   // Validated before the transaction; an omitted name keeps the step's own.

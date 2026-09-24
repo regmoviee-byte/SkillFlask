@@ -91,10 +91,10 @@ describe('StepFormScreen', () => {
 
     fireEvent.change(screen.getByLabelText('Когда показывать на «Сегодня»'), { target: { value: 'TIMES_PER_WEEK' } });
     expect(screen.getByText('Покажем на экране «Сегодня» каждый день, пока не наберётся 3. Пропуски ничего не отнимают.')).toBeTruthy();
-    const times = screen.getByLabelText('Раз в неделю').closest('.stepper-field') as HTMLElement;
+    const times = screen.getByLabelText('Сколько раз в неделю').closest('.stepper-field') as HTMLElement;
     fireEvent.click(within(times).getByRole('button', { name: 'Больше' }));
     fireEvent.change(screen.getByLabelText('Когда показывать на «Сегодня»'), { target: { value: 'TIMES_PER_MONTH' } });
-    expect((screen.getByLabelText('Раз в месяц') as HTMLInputElement).value).toBe('4');
+    expect((screen.getByLabelText('Сколько раз в месяц') as HTMLInputElement).value).toBe('4');
     await submit();
     await screen.findByText('skill');
     expect((await db.steps.toArray())[0]).toMatchObject({ pointsPerMinute: 0.25, defaultMinutes: null, schedule: { kind: 'TIMES_PER_MONTH', times: 4 } });

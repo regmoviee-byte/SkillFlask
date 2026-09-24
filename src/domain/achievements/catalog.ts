@@ -1,7 +1,8 @@
 // The achievement catalogue of v0.3 (proposal 2.2): 8 ladders with 37 tiers and 12 badges,
-// 49 entries («Часы практики» and «Марафон» came with timed steps in package 8). Rules read the replay stats only. Principles: nothing rewards opening the app,
-// the time of day, calendar dates or a return after a break; nothing is taken away for a day
-// without practice; no bonus points; no secrets. Rarity is a visual tone.
+// 49 entries («Часы практики» and «Марафон» came with timed steps in package 8). Rules read
+// the replay stats only. Principles: nothing rewards opening the app, the time of day,
+// calendar dates or a return after a break; nothing is taken away for a day without
+// practice; no bonus points; no secrets. Rarity is a visual tone.
 //
 // Adding an entry: append a badge (or a tier to a ladder) with a new stable id, Russian
 // title/description/howTo and a rule over Stats (extend stats.ts if the rule needs a new

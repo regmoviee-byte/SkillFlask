@@ -159,16 +159,6 @@
   margin-right: 62px;
 }
 
-@media (max-width: 374px) {
-  .flask--hero.flask--marked {
-    margin-right: 52px;
-  }
-
-  .flask-mark-caption {
-    max-width: 78px;
-  }
-}
-
 .flask-mark {
   cursor: pointer;
 }
@@ -195,6 +185,7 @@
   max-width: 90px;
   min-height: 24px;
   margin: 0;
+  /* The vertical padding comes from Flask (captionPad): up to a 44 px tap area. */
   padding: 4px 0;
   border: 0;
   background: none;
@@ -210,6 +201,17 @@
   transform: translateY(-50%);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* After the base rule, so the narrower captions win on 320–374 px phones. */
+@media (max-width: 374px) {
+  .flask--hero.flask--marked {
+    margin-right: 52px;
+  }
+
+  .flask-mark-caption {
+    max-width: 78px;
+  }
 }
 
 .flask-mark-caption:focus-visible {

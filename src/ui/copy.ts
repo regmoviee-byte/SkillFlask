@@ -62,7 +62,8 @@ export const copy = Object.freeze({
     tileFlasks: 'Заполнено',
     flasksCaption: (n: number) => plural(n, FLASKS),
     /** The wide tile: the last achievement, or the closest next one with its progress. */
-    achievementLastOn: (date: string) => `Последняя ачивка · ${formatDate(date)}`,
+    // The date never breaks inside («24 / сентября» on a 320 px tile).
+    achievementLastOn: (date: string) => `Последняя ачивка · ${formatDate(date).replace(/ /g, '\u00a0')}`,
     achievementNext: 'Следующая',
     achievementNextMeta: (title: string, current: number, target: number) => `${title} · ${formatNumber(current)} из ${formatNumber(target)}`,
     /** Defensive: `next` is null only when every achievement is unlocked, which the tile shows as the last one. */
@@ -164,7 +165,9 @@ export const copy = Object.freeze({
       `Колба ${flask}: ${formatNumber(points)} из ${formatNumber(capacity)}, ${percent}%`,
     completedFlaskLabel: (flasks: number) => `Навык достигнут: ${flasks} ${plural(flasks, FLASKS)}`,
     /** «42% · ещё 58 до колбы 4» */
-    toNext: (percent: number, left: number, next: number) => `${percent}% · ещё ${formatNumber(left)} до колбы ${next}`,
+    // Non-breaking spaces: a narrow hero column (marks beside the flask) wraps as «66% · ещё 5 /
+    // до колбы 3», never inside «ещё 5» or «до колбы 3».
+    toNext: (percent: number, left: number, next: number) => `${percent}% · ещё\u00a0${formatNumber(left)} до\u00a0колбы\u00a0${next}`,
     total: (points: number) => `Всего ${formatPoints(points)}`,
     flasksDone: (n: number) => `${formatNumber(n)} ${plural(n, FLASKS)}`,
     /** aria-live announcement when a flask fills on screen. */
@@ -362,8 +365,8 @@ export const copy = Object.freeze({
     weekdays: 'Дни недели',
     weekdayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
     weekdaysEmpty: 'Выберите хотя бы один день недели',
-    timesPerWeek: 'Раз в неделю',
-    timesPerMonth: 'Раз в месяц',
+    timesPerWeek: 'Сколько раз в неделю',
+    timesPerMonth: 'Сколько раз в месяц',
     dueHint: 'Появится в «Осталось» в эти дни. День без отметки ничего не отнимает.',
     quotaHint: (n: number) => `Покажем на экране «Сегодня» каждый день, пока не наберётся ${n}. Пропуски ничего не отнимают.`,
     futureHint: 'Изменения касаются только будущих выполнений. Прошлое не пересчитывается.',

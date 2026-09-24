@@ -161,7 +161,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  padding: var(--sp-2) var(--gutter) var(--sp-6);
+  /* A shown toast adds its height (Toast.tsx): the page end scrolls clear of it. */
+  padding: var(--sp-2) var(--gutter) calc(var(--sp-6) + var(--toast-room, 0px));
 }
 
 /* Sticks to the viewport bottom and covers the safe-area inset with its own background, so
@@ -1001,6 +1002,23 @@ textarea.input {
   padding-top: var(--sp-2);
 }
 
+/* «+3» after the drawn flasks: the rest of the count, never a picture that disagrees with it. */
+.tile-flasks-more {
+  align-self: center;
+  margin-left: 2px;
+  color: var(--color-fg-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A 320 px tile holds four flasks, or three and «+12», only without the gaps. */
+@media (max-width: 359px) {
+  .tile-flasks {
+    gap: 0;
+  }
+}
+
 .tile--wide {
   grid-column: span 2;
   flex-direction: row;
@@ -1495,11 +1513,22 @@ html[data-motion='reduced'] .liquid-bar-fill {
 }
 
 /* Marks on the hero flask: its captions widen the first column, so the numbers get a
-   narrower one; a long total may wrap inside its (then rounded-rectangle) badge. */
+   narrower one (and a smaller gap); a long total may wrap inside its (then rounded-rectangle)
+   badge. */
+.hero.hero--marks {
+  gap: var(--sp-2);
+}
+
 .hero--marks .hero-total {
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 10px;
   font-size: 13px;
+}
+
+@media (max-width: 374px) {
+  .hero--marks .hero-info .t-caption {
+    font-size: 13px;
+  }
 }
 
 /* Under 375 px the numeral is 48 px (tokens.css) and the column may wrap its lines. */
@@ -3294,6 +3323,15 @@ html[data-motion='reduced'] .ladder-tier.is-focus::after {
   gap: 6px;
   align-self: stretch;
   text-align: left;
+}
+
+/* An earned achievement's bar takes its medal's metal, not always gold. */
+.ach-progress .bar-fill.is-done.rarity--bronze {
+  background: var(--bronze-2);
+}
+
+.ach-progress .bar-fill.is-done.rarity--silver {
+  background: var(--silver-2);
 }
 
 .ach-progress .t-caption {

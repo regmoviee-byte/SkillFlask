@@ -162,6 +162,13 @@ const tapCheck = async () => {
   await idleCheck.waitFor();
   await check.click();
   await page.getByRole('button', { name: 'Отменить', exact: true }).waitFor();
+  // The undo toast never covers the ✓ that was just tapped.
+  const covered = await page.evaluate(() => {
+    const t = document.querySelector('.toast')?.getBoundingClientRect();
+    const c = document.querySelector('.check-button')?.getBoundingClientRect();
+    return Boolean(t && c && c.bottom > t.top && c.top < t.bottom);
+  });
+  if (covered) errors.push('the undo toast covers the ✓ that was just tapped');
 };
 await tapCheck();
 // A second tap ~0.8 s later is swallowed: no second completion, the undo toast stays.
@@ -232,6 +239,11 @@ for (let i = 0; i < 9; i++) {
     await shot('mark-view');
     await page.keyboard.press('Escape');
     await markSheet.waitFor({ state: 'detached' });
+    // The tick in the glass opens the same sheet (pointer only; the caption is the accessible way).
+    await page.locator('.flask-mark-hit').first().click();
+    await markSheet.getByText('Колба 2, 10 из 15 очков').waitFor();
+    await page.keyboard.press('Escape');
+    await markSheet.waitFor({ state: 'detached' });
     // A 360 px phone with a captioned mark: nothing scrolls sideways.
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.setViewportSize({ width: 360, height: 780 });
@@ -239,6 +251,16 @@ for (let i = 0; i < 9; i++) {
     const markOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (markOverflow > 0) errors.push(`the skill screen with a mark scrolls sideways by ${markOverflow}px at 360 px`);
     await shot('skill-mark-360');
+    // 320 px: the narrower caption box (max-width) still ends before the numbers column, even
+    // for a title long enough to fill it.
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(200);
+    const tight = await page.evaluate(() => {
+      const label = document.querySelector('.flask-mark-caption');
+      const info = document.querySelector('.hero-info').getBoundingClientRect();
+      return { captionEnd: label.getBoundingClientRect().left + parseFloat(getComputedStyle(label).maxWidth), infoLeft: info.left };
+    });
+    if (tight.captionEnd > tight.infoLeft) errors.push(`at 320 px a full mark caption would reach the hero numbers (${tight.captionEnd.toFixed(0)} > ${tight.infoLeft.toFixed(0)})`);
     await page.setViewportSize(contextOptions.viewport);
   }
 }
@@ -283,6 +305,24 @@ await markSheet.getByRole('button', { name: 'Сохранить' }).click();
 await page.getByText('Засечка сохранена').waitFor();
 await markSheet.waitFor({ state: 'detached' });
 await page.locator('.timeline-mark', { hasText: 'Пробный тест B2' }).waitFor();
+// Delete through the confirmation: a second mark comes and goes, the first one stays.
+await skillMenu('Добавить засечку');
+await markSheet.getByRole('heading', { name: 'Новая засечка' }).waitFor();
+await markSheet.getByLabel('Название').fill('Черновик');
+await markSheet.getByRole('button', { name: 'Сохранить' }).click();
+await page.getByText('Засечка добавлена').waitFor();
+await markSheet.waitFor({ state: 'detached' });
+await page.locator('.timeline-mark', { hasText: 'Черновик' }).click();
+await markSheet.getByRole('button', { name: 'Удалить' }).click();
+const markConfirm = page.getByRole('dialog').filter({ hasText: 'Удалить засечку «Черновик»?' });
+await markConfirm.waitFor();
+await settled();
+await shot('mark-confirm-delete');
+await markConfirm.getByRole('button', { name: 'Удалить' }).click();
+await page.getByText('Засечка удалена').waitFor();
+await markSheet.waitFor({ state: 'detached' });
+if (await page.locator('.timeline-mark', { hasText: 'Черновик' }).count()) errors.push('a deleted mark stays in the history');
+if (!(await page.locator('.timeline-mark', { hasText: 'Пробный тест B2' }).count())) errors.push('deleting one mark took another with it');
 await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await page.locator('button.timeline-row').first().click();
 const sheet = page.locator('.completion-sheet');
@@ -664,7 +704,11 @@ await page.getByRole('button', { name: 'Назад' }).click();
 await page.getByRole('navigation', { name: 'Разделы' }).waitFor();
 await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
 // «Назад» from the copy lands on the active skills, where the copy is listed.
-if (!(await page.locator('.skill-card', { hasText: 'Английский C1 → C2' }).count())) errors.push('«Назад» from the restarted copy does not show it on the home screen');
+// Waited for: the home list renders from its live query a moment after the navigation.
+await page
+  .locator('.skill-card', { hasText: 'Английский C1 → C2' })
+  .waitFor({ timeout: 5000 })
+  .catch(() => errors.push('«Назад» from the restarted copy does not show it on the home screen'));
 await shot('home-after');
 
 // The home tile names the last achievement.

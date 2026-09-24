@@ -63,7 +63,7 @@ describe('copy dictionary', () => {
     expect(copy.history.flaskFilled(2)).toBe('Колба 2 заполнена');
     expect(copy.history.flaskFilled(3, 2)).toBe('Колбы 2–3 заполнены');
     expect(copy.history.flaskRollback(1)).toBe('Возврат к колбе 1');
-    expect(copy.skill.toNext(42, 58, 4)).toBe('42% · ещё 58 до колбы 4');
+    expect(copy.skill.toNext(42, 58, 4)).toBe('42% · ещё\u00a058 до\u00a0колбы\u00a04');
     expect(copy.skill.flaskLabel(3, 42, 100, 42)).toBe('Колба 3: 42 из 100, 42%');
   });
 

@@ -131,6 +131,8 @@ describe('automatic backup', () => {
     await settle();
     expect(metaWrites()).toBe(1);
     expect(await readCloudMeta()).toMatchObject({ skills: 1 });
+    // Settings must not claim the cloud matches the device.
+    expect(getCloudStatus().state).toBe('dirty');
   });
 
   it('reports a failed save and retries on the next pause', async () => {

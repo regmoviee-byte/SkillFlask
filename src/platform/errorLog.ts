@@ -13,6 +13,20 @@ const LIMIT = 20;
 
 const version = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 
+const listeners = new Set<() => void>();
+
+/** Calls `listener` after every logged or cleared error (Settings keeps its list live). */
+export function onErrorsChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
 export function getErrors(): LoggedError[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -29,6 +43,7 @@ export function clearErrors(): void {
   } catch {
     // Storage unavailable: nothing to clear.
   }
+  notify();
 }
 
 export function logError(error: unknown, context = ''): void {
@@ -46,6 +61,7 @@ export function logError(error: unknown, context = ''): void {
   } catch {
     // Quota or private mode: the console still has it.
   }
+  notify();
 }
 
 let installed = false;

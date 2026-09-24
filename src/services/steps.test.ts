@@ -139,6 +139,11 @@ describe('updateStep for types and schedules', () => {
     expect((await getStep(id))!.scheduleFrom).toBe('2026-01-01');
     await updateStep(id, { name: 'Практика', schedule: { kind: 'TIMES_PER_WEEK', times: 2 } });
     expect(await getStep(id)).toMatchObject({ schedule: { kind: 'TIMES_PER_WEEK', times: 2 }, scheduleFrom: localDate() });
+
+    // A stored schedule with unsorted days (an old backup) is the same schedule, not a new one.
+    await db.steps.update(id, { schedule: { kind: 'WEEKDAYS', days: [5, 1, 3] }, scheduleFrom: '2026-01-01' });
+    await updateStep(id, { name: 'Практика, вечер', schedule: { kind: 'WEEKDAYS', days: [1, 3, 5] } });
+    expect((await getStep(id))!.scheduleFrom).toBe('2026-01-01');
   });
 });
 

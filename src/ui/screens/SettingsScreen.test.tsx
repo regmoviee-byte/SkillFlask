@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { addDays, localDate } from '../../lib/dates';
@@ -166,5 +166,12 @@ describe('SettingsScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Очистить' }));
     expect(screen.getByRole('button', { name: 'Ошибки (0)' })).toBeTruthy();
     expect(within(document.body).getByText('Журнал ошибок пуст')).toBeTruthy();
+  });
+
+  it('counts an error logged while the screen is open', async () => {
+    renderSettings();
+    screen.getByRole('button', { name: 'Ошибки (0)' });
+    act(() => logError(new Error('Облако недоступно'), 'cloud backup'));
+    expect(screen.getByRole('button', { name: 'Ошибки (1)' })).toBeTruthy();
   });
 });
