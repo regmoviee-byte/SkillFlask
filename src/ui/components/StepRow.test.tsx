@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Progress } from '../../domain/progression';
@@ -186,6 +186,49 @@ describe('StepRow', () => {
     renderRow();
     fireEvent.click(check());
     expect(await screen.findByText('Уже отмечено — подождите секунду')).toBeTruthy();
+  });
+
+  it('asks «Сколько минут?» for a TIMED step, then records the minutes', async () => {
+    vi.mocked(completeStep).mockImplementation(async () => ({ ...result('c1'), pointsAwarded: 22.5, delta: 22.5 }));
+    const timed: StepDefinition = { ...step, type: 'TIMED', points: 0, pointsPerMinute: 0.5, defaultMinutes: 30, schedule: { kind: 'DAILY' } };
+    renderRow({ step: timed, todayCount: 0 });
+    const button = screen.getByRole('button', { name: 'Отметить: Чтение, 0,5 очка в минуту' });
+    expect(button.textContent).toBe('0,5/мин');
+    expect(screen.getByText('каждый день')).toBeTruthy();
+
+    fireEvent.click(button);
+    const sheet = await screen.findByRole('dialog', { name: 'Сколько минут?' });
+    expect(completeStep).not.toHaveBeenCalled();
+    // The usual minutes come first and are preselected; the points are shown live.
+    const presets = within(sheet).getByRole('group', { name: 'Частые значения' });
+    expect(within(presets).getAllByRole('button').map((b) => b.textContent)).toEqual(['30 мин', '15 мин', '45 мин', '60 мин']);
+    expect(within(sheet).getByText('Начислится 15 очков')).toBeTruthy();
+    fireEvent.click(within(presets).getByRole('button', { name: '45 мин' }));
+    expect(within(sheet).getByText('Начислится 22,5 очка')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Больше' }));
+    expect((within(sheet).getByLabelText('Минуты') as HTMLInputElement).value).toBe('50');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Меньше' }));
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await wait(0);
+    expect(completeStep).toHaveBeenCalledWith('step-1', { date: undefined, minutes: 45 });
+    expect(await screen.findByText('+22,5 · Чтение')).toBeTruthy();
+  });
+
+  it('records on the given past date and counts «в этот день»', async () => {
+    vi.mocked(completeStep).mockImplementation(async () => result('c1'));
+    renderRow({ date: '2026-01-05', todayCount: 1, context: 'Английский' });
+    expect(screen.getByText('Английский · в этот день ×1')).toBeTruthy();
+    fireEvent.click(check());
+    await wait(0);
+    expect(completeStep).toHaveBeenCalledWith('step-1', { date: '2026-01-05', minutes: undefined });
+  });
+
+  it('shows a quota as x of N with a segmented bar', () => {
+    renderRow({ quota: { done: 1, target: 3 }, context: 'Спорт', todayCount: 0 });
+    expect(screen.getByText('Спорт · 1 из 3')).toBeTruthy();
+    const bar = screen.getByRole('img', { name: 'Выполнено 1 из 3' });
+    expect([...bar.querySelectorAll('.quota-segment')].map((s) => s.classList.contains('is-done'))).toEqual([true, false, false]);
   });
 
   it('links to the step form in edit mode', () => {

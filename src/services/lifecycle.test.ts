@@ -6,9 +6,10 @@ import { installFreshDb, tickingClock, todayNoon, withClock } from '../test/harn
 import { completeStep } from './completions';
 import { getSkillHistory } from './history';
 import { archiveSkill, restartSkill, restoreSkill } from './lifecycle';
-import { getHomeView, getSkillDetails, getTodayView, listSkillSummaries } from './queries';
+import { getHomeView, getSkillDetails, listSkillSummaries } from './queries';
 import { completeSkill, continueAfterMilestone, createSkill, deleteSkill, updateSkill, type SkillInput } from './skills';
 import { createStep, setStepActive, updateStep } from './steps';
+import { getDayPlan } from './today';
 
 const english: SkillInput = {
   name: 'Английский',
@@ -24,6 +25,9 @@ const english: SkillInput = {
 
 installFreshDb();
 beforeEach(() => setClock(tickingClock(todayNoon())));
+
+/** The skills «Сегодня» lists (active ones only). */
+const todaySkills = async () => (await getDayPlan(localDate())).skills.map((s) => s.skill.id);
 
 async function details(id: string) {
   const d = await getSkillDetails(id);
@@ -55,14 +59,14 @@ describe('archiveSkill', () => {
   it('hides the skill from «Сегодня» and keeps its whole history', async () => {
     const { skillId, speaking } = await reachedSkill();
     const historyBefore = await getSkillHistory(skillId);
-    expect((await getTodayView()).groups.map((g) => g.summary.skill.id)).toEqual([skillId]);
+    expect(await todaySkills()).toEqual([skillId]);
 
     await archiveSkill(skillId);
 
     const skill = await db.skills.get(skillId);
     expect(skill).toMatchObject({ status: 'ARCHIVED' });
     expect(skill?.archivedAt).not.toBeNull();
-    expect((await getTodayView()).groups).toEqual([]);
+    expect(await todaySkills()).toEqual([]);
     // Every operation is still there; the history adds the archiving itself.
     const historyAfter = (await getSkillHistory(skillId))!;
     expect(historyAfter.operations).toBe(historyBefore!.operations);
@@ -102,7 +106,7 @@ describe('restoreSkill', () => {
     expect(after.progress).toEqual(before.progress);
     // The milestone is still reached, with its original date and the decision still open.
     expect(after.milestone).toMatchObject({ reachedAt: before.milestone!.reachedAt, decision: null });
-    expect((await getTodayView()).groups.map((g) => g.summary.skill.id)).toEqual([skillId]);
+    expect(await todaySkills()).toEqual([skillId]);
     // Recording works again.
     expect((await completeStep(speaking)).after.totalPoints).toBe(41);
     await expect(restoreSkill(skillId)).rejects.toThrow('Навык не в архиве');
@@ -159,12 +163,32 @@ describe('restartSkill', () => {
     expect((await getSkillHistory(skillId))!.operations).toBe(originalHistory.operations);
   });
 
+  it('plans the copied steps from the restart day on, never on the dates before it', async () => {
+    const skillId = await createSkill(english);
+    await createStep({ skillId, name: 'Разговор', points: 5, schedule: { kind: 'DAILY' } });
+    await createStep({ skillId, name: 'Спорт', points: 5, schedule: { kind: 'TIMES_PER_WEEK', times: 3 } });
+    await archiveSkill(skillId);
+    const today = localDate();
+    const copyId = await restartSkill(skillId);
+    const steps = (await details(copyId)).steps;
+    expect(steps.map((s) => [s.schedule.kind, s.scheduleFrom])).toEqual([
+      ['DAILY', today],
+      ['TIMES_PER_WEEK', today],
+    ]);
+    const plan = await getDayPlan(today);
+    expect(plan.due.map((row) => row.step.id)).toEqual([steps[0]!.id]);
+    expect(plan.quota.map((row) => row.step.id)).toEqual([steps[1]!.id]);
+    const yesterday = await getDayPlan(addDays(today, -1));
+    expect([...yesterday.due, ...yesterday.quota]).toEqual([]);
+    expect(yesterday.totalPlanned).toBe(0);
+  });
+
   it('restarts an archived skill and leaves it in the archive', async () => {
     const { skillId } = await reachedSkill();
     await archiveSkill(skillId);
     const copyId = await restartSkill(skillId);
     expect((await db.skills.get(skillId))?.status).toBe('ARCHIVED');
-    expect((await getTodayView()).groups.map((g) => g.summary.skill.id)).toEqual([copyId]);
+    expect(await todaySkills()).toEqual([copyId]);
     const home = await getHomeView();
     expect(home.summaries.map((s) => [s.skill.id, s.skill.status])).toEqual([
       [copyId, 'ACTIVE'],

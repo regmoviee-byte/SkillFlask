@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { setClock } from '../lib/clock';
-import { newId } from '../lib/ids';
-import { nowIso } from '../lib/dates';
 import { installFreshDb, tickingClock, todayNoon } from '../test/harness';
-import type { StepCompletion } from '../domain/types';
 import {
   cancelCompletion,
   completeStep,
@@ -15,12 +12,13 @@ import {
   SAME_TAP_MS,
 } from './completions';
 import { CATALOG } from '../domain/achievements/catalog';
+import { getAchievementsView } from './achievements';
 import { registerAfterCommitHook, registerInTransactionHook } from './afterWrite';
 import { DoubleSubmitError } from './core';
 import { getSkillHistory } from './history';
 import { getSkillDetails } from './queries';
 import { completeSkill, createSkill, ValidationError, type SkillInput } from './skills';
-import { createStep } from './steps';
+import { createStep, updateStep } from './steps';
 import { archiveSkill } from './lifecycle';
 
 const skillInput: SkillInput = {
@@ -152,35 +150,92 @@ describe('E2E-002: cancelling a completion rolls the flask back', () => {
   });
 });
 
+describe('TIMED completions', () => {
+  it('stores the minutes, the rate snapshot and the tenths-rounded points', async () => {
+    const skillId = await createSkill(skillInput);
+    const stepId = await createStep({ skillId, name: 'Практика', type: 'TIMED', pointsPerMinute: 0.25 });
+    const result = await completeStep(stepId, { minutes: 25 });
+    expect(result).toMatchObject({ pointsAwarded: 6.3, delta: 6.3 });
+    expect(await db.completions.get(result.completionId)).toMatchObject({
+      stepType: 'TIMED',
+      pointsSnapshot: 0.25,
+      durationMinutes: 25,
+      pointsAwarded: 6.3,
+      source: 'MANUAL',
+    });
+    // A later rate change never touches it (FR-XP-008).
+    await updateStep(stepId, { name: 'Практика', pointsPerMinute: 2 });
+    expect((await db.completions.get(result.completionId))!.pointsSnapshot).toBe(0.25);
+    expect((await completeStep(stepId, { minutes: 7 })).pointsAwarded).toBe(14);
+  });
+
+  it('requires whole minutes from 1 to 1440; a BOOLEAN completion ignores them', async () => {
+    const skillId = await createSkill(skillInput);
+    const timed = await createStep({ skillId, name: 'Практика', type: 'TIMED', pointsPerMinute: 0.5 });
+    for (const minutes of [undefined, 0, -5, 2.5, 1441]) {
+      await expect(completeStep(timed, { minutes })).rejects.toThrow('Укажите длительность в минутах');
+    }
+    expect(await db.completions.count()).toBe(0);
+    const boolean = await createStep({ skillId, name: 'Чтение', points: 5 });
+    const { completionId } = await completeStep(boolean, { minutes: 90 });
+    expect(await db.completions.get(completionId)).toMatchObject({ durationMinutes: null, pointsSnapshot: 5, pointsAwarded: 5 });
+  });
+
+  it('keeps a completion worth 0 points in the journal, the history and the replay', async () => {
+    const skillId = await createSkill(skillInput);
+    const stepId = await createStep({ skillId, name: 'Разминка', type: 'TIMED', pointsPerMinute: 0.04 });
+    const { completionId, pointsAwarded } = await completeStep(stepId, { minutes: 1 });
+    expect(pointsAwarded).toBe(0);
+    expect(await rowsOf(completionId)).toEqual([['COMPLETION', 0]]);
+    expect((await getSkillHistory(skillId))!.operations).toBe(1);
+    expect(await db.achievementUnlocks.get('first-step')).toBeDefined();
+  });
+
+  it('cancels and restores a completion worth 0 points with 0-delta rows the achievements see', async () => {
+    const skillId = await createSkill(skillInput);
+    const stepId = await createStep({ skillId, name: 'Разминка', type: 'TIMED', pointsPerMinute: 0.01 });
+    const { completionId } = await completeStep(stepId, { minutes: 1 });
+    const actions = async () => (await getAchievementsView()).ladders.find((l) => l.def.id === 'actions')!.current;
+    expect(await actions()).toBe(1);
+    await cancelCompletion(completionId);
+    expect(await rowsOf(completionId)).toEqual([
+      ['COMPLETION', 0],
+      ['CANCELLATION', 0],
+    ]);
+    expect(await actions()).toBe(0);
+    await restoreCompletion(completionId);
+    expect(await rowsOf(completionId)).toEqual([
+      ['COMPLETION', 0],
+      ['CANCELLATION', 0],
+      ['RESTORE', 0],
+    ]);
+    expect(await actions()).toBe(1);
+    expect((await getSkillHistory(skillId))!.operations).toBe(3);
+  });
+
+  it('marks a completion on a planned date or inside a quota period as SCHEDULED', async () => {
+    const skillId = await createSkill(skillInput);
+    const daily = await createStep({ skillId, name: 'Каждый день', points: 1, schedule: { kind: 'DAILY' } });
+    const quota = await createStep({ skillId, name: 'Квота', points: 1, schedule: { kind: 'TIMES_PER_MONTH', times: 5 } });
+    const manual = await createStep({ skillId, name: 'Вручную', points: 1 });
+    const source = async (stepId: string, date?: string) => (await db.completions.get((await completeStep(stepId, { date })).completionId))!.source;
+    expect(await source(daily)).toBe('SCHEDULED');
+    expect(await source(quota)).toBe('SCHEDULED');
+    expect(await source(manual)).toBe('MANUAL');
+    // Before the schedule started (the step was created today): a manual completion.
+    expect(await source(daily, '2026-01-05')).toBe('MANUAL');
+    const { completionId } = await completeStep(manual, { source: 'SCHEDULED' });
+    expect((await db.completions.get(completionId))!.source).toBe('SCHEDULED');
+  });
+});
+
 describe('correctDuration', () => {
-  /** A TIMED completion as package 8 will write it: 30 min at 0.5 points per minute. */
+  /** A TIMED completion of 30 min at 0.5 points per minute, recorded by completeStep. */
   async function timedFixture() {
     const skillId = await createSkill(skillInput);
-    const stepId = await createStep({ skillId, name: 'Чтение', points: 1 });
-    await db.steps.update(stepId, { type: 'TIMED', pointsPerMinute: 0.5, defaultMinutes: 30 });
-    // The injectable clock, like the service: the real time would sort after the corrections
-    // written by the ticking clock (it starts at local noon) whenever the test runs after noon.
-    const now = nowIso();
-    const completion: StepCompletion = {
-      id: newId(),
-      skillId,
-      stepId,
-      stepName: 'Чтение',
-      stepType: 'TIMED',
-      pointsSnapshot: 0.5,
-      durationMinutes: 30,
-      pointsAwarded: 15,
-      date: '2026-09-20',
-      source: 'MANUAL',
-      status: 'ACTIVE',
-      cancelledAt: null,
-      note: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.completions.add(completion);
-    await db.transactions.add({ id: newId(), skillId, completionId: completion.id, delta: 15, reason: 'COMPLETION', createdAt: now });
-    return { skillId, stepId, completionId: completion.id };
+    const stepId = await createStep({ skillId, name: 'Чтение', type: 'TIMED', pointsPerMinute: 0.5, defaultMinutes: 30 });
+    const { completionId } = await completeStep(stepId, { minutes: 30, date: '2026-09-20' });
+    return { skillId, stepId, completionId };
   }
 
   it('corrects 30 → 45 → 30 with CORRECTION rows that net to zero', async () => {
@@ -203,10 +258,21 @@ describe('correctDuration', () => {
     expect((await details(skillId)).progress.totalPoints).toBe(15);
   });
 
-  it('writes no row when the points do not change and validates minutes', async () => {
+  it('writes a zero CORRECTION when only the minutes change, nothing when nothing does, and validates minutes', async () => {
     const { completionId } = await timedFixture();
     expect((await correctDuration(completionId, 30)).delta).toBe(0);
     expect(await rowsOf(completionId)).toHaveLength(1);
+    // 0.01 per minute: 1 and 3 minutes are both 0 points (0.1 from 5 on), yet the minutes changed.
+    const skillId = await createSkill(skillInput);
+    const slow = await createStep({ skillId, name: 'Медленно', type: 'TIMED', pointsPerMinute: 0.01 });
+    const one = await completeStep(slow, { minutes: 1 });
+    const same = await correctDuration(one.completionId, 3);
+    expect(same.delta).toBe(0);
+    expect(await rowsOf(one.completionId)).toEqual([
+      ['COMPLETION', 0],
+      ['CORRECTION', 0],
+    ]);
+    expect((await db.completions.get(one.completionId))!.durationMinutes).toBe(3);
     await expect(correctDuration(completionId, 0)).rejects.toThrow(ValidationError);
     await expect(correctDuration(completionId, 1441)).rejects.toThrow(ValidationError);
     await expect(correctDuration(completionId, 2.5)).rejects.toThrow(ValidationError);

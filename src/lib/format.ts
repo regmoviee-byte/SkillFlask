@@ -27,3 +27,26 @@ export function formatPoints(n: number): string {
 export function formatDelta(n: number): string {
   return `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatNumber(Math.abs(n))}`;
 }
+
+const rateFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+
+/** A TIMED step's rate: «0,5/мин», «0,25/мин» (two decimals at most, decision 14.4). */
+export function formatRate(rate: number): string {
+  return `${rateFormat.format(rate)}/мин`;
+}
+
+/** «30 мин»; no group separator, a duration is at most 1 440 minutes. */
+export function formatMinutes(n: number): string {
+  return `${n} мин`;
+}
+
+/**
+ * A decimal typed on a phone: «0,5» and «0.5» both mean a half (the Russian keyboard has a
+ * comma, iOS «decimal» pads may give either). Null for an empty or malformed string.
+ */
+export function parseDecimal(text: string): number | null {
+  const normalized = text.trim().replace(',', '.');
+  if (!/^\d+(\.\d*)?$|^\.\d+$/.test(normalized)) return null;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}

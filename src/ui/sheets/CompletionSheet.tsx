@@ -1,18 +1,21 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   cancelCompletion,
+  correctDuration,
   getCompletion,
   NOTE_MAX_LENGTH,
   restoreCompletion,
   setCompletionNote,
   type CompletionDetails,
 } from '../../services/completions';
+import { MAX_MINUTES, timedPoints, toDeci, fromDeci } from '../../domain/points';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { errorMessage, forgetUndo, isCelebrated } from '../completionFeedback';
 import { Sheet } from '../components/Sheet';
+import { Stepper } from '../components/Stepper';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
@@ -20,6 +23,8 @@ import { copy } from '../copy';
 // not progress, decision 14.8); cancel and restore only while the skill is active (14.9).
 // A typed note is never thrown away: swipe, scrim, Back, cancel and restore all save it — the
 // sheet says so under the field. «Вернуть» that refills a flask is celebrated like a completion.
+// A TIMED completion also shows its minutes: «Пересчитать» writes one CORRECTION row for the
+// difference at the rate it was recorded with (correctDuration).
 
 /** The counter appears once the note gets close to the limit. */
 const COUNTER_FROM = 400;
@@ -47,6 +52,8 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
   const celebrations = useCelebrations();
   const closeRef = useRef<() => void>(() => {});
   const [note, setNote] = useState<string | null>(null);
+  const [minutes, setMinutes] = useState<number | null>(null);
+  const minutesHintId = useId();
   const [busy, setBusy] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
   // Set once the note was written by an action, so the close that follows does not save it again.
@@ -56,6 +63,7 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
   useEffect(() => {
     if (!open) return;
     setNote(null);
+    setMinutes(null);
     setBusy(false);
     settled.current = false;
   }, [open]);
@@ -149,6 +157,27 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
     });
 
   const cancelled = completion.status === 'CANCELLED';
+  const timed = completion.stepType === 'TIMED' && completion.durationMinutes !== null;
+  const storedMinutes = completion.durationMinutes ?? 0;
+  const newMinutes = minutes ?? storedMinutes;
+  const minutesValid = newMinutes >= 1 && newMinutes <= MAX_MINUTES;
+  const recalcDelta = fromDeci(toDeci(timedPoints(newMinutes, completion.pointsSnapshot)) - toDeci(completion.pointsAwarded));
+  const canRecalc = editable && !cancelled && timed && minutesValid && newMinutes !== storedMinutes;
+
+  const recalc = () =>
+    run(async () => {
+      // A longer duration may fill a flask: hold it behind the sheet, as «Вернуть» does.
+      const release = celebrations.hold(skill.id);
+      try {
+        const result = await correctDuration(completion.id, newMinutes);
+        if (!isCelebrated(result)) haptics.success();
+        void celebrations.celebrateResult(result, { skillId: skill.id }).finally(release);
+        return copy.completion.durationChanged(result.delta);
+      } catch (error) {
+        release();
+        throw error;
+      }
+    });
 
   return (
     <Sheet
@@ -159,7 +188,17 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
       className="completion-sheet"
       footer={
         <>
-          <button type="button" className="button button-primary button-block" disabled={!dirty || busy} onClick={saveNote}>
+          {timed && editable && !cancelled && (
+            <button type="button" className="button button-primary button-block" disabled={!canRecalc || busy} onClick={recalc}>
+              {t.recalc}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`button button-block${timed && editable && !cancelled ? '' : ' button-primary'}`}
+            disabled={!dirty || busy}
+            onClick={saveNote}
+          >
             {t.saveNote}
           </button>
           {editable && !cancelled && (
@@ -179,7 +218,15 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
         {t.meta(completion.date, completion.pointsAwarded, progressAfter.currentFlask, progressAfter.pointsInCurrentFlask, progressAfter.currentCapacity)}
       </p>
       {cancelled && completion.cancelledAt && <p className="completion-meta hint">{t.cancelledAt(completion.cancelledAt)}</p>}
-      {/* Package 8: «Минуты» of a TIMED completion (correctDuration) goes here. */}
+      {timed && <p className="completion-meta hint">{t.timedMeta(storedMinutes, completion.pointsSnapshot)}</p>}
+      {timed && editable && !cancelled && (
+        <div className="completion-minutes">
+          <Stepper label={t.minutes} value={newMinutes} onChange={setMinutes} min={1} max={MAX_MINUTES} step={5} unit={copy.minutes.unit} describedBy={minutesHintId} />
+          <p id={minutesHintId} className="hint small field-hint" aria-live="polite">
+            {canRecalc ? t.minutesPreview(storedMinutes, completion.pointsAwarded, newMinutes, recalcDelta) : '\u00a0'}
+          </p>
+        </div>
+      )}
       <label className="field completion-note">
         <span className="field-label">{t.note}</span>
         <textarea

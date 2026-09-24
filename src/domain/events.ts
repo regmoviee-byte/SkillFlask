@@ -4,7 +4,7 @@
 // editing a capacity or the milestone target re-interprets these events like everything else.
 
 import { localDate } from '../lib/clock';
-import { fromDeci, timedPoints, toDeci } from './points';
+import { fromDeci, MAX_MINUTES, timedPoints, toDeci } from './points';
 import type { Progress, TimelineEntry } from './progression';
 import type { Milestone, PointTransaction, Skill, StepCompletion } from './types';
 
@@ -74,8 +74,6 @@ export type HistoryEvent = TransactionEvent | LevelEvent | MilestoneEvent | Skil
 
 export const isTransactionEvent = (event: HistoryEvent): event is TransactionEvent =>
   event.type === 'COMPLETION' || event.type === 'CANCELLATION' || event.type === 'CORRECTION' || event.type === 'RESTORE';
-
-const MAX_MINUTES = 1440;
 
 /** The one duration that gives `points` at `rate`, or null when none or several do (rounding). */
 export function minutesForPoints(points: number, rate: number): number | null {

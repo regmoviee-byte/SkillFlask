@@ -1,6 +1,7 @@
 // Walks through the app on a phone-sized viewport and saves screenshots of every screen.
 // Usage: node scripts/screenshots.mjs [outDir] [baseUrl]
-// Modes: DARK=1 (dark colour scheme), TG_THEME=purple (a purple Telegram theme with safe-area
+// Modes: DARK=1 (dark colour scheme), SHIFT_DAYS=n (the browsers' clock runs n days ahead; 1 by
+// default on a Monday, so «Сегодня» always has a past day of the week to pick), TG_THEME=purple (a purple Telegram theme with safe-area
 // insets, as telegram-web-app.js would inject them). Requires a running server
 // (`npm run preview` after `npm run build`, or `npm run dev`; the /styleguide capture needs the
 // dev server, the route does not exist in production builds).
@@ -60,6 +61,16 @@ async function applyTheme(ctx) {
   });
 }
 
+/** SHIFT_DAYS: every context's clock starts `shiftDays` ahead of the real one and then runs on. */
+const shiftDays = process.env.SHIFT_DAYS !== undefined ? Number(process.env.SHIFT_DAYS) : new Date().getDay() === 1 ? 1 : 0;
+async function setupContext(ctx) {
+  if (shiftDays) {
+    await ctx.clock.install({ time: Date.now() + shiftDays * 86_400_000 });
+    await ctx.clock.resume();
+  }
+  await applyTheme(ctx);
+}
+
 const errors = [];
 // The styleguide's ErrorBoundary demo throws on purpose; React reports it to the console.
 const expected = (text) => text.includes('ERR_FAILED') || text.includes('ErrorBoundary demo');
@@ -72,7 +83,7 @@ async function openPage(ctx) {
   await p.route('https://telegram.org/**', (r) => r.abort());
   return p;
 }
-await applyTheme(context);
+await setupContext(context);
 
 let page = await openPage(context);
 
@@ -352,7 +363,11 @@ await shot('home');
 // fills a flask is told by the TopCard (no flask on this screen); «Сделано сегодня» follows.
 await tab('Сегодня').click();
 await page.locator('.coach-chip').waitFor();
-await page.getByRole('img', { name: 'Активных дней на неделе: 1' }).waitFor();
+// Nothing is scheduled yet, but the day has completions: only its points, no «ничего не
+// запланировано» hint; the week strip counts today's completions.
+await page.locator('.today-summary-points').waitFor();
+if (await page.getByText('ничего не запланировано', { exact: false }).count()) errors.push('«ничего не запланировано» on a day with completions');
+await page.getByRole('group', { name: 'День для отметок' }).getByRole('button', { pressed: true, name: /: \d+ выполнени/ }).waitFor();
 await shot('today');
 const todayCheck = (skill) => page.locator('.today-group', { hasText: skill }).locator('.check-button').first();
 const idleToday = (skill) => page.locator('.today-group', { hasText: skill }).locator('.check-button[aria-busy="false"]').first();
@@ -402,6 +417,112 @@ const rowsAfter = await page.locator('button.timeline-row').count();
 if (!(rowsAfter > rowsBefore)) errors.push(`«Показать ещё» did not add rows: ${rowsBefore} → ${rowsAfter}`);
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.getByRole('button', { name: 'Назад' }).click();
+
+// Schedules and timed actions (package 8), on «Чтение»: a timed action every day and a
+// quota of 3 a week. The form's type is live; «Сегодня» v2 gets «Осталось» and the quota block.
+await tab('Навыки').click();
+await page.locator('.skill-card', { hasText: 'Чтение' }).click();
+await page.getByRole('link', { name: 'Новое действие' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Чтение вслух');
+await page.getByRole('group', { name: 'Тип' }).getByRole('button', { name: 'По времени' }).click();
+await page.getByLabel('Очков за минуту').fill('0,5');
+await page.getByRole('group', { name: 'Частые значения' }).getByRole('button', { name: '30 мин' }).click();
+await page.getByLabel('Когда показывать на «Сегодня»').selectOption('DAILY');
+await page.getByText('30 мин → 15 очков').waitFor();
+await page.locator('input:focus').evaluate((el) => el.blur()).catch(() => {});
+await settled();
+await shot('step-form-timed');
+await page.getByRole('button', { name: 'Создать действие' }).click();
+await page.getByRole('button', { name: /^Отметить: Чтение вслух, 0,5 очка в минуту$/ }).waitFor();
+await page.getByRole('link', { name: 'Новое действие' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Библиотека');
+await page.getByLabel('Очки за выполнение').fill('5');
+await page.getByLabel('Когда показывать на «Сегодня»').selectOption('WEEKDAYS');
+await page.getByRole('group', { name: 'Дни недели' }).getByRole('button', { name: 'Суббота' }).click();
+await settled();
+await shot('step-form-weekdays');
+await page.getByLabel('Когда показывать на «Сегодня»').selectOption('TIMES_PER_WEEK');
+await page.getByText('пока не наберётся 3', { exact: false }).waitFor();
+await shot('step-form-quota');
+await page.getByRole('button', { name: 'Создать действие' }).click();
+// Three actions on one skill's list: «Набор инструментов» (a card under the header).
+await achCard('Набор инструментов').waitFor();
+await page.getByText('3 раза в неделю').waitFor();
+await achCard('Набор инструментов').waitFor({ state: 'detached', timeout: 8000 });
+await shot('skill-scheduled-rows');
+// «Задним числом» with a timed action: the duration under the date, minutes and points on the button.
+await page.getByRole('link', { name: 'Задним числом' }).click();
+await page.getByText('Чтение вслух', { exact: true }).click();
+await page.getByRole('button', { name: 'Записать 30 мин · +15' }).waitFor();
+await page.getByRole('group', { name: 'Частые значения' }).getByRole('button', { name: '60 мин' }).click();
+await page.getByRole('button', { name: 'Записать 60 мин · +30' }).waitFor();
+await shot('backdate-timed');
+await page.getByRole('button', { name: 'Назад' }).click();
+await page.getByRole('link', { name: 'Задним числом' }).waitFor();
+await page.getByRole('button', { name: 'Назад' }).click();
+await tab('Сегодня').click();
+const dueSection = page.locator('.today-due');
+const quotaSection = page.locator('.today-quota');
+await dueSection.getByText('Чтение вслух').waitFor();
+await dueSection.getByText('Чтение · каждый день').waitFor();
+await quotaSection.getByText('Чтение · 0 из 3').waitFor();
+await page.getByText('Сделано 0 из 1').waitFor();
+if (await page.getByText(/просроч|пропущ/i).count()) errors.push('«Сегодня» talks about something overdue or missed');
+if (await page.locator('details.today-more[open]').count()) errors.push('«Ещё» is open while something is left');
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await shot('today-v2');
+// The ✓ of a timed action asks «Сколько минут?» first: the usual 30 preselected, 45 picked.
+await dueSection.locator('.check-button').first().click();
+const minutesSheet = page.locator('.minutes-sheet');
+await minutesSheet.getByText('Начислится 15 очков').waitFor();
+await minutesSheet.getByRole('button', { name: '45 мин' }).click();
+await minutesSheet.getByText('Начислится 22,5 очка').waitFor();
+await shot('minutes-sheet');
+await minutesSheet.getByRole('button', { name: 'Готово' }).click();
+await minutesSheet.waitFor({ state: 'detached' });
+await page.getByRole('status').getByText('+22,5 · Чтение вслух').waitFor();
+await page.getByText('Всё сделано на сегодня').waitFor();
+await dueSection.waitFor({ state: 'detached' });
+// Nothing left: «Ещё» unfolds by itself.
+await page.locator('details.today-more[open]').waitFor();
+await shot('today-v2-done');
+// The quota: one tap, 1 of 3 (the rest of the week keeps the block).
+await quotaSection.locator('.check-button[aria-busy="false"]').first().click();
+await quotaSection.getByText('Чтение · 1 из 3').waitFor();
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await shot('today-v2-quota');
+// «Минуты» in the completion sheet: 45 → 60 is one CORRECTION of +7,5.
+await page.locator('.done-row', { hasText: 'Чтение вслух' }).click();
+const doneSheet = page.locator('.completion-sheet');
+await doneSheet.getByText('45 мин · 0,5/мин').waitFor();
+await doneSheet.getByLabel('Минуты').fill('60');
+await doneSheet.getByText('Было 45 мин (22,5) → станет 60 мин (+7,5)').waitFor();
+await shot('completion-minutes');
+await doneSheet.getByRole('button', { name: 'Пересчитать' }).click();
+await page.getByText('Длительность изменена: +7,5 очка').waitFor();
+await doneSheet.waitFor({ state: 'detached' });
+// A past day of this week (SHIFT_DAYS makes sure there is one): its plan, «В этот день отметок нет».
+const weekPicker = page.getByRole('group', { name: 'День для отметок' });
+const pickable = weekPicker.locator('button:not([disabled])');
+if ((await pickable.count()) > 1) {
+  await pickable.nth((await pickable.count()) - 2).click();
+  await page.getByText(/^Отметки задним числом: /).waitFor();
+  await page.getByText('В этот день отметок нет').waitFor();
+  if (await page.getByText('Осталось', { exact: true }).count()) errors.push('a past day says «Осталось»');
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  await shot('today-past-day');
+  await weekPicker.locator('button.is-today').click();
+  await page.getByText('Всё сделано на сегодня').waitFor();
+} else {
+  errors.push('«Сегодня» has no past day of the week to pick (SHIFT_DAYS=0 on a Monday?)');
+}
+// A 320 px phone: the week strip and the quota rows fit without sideways scroll.
+await page.setViewportSize({ width: 320, height: 700 });
+await page.waitForTimeout(200);
+const todayOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+if (todayOverflow > 0) errors.push(`«Сегодня» scrolls sideways by ${todayOverflow}px at 320 px`);
+await shot('today-v2-320');
+await page.setViewportSize(contextOptions.viewport);
 
 // Archive from the skill form: gone from «Сегодня», a third chip «Архив» on the home screen,
 // the banner with «Продолжить с этого места» on the skill.
@@ -480,11 +601,11 @@ const achTab = tab('Ачивки');
 if (!(await achTab.locator('.tab-badge').count())) errors.push('no dot on «Ачивки» for unseen achievements');
 if (!/новых: \d+/.test((await achTab.getAttribute('aria-label')) ?? '')) errors.push('the «Ачивки» tab does not say how many are new');
 await achTab.click();
-await page.getByRole('img', { name: /^Получено \d+ из 44$/ }).waitFor();
+await page.getByRole('img', { name: /^Получено \d+ из 49$/ }).waitFor();
 await shot('achievements');
 await achTab.locator('.tab-badge').waitFor({ state: 'detached', timeout: 3000 });
-if ((await page.locator('.ladder-card').count()) !== 7) errors.push(`ladder cards: ${await page.locator('.ladder-card').count()}`);
-if ((await page.locator('.ach-tile').count()) !== 11) errors.push(`badge tiles: ${await page.locator('.ach-tile').count()}`);
+if ((await page.locator('.ladder-card').count()) !== 8) errors.push(`ladder cards: ${await page.locator('.ladder-card').count()}`);
+if ((await page.locator('.ach-tile').count()) !== 12) errors.push(`badge tiles: ${await page.locator('.ach-tile').count()}`);
 if (await page.getByText(/текущ|сгорел|пропущ|провал/i).count()) errors.push('the achievements tab mentions a current streak or a loss');
 const series = page.getByRole('article', { name: 'Лучшая серия' });
 await series.getByText(/^Ступени/).click();
@@ -640,7 +761,7 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
 // Demo data (dev server only): a seeded month of history on the «Ачивки» tab and the home tile.
 {
   const seedContext = await browser.newContext(contextOptions);
-  await applyTheme(seedContext);
+  await setupContext(seedContext);
   const seedPage = await openPage(seedContext);
   await seedPage.goto(baseUrl);
   await seedPage.getByText('Первый навык').first().waitFor();
@@ -655,7 +776,7 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
     await page.locator('.tile--achievement').waitFor();
     await shot('seed-home');
     await page.goto(`${baseUrl}#/achievements`);
-    await page.getByRole('img', { name: /^Получено \d+ из 44$/ }).waitFor();
+    await page.getByRole('img', { name: /^Получено \d+ из 49$/ }).waitFor();
     await shot('seed-achievements');
     await page.getByRole('heading', { name: 'Значки' }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
     await shot('seed-achievements-badges');
@@ -693,7 +814,7 @@ function cloudStoreFor(json) {
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
 // to fit instead of being cut (own context, so the walk above keeps its data).
 const bigContext = await browser.newContext({ ...contextOptions, viewport: { width: 320, height: 700 } });
-await applyTheme(bigContext);
+await setupContext(bigContext);
 page = await openPage(bigContext);
 await page.goto(`${baseUrl}#/skills/new`);
 await page.getByLabel('Название', { exact: true }).fill('Очень длинное название навыка для проверки');
@@ -737,7 +858,7 @@ await shot('home-big-320');
 await bigContext.close();
 
 const tgContext = await browser.newContext(contextOptions);
-await applyTheme(tgContext);
+await setupContext(tgContext);
 await tgContext.addInitScript(
   ({ seed, scheme }) => {
     const KEY = '__fake_cloud';

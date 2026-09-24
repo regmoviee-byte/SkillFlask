@@ -116,6 +116,8 @@ function OperationRow({ event, onOpen }: { event: TransactionEvent; onOpen(compl
         <span className="timeline-caption">
           {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
           {event.minutes && ` · ${t.duration(event.minutes.from, event.minutes.to)}`}
+          {/* A TIMED completion shows its minutes as they are now (corrections included). */}
+          {event.type === 'COMPLETION' && completion?.durationMinutes != null && ` · ${t.minutes(completion.durationMinutes)}`}
         </span>
         {note && <span className="history-note">{note}</span>}
       </span>

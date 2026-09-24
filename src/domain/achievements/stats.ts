@@ -51,6 +51,10 @@ export interface GlobalStats {
   bestDayStreak: number;
   /** Weeks (Monday..Sunday) with at least three active dates. */
   rhythmWeeks: number;
+  /** Minutes of effective TIMED completions, counted on their COMPLETION row (events.ts). */
+  totalMinutes: number;
+  /** The longest effective TIMED completion, in minutes. */
+  maxDurationMinutes: number;
 }
 
 export interface Stats {
@@ -104,6 +108,8 @@ export function createStats(snapshot: Pick<HistorySnapshot, 'skills' | 'mileston
       activeDays: 0,
       bestDayStreak: 0,
       rhythmWeeks: 0,
+      totalMinutes: 0,
+      maxDurationMinutes: 0,
     },
   };
 }
@@ -155,6 +161,10 @@ export function applyEvent(stats: Stats, event: ReplayEvent): void {
       if (s.completedFlasks !== after.completedFlasks) {
         s.completedFlasks = after.completedFlasks;
         recountFlasks(stats);
+      }
+      if (event.minutes > 0) {
+        g.totalMinutes += event.minutes;
+        g.maxDurationMinutes = Math.max(g.maxDurationMinutes, event.minutes);
       }
       if (!event.effective || !completion) return;
 

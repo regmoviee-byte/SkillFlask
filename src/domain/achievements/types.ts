@@ -7,7 +7,7 @@ import type { Stats } from './stats';
 /** A visual tone only: rarity never changes points, order or rules. */
 export type Rarity = 'BRONZE' | 'SILVER' | 'GOLD';
 
-export type LadderId = 'actions' | 'days' | 'weeks' | 'series' | 'flasks' | 'milestones' | 'completed';
+export type LadderId = 'actions' | 'days' | 'weeks' | 'series' | 'hours' | 'flasks' | 'milestones' | 'completed';
 
 /**
  * Glyphs of the medal art (ui/achievements/medals.tsx draws one per name). Kept in the domain
@@ -31,9 +31,11 @@ export type MedalGlyph =
   | 'layers'
   | 'target'
   | 'mountain'
-  | 'bolt';
+  | 'bolt'
+  | 'hourglass'
+  | 'stopwatch';
 
-/** An open-ended counter with tiers: «Следующая: 60 · осталось 12». */
+/** An open-ended counter with tiers: «Следующая: 60 · ещё 12». */
 export interface LadderDef {
   id: LadderId;
   title: string;

@@ -34,7 +34,7 @@ function byCreatedAt(a: { createdAt: string }, b: { createdAt: string }): number
   return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
 }
 
-type SummaryRows = {
+export type SummaryRows = {
   skills: Skill[];
   milestones: Milestone[];
   thresholds: LevelThreshold[];
@@ -58,7 +58,7 @@ function summarize({ skills, milestones, thresholds, transactions }: SummaryRows
   });
 }
 
-async function readSummaryRows(): Promise<SummaryRows> {
+export async function readSummaryRows(): Promise<SummaryRows> {
   const [skills, milestones, thresholds, transactions] = await Promise.all([
     db.skills.orderBy('createdAt').toArray(),
     db.milestones.toArray(),
@@ -95,34 +95,10 @@ export interface HomeView {
   achievements: HomeAchievementLine;
 }
 
-export interface TodayStep {
-  step: StepDefinition;
-  /** ACTIVE completions of the step dated today. */
-  todayCount: number;
-  /** Local date of the step's latest ACTIVE completion, null without one. */
-  lastDoneAt: string | null;
-}
-
-export interface TodayGroup {
-  summary: HomeSkillSummary;
-  /** Active steps, most recently done first, then oldest first. May be empty. */
-  steps: TodayStep[];
-}
-
-export interface TodayView {
-  today: string;
-  todayPoints: number;
-  weekActivity: boolean[];
-  /** ACTIVE skills only, most recently worked on first; nothing planned is stored. */
-  groups: TodayGroup[];
-  /** Completions dated today, cancelled ones included, newest first. */
-  done: Array<{ completion: StepCompletion; skillName: string }>;
-}
-
 const newestFirst = (a: string | null, b: string | null): number => (a === b ? 0 : a === null ? 1 : b === null ? -1 : a < b ? 1 : -1);
 
 /** Most recent activity first; never-used ones after them, oldest created first. */
-function byActivity<T>(activity: (item: T) => string | null, created: (item: T) => { createdAt: string }) {
+export function byActivity<T>(activity: (item: T) => string | null, created: (item: T) => { createdAt: string }) {
   return (a: T, b: T) => newestFirst(activity(a), activity(b)) || byCreatedAt(created(a), created(b));
 }
 
@@ -148,7 +124,7 @@ export function weekDates(today: string): string[] {
  * progress needs all of it), so the newest COMPLETION rows name the candidates and only those
  * completions are read, a round per cancelled one met, instead of every completion ever made.
  */
-async function lastActivityBySkill(transactions: PointTransaction[]): Promise<Map<string, string>> {
+export async function lastActivityBySkill(transactions: PointTransaction[]): Promise<Map<string, string>> {
   const candidates = new Map<string, string[]>();
   for (const t of [...transactions].sort((a, b) => compareJournalOrder(b, a))) {
     if (t.reason !== 'COMPLETION' || !t.completionId) continue;
@@ -175,9 +151,26 @@ async function lastActivityBySkill(transactions: PointTransaction[]): Promise<Ma
 }
 
 /**
- * Everything both screens need. Completions are read by index for this week and today only;
- * the journal is read whole, as for every progress.
+ * Every skill with its flask, the points of its ACTIVE completions among `dayCompletions` and
+ * its last activity, sorted as the home screen lists them. Synchronous over rows already read,
+ * so a read model keeps its transaction's chain of awaits short (Dexie keeps a transaction
+ * alive across native awaits only for a bounded number of microtasks).
  */
+export function skillSummaries(rows: SummaryRows, lastActivity: Map<string, string>, dayCompletions: readonly StepCompletion[]): HomeSkillSummary[] {
+  const dayDeci = new Map<string, number>();
+  for (const c of dayCompletions) {
+    if (c.status === 'ACTIVE') dayDeci.set(c.skillId, (dayDeci.get(c.skillId) ?? 0) + toDeci(c.pointsAwarded));
+  }
+  return sortSkills(
+    summarize(rows).map((s) => ({
+      ...s,
+      todayPoints: fromDeci(dayDeci.get(s.skill.id) ?? 0),
+      lastActivityAt: lastActivity.get(s.skill.id) ?? null,
+    })),
+  );
+}
+
+/** The home screen's numbers: completions are read by index for this week and today only. */
 async function readOverview(today: string) {
   const week = weekDates(today);
   const [rows, weekActive, todayAll] = await Promise.all([
@@ -185,24 +178,13 @@ async function readOverview(today: string) {
     db.completions.where('[status+date]').between(['ACTIVE', week[0]!], ['ACTIVE', week[6]!], true, true).toArray(),
     db.completions.where('date').equals(today).toArray(),
   ]);
-  const lastActivity = await lastActivityBySkill(rows.transactions);
+  const summaries = skillSummaries(rows, await lastActivityBySkill(rows.transactions), todayAll);
   const activeDates = new Set(weekActive.map((c) => c.date));
-  const todayDeci = new Map<string, number>();
-  for (const c of todayAll) {
-    if (c.status === 'ACTIVE') todayDeci.set(c.skillId, (todayDeci.get(c.skillId) ?? 0) + toDeci(c.pointsAwarded));
-  }
-  const summaries = sortSkills(
-    summarize(rows).map((s) => ({
-      ...s,
-      todayPoints: fromDeci(todayDeci.get(s.skill.id) ?? 0),
-      lastActivityAt: lastActivity.get(s.skill.id) ?? null,
-    })),
-  );
-  const todayPoints = fromDeci([...todayDeci.values()].reduce((sum, d) => sum + d, 0));
-  return { summaries, todayCompletions: todayAll, todayPoints, weekActivity: week.map((d) => activeDates.has(d)) };
+  const todayPoints = fromDeci(summaries.reduce((sum, s) => sum + toDeci(s.todayPoints), 0));
+  return { summaries, todayPoints, weekActivity: week.map((d) => activeDates.has(d)) };
 }
 
-const overviewTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions];
+export const overviewTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions];
 
 /**
  * The home screen in one live query: the skills with their flask, today's points and the
@@ -225,56 +207,6 @@ export async function getHomeView(today: string = localDate()): Promise<HomeView
         : null,
       achievements,
     };
-  });
-}
-
-/**
- * «Сегодня» v1, without schedules: every active step of every active skill, one tap away, and
- * what was done today. Nothing is planned or stored for a day, so a day without completions
- * leaves no trace (FR-TD-003). `today` comes from useToday() so the view turns at midnight.
- */
-export async function getTodayView(today: string = localDate()): Promise<TodayView> {
-  return db.transaction('r', overviewTables(), async () => {
-    const [{ summaries, todayCompletions, todayPoints, weekActivity }, allSteps] = await Promise.all([
-      readOverview(today),
-      db.steps.filter((s) => s.isActive).toArray(),
-    ]);
-    const activeSkills = new Set(summaries.filter((s) => s.skill.status === 'ACTIVE').map((s) => s.skill.id));
-    const steps = allSteps.filter((step) => activeSkills.has(step.skillId));
-    const todayCount = new Map<string, number>();
-    for (const c of todayCompletions) {
-      if (c.status === 'ACTIVE') todayCount.set(c.stepId, (todayCount.get(c.stepId) ?? 0) + 1);
-    }
-    // The latest ACTIVE completion per step, newest date first through the [stepId+date] index.
-    const lastDates = await Promise.all(
-      steps.map((step) =>
-        db.completions
-          .where('[stepId+date]')
-          .between([step.id, ''], [step.id, '\uffff'])
-          .reverse()
-          .filter((c) => c.status === 'ACTIVE')
-          .first(),
-      ),
-    );
-    const lastDone = new Map<string, string>();
-    steps.forEach((step, i) => {
-      const c = lastDates[i];
-      if (c) lastDone.set(step.id, c.date);
-    });
-    const groups = summaries
-      .filter((s) => s.skill.status === 'ACTIVE')
-      .map((summary) => ({
-        summary,
-        steps: steps
-          .filter((step) => step.skillId === summary.skill.id)
-          .map((step) => ({ step, todayCount: todayCount.get(step.id) ?? 0, lastDoneAt: lastDone.get(step.id) ?? null }))
-          .sort(byActivity((s: TodayStep) => s.lastDoneAt, (s) => s.step)),
-      }));
-    const names = new Map(summaries.map((s) => [s.skill.id, s.skill.name]));
-    const done = [...todayCompletions]
-      .sort((a, b) => compareJournalOrder(b, a))
-      .map((completion) => ({ completion, skillName: names.get(completion.skillId) ?? '' }));
-    return { today, todayPoints, weekActivity, groups, done };
   });
 }
 

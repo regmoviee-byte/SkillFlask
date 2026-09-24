@@ -2,17 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { completeStep, type MutationResult } from '../../services/completions';
 import type { Skill, StepDefinition } from '../../domain/types';
+import { describeSchedule } from '../../domain/schedule';
+import { localDate } from '../../lib/dates';
 import { DoubleSubmitError, SAME_TAP_MS } from '../../services/core';
 import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { announceCompletion, errorMessage } from '../completionFeedback';
 import { copy } from '../copy';
+import { MinutesSheet } from '../sheets/MinutesSheet';
 import { Icon } from './Icon';
 import { useToast } from './Toast';
 
-// One action of a skill: name, «сегодня ×2» and a 44px button «+5» that records a completion
-// in one tap: the points fly into the flask, the button shows ✓ for a moment. Shared by the
-// skill screen and (package 6) the Today tab.
+// One action of a skill: name, a caption («каждый день · сегодня ×2») and a 44px button «+5»
+// that records a completion in one tap: the points fly into the flask, the button shows ✓ for
+// a moment. A TIMED action shows its rate («0,5/мин») and asks «Сколько минут?» first. Shared
+// by the skill screen and «Сегодня» (where it may record on a past day and show a quota x/N).
 
 /**
  * The green «done» state lasts this long after the write settles. The ✓ itself stays busy at
@@ -21,21 +25,39 @@ import { useToast } from './Toast';
  */
 export const BUSY_TAIL_MS = 600;
 
+/** What one completion of the step is worth, as its ✓ shows it: «+5» or «0,5/мин». */
+export function stepValue(step: Pick<StepDefinition, 'type' | 'points' | 'pointsPerMinute'>): string {
+  return step.type === 'TIMED' ? copy.stepRow.rate(step.pointsPerMinute ?? 0) : copy.stepRow.points(step.points);
+}
+
+/** The schedule as a caption, or null for a manual step (most steps: the caption would be noise). */
+export function scheduleCaption(step: Pick<StepDefinition, 'schedule'>): string | null {
+  return step.schedule.kind === 'MANUAL' ? null : describeSchedule(step.schedule);
+}
+
 export interface StepRowProps {
   step: StepDefinition;
   skill: Pick<Skill, 'status'>;
+  /** ACTIVE completions of the step on the row's date (today unless `date` says otherwise). */
   todayCount: number;
   /** 'edit' turns the row into a link to the step form. */
   mode: 'complete' | 'edit';
   onResult?(result: MutationResult): void;
+  /** The local date the ✓ records on: a past day picked on «Сегодня»; today when omitted. */
+  date?: string;
+  /** Leads the caption: the skill's name where rows of several skills meet («Сегодня»). */
+  context?: string;
+  /** A quota row: done of target in the current period, with a segmented bar instead of the schedule. */
+  quota?: { done: number; target: number };
 }
 
-export function StepRow({ step, skill, todayCount, mode, onResult }: StepRowProps) {
+export function StepRow({ step, skill, todayCount, mode, onResult, date, context, quota }: StepRowProps) {
   const { showToast } = useToast();
   const celebrations = useCelebrations();
   const button = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [askMinutes, setAskMinutes] = useState(false);
   // The state update lands on the next render; the ref closes the gap for a fast second tap.
   const busyRef = useRef(false);
   const doneTimer = useRef<number | undefined>(undefined);
@@ -50,12 +72,21 @@ export function StepRow({ step, skill, todayCount, mode, onResult }: StepRowProp
 
   const active = skill.status === 'ACTIVE';
   const editing = mode === 'edit' && active;
-  // With the ✓ on screen the points sit on it; the line under the name counts today only.
-  const meta = editing || !active ? copy.stepRow.meta(step.points, todayCount) : todayCount > 0 ? copy.stepRow.today(todayCount) : null;
+  const timed = step.type === 'TIMED';
+  const past = date !== undefined && date !== localDate();
+  const count = todayCount > 0 ? (past ? copy.stepRow.onDate(todayCount) : copy.stepRow.today(todayCount)) : null;
+  // With the ✓ on screen the value sits on it; otherwise the caption starts with it.
+  const parts = [
+    editing || !active ? stepValue(step) : null,
+    context ?? null,
+    quota ? copy.today.quotaProgress(quota.done, quota.target) : scheduleCaption(step),
+    count,
+  ].filter(Boolean);
   const text = (
     <span className="step-row-main">
       <span className="step-row-name">{step.name}</span>
-      {meta && <span className="step-row-meta">{meta}</span>}
+      {parts.length > 0 && <span className="step-row-meta">{parts.join(' · ')}</span>}
+      {quota && <QuotaBar done={quota.done} target={quota.target} />}
     </span>
   );
 
@@ -70,7 +101,17 @@ export function StepRow({ step, skill, todayCount, mode, onResult }: StepRowProp
     );
   }
 
-  async function complete() {
+  function tap() {
+    if (busyRef.current) return;
+    if (timed) {
+      haptics.tap();
+      setAskMinutes(true);
+      return;
+    }
+    void record();
+  }
+
+  async function record(minutes?: number) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -80,7 +121,7 @@ export function StepRow({ step, skill, todayCount, mode, onResult }: StepRowProp
     // the points have flown in.
     const release = celebrations.hold(step.skillId);
     try {
-      const result = await completeStep(step.id);
+      const result = await completeStep(step.id, { date, minutes });
       setDone(true);
       announceCompletion(result, step.name, showToast);
       void celebrations
@@ -108,22 +149,47 @@ export function StepRow({ step, skill, todayCount, mode, onResult }: StepRowProp
   }
 
   return (
-    <li className="step-row">
+    <li className={`step-row${quota ? ' quota-row' : ''}`}>
       {text}
       {active && (
         <button
           ref={button}
           type="button"
           className={`check-button${done ? ' done' : ''}`}
-          aria-label={copy.stepRow.check(step.name, step.points)}
+          aria-label={timed ? copy.stepRow.checkTimed(step.name, step.pointsPerMinute ?? 0) : copy.stepRow.check(step.name, step.points)}
           aria-busy={busy}
-          onClick={complete}
+          aria-haspopup={timed ? 'dialog' : undefined}
+          onClick={tap}
         >
-          {/* The points keep the button's width; the ✓ covers them while it is green. */}
-          <span className="check-points">{copy.stepRow.points(step.points)}</span>
+          {/* The value keeps the button's width; the ✓ covers it while it is green. */}
+          <span className="check-points">{stepValue(step)}</span>
           {done && <Icon name="check" size={22} className="check-icon" />}
         </button>
       )}
+      {timed && active && (
+        <MinutesSheet open={askMinutes} step={step} onClose={() => setAskMinutes(false)} onDone={(minutes) => void record(minutes)} />
+      )}
     </li>
+  );
+}
+
+/** Up to ten segments for x of N; a plain bar beyond that. Never red: an empty segment is just empty. */
+const MAX_SEGMENTS = 10;
+
+export function QuotaBar({ done, target }: { done: number; target: number }) {
+  const label = copy.today.quotaBar(done, target);
+  if (target > MAX_SEGMENTS) {
+    return (
+      <span className="quota-bar bar" role="img" aria-label={label}>
+        <span className="bar-fill" style={{ width: `${Math.min(100, (done / target) * 100)}%` }} />
+      </span>
+    );
+  }
+  return (
+    <span className="quota-bar quota-segments" role="img" aria-label={label}>
+      {Array.from({ length: target }, (_, i) => (
+        <span key={i} className={`quota-segment${i < done ? ' is-done' : ''}`} />
+      ))}
+    </span>
   );
 }

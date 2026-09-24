@@ -113,6 +113,22 @@ class History {
     return completion;
   }
 
+  /** A TIMED completion of `minutes` at 1 point a minute (the step's type does not matter to the rules). */
+  mkTimed(stepId: string, minutes: number, date?: string): StepCompletion {
+    const completion = this.mkCompletion(stepId, date);
+    Object.assign(completion, { stepType: 'TIMED', pointsSnapshot: 1, durationMinutes: minutes, pointsAwarded: minutes });
+    this.transactions.at(-1)!.delta = minutes;
+    return completion;
+  }
+
+  /** correctDuration: the new minutes and one CORRECTION row for the difference. */
+  correct(completion: StepCompletion, minutes: number): string {
+    const at = this.tick();
+    this.mkTx(completion.skillId, completion.id, minutes - completion.pointsAwarded, 'CORRECTION', at);
+    Object.assign(completion, { durationMinutes: minutes, pointsAwarded: minutes, updatedAt: at });
+    return at;
+  }
+
   cancel(completion: StepCompletion): string {
     const at = this.tick();
     completion.status = 'CANCELLED';
@@ -398,6 +414,35 @@ describe('evaluateAchievements — one positive case per badge', () => {
     expect(stateOf(h.snapshot(), 'big-day').unlocked).toBe(true);
   });
 
+  it('Часы практики: whole hours of effective TIMED completions', () => {
+    const h = new History();
+    const step = h.mkStep(h.mkSkill({ capacity: 10_000 }));
+    h.mkTimed(step, 25);
+    h.mkCompletion(step); // a BOOLEAN completion adds no minutes
+    expect(stateOf(h.snapshot(), 'hours-1').current).toBe(0);
+    const cancelled = h.mkTimed(step, 50);
+    h.cancel(cancelled);
+    expect(stateOf(h.snapshot(), 'hours-1').unlocked).toBe(false);
+    h.mkTimed(step, 35);
+    const state = stateOf(h.snapshot(), 'hours-1');
+    expect(state).toMatchObject({ unlocked: true, unlockedAt: h.transactions.at(-1)!.createdAt });
+    expect(evaluateWithStats(h.snapshot()).stats.global.totalMinutes).toBe(60);
+  });
+
+  it('Марафон: one completion of an hour; a correction re-dates to that completion and can take it back', () => {
+    const h = new History();
+    const step = h.mkStep(h.mkSkill({ capacity: 10_000 }));
+    const long = h.mkTimed(step, 45);
+    h.mkTimed(step, 59);
+    expect(stateOf(h.snapshot(), 'marathon')).toMatchObject({ unlocked: false, current: 59 });
+    h.correct(long, 75);
+    expect(stateOf(h.snapshot(), 'marathon')).toMatchObject({ unlocked: true, unlockedAt: long.createdAt });
+    // The minutes count once, with the duration the completion has now.
+    expect(evaluateWithStats(h.snapshot()).stats.global).toMatchObject({ totalMinutes: 134, maxDurationMinutes: 75 });
+    h.correct(long, 30);
+    expect(stateOf(h.snapshot(), 'marathon').unlocked).toBe(false);
+  });
+
   it('cancelled completions count for nothing but their rows still move the flasks', () => {
     const h = new History();
     const step = h.mkStep(h.mkSkill({ capacity: 10 }), 10);
@@ -420,8 +465,9 @@ describe('evaluateAchievements — scale', () => {
     evaluateAchievements(snapshot);
     const started = performance.now();
     const states = evaluateAchievements(snapshot);
-    // About 30 ms on a laptop; the bound leaves room for a loaded CI runner.
-    expect(performance.now() - started).toBeLessThan(150);
+    // About 30 ms on a laptop; the bound only catches an accidental quadratic replay, so a
+    // loaded CI runner in the parallel pool does not make it flaky.
+    expect(performance.now() - started).toBeLessThan(500);
     expect(states.find((s) => s.def.id === 'actions-1000')!.unlocked).toBe(true);
     expect(states.find((s) => s.def.id === 'days-365')!.unlocked).toBe(true);
     expect(states.find((s) => s.def.id === 'series-30')!.unlocked).toBe(true);

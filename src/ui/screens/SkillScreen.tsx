@@ -20,7 +20,7 @@ import { Icon } from '../components/Icon';
 import { MilestoneRack } from '../components/MilestoneRack';
 import { Screen } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
-import { StepRow } from '../components/StepRow';
+import { scheduleCaption, StepRow, stepValue } from '../components/StepRow';
 import { Timeline } from '../components/Timeline';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
@@ -411,7 +411,7 @@ function ActionsCard({ details: { skill, steps, hiddenSteps, todayCounts } }: { 
                 <li key={step.id} className="step-row">
                   <span className="step-row-main">
                     <span className="step-row-name">{step.name}</span>
-                    <span className="step-row-meta">{copy.stepRow.meta(step.points, 0)}</span>
+                    <span className="step-row-meta">{[stepValue(step), scheduleCaption(step)].filter(Boolean).join(' · ')}</span>
                   </span>
                   <button type="button" className="text-button" onClick={() => unhide(step.id)}>
                     {t.unhide}

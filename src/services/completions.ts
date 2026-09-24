@@ -6,8 +6,9 @@
 import { db } from '../data/db';
 import { newId } from '../lib/ids';
 import { isValidLocalDate, localDate, nowIso } from '../lib/dates';
-import { fromDeci, timedPoints, toDeci } from '../domain/points';
+import { fromDeci, MAX_MINUTES, timedPoints, toDeci } from '../domain/points';
 import { compareJournalOrder, type Progress } from '../domain/progression';
+import { isScheduledOn } from '../domain/schedule';
 import type {
   AchievementState,
   CompletionSource,
@@ -54,13 +55,24 @@ export type CompletionResult = MutationResult;
 export interface CompleteStepOptions {
   /** Local calendar date, today by default; never in the future. */
   date?: string;
+  /** TIMED steps only (required there): whole minutes, 1..1440. Ignored for BOOLEAN. */
+  minutes?: number;
+  /**
+   * SCHEDULED when the date is one the step's schedule plans (a due date, or inside a quota
+   * period), MANUAL otherwise — by default. Informational: points never depend on it.
+   */
   source?: CompletionSource;
   note?: string | null;
 }
 
 export const NOTE_MAX_LENGTH = 500;
 export { SAME_TAP_MS };
-const MAX_MINUTES = 1440;
+
+/** Whole minutes of a TIMED completion, or a ValidationError with `message`. */
+function requireMinutes(minutes: unknown, message: string): number {
+  if (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes < 1 || minutes > MAX_MINUTES) throw new ValidationError(message);
+  return minutes;
+}
 
 function normalizeNote(note: string | null | undefined): string | null {
   const text = (note ?? '').trim();
@@ -106,8 +118,15 @@ export function resetStoragePersistRequest(): void {
 interface JournalWrite {
   skill: Skill;
   completion: StepCompletion;
-  /** Signed change in deci-points; no row is written for 0. */
+  /** Signed change in deci-points. */
   deltaDeci: number;
+  /**
+   * Write the row even when the delta is 0: a completion's own COMPLETION row, its CANCELLATION
+   * and RESTORE rows (a TIMED completion may be worth 0 points and must still be in the history
+   * and the achievement replay) and a CORRECTION that changed the minutes. Otherwise a 0 delta
+   * writes no row.
+   */
+  keepZero?: boolean;
   reason: TransactionReason;
   /** Fields of the completion to update; omitted for the COMPLETION row (added before). */
   patch?: Partial<StepCompletion>;
@@ -118,10 +137,10 @@ interface JournalWrite {
  * The common tail of every journal mutation: one row, the completion update, the milestone
  * sync and the achievement hooks. Runs inside a transaction covering `journalTables()`.
  */
-async function writeJournal({ skill, completion, deltaDeci, reason, patch, now }: JournalWrite): Promise<MutationResult> {
+async function writeJournal({ skill, completion, deltaDeci, keepZero = false, reason, patch, now }: JournalWrite): Promise<MutationResult> {
   const { progress: before } = await loadTimeline(skill);
   if (patch) await db.completions.update(completion.id, patch);
-  if (deltaDeci !== 0) {
+  if (deltaDeci !== 0 || keepZero) {
     await db.transactions.add({
       id: newId(),
       skillId: skill.id,
@@ -147,14 +166,16 @@ async function writeJournal({ skill, completion, deltaDeci, reason, patch, now }
 }
 
 /**
- * Records a manual completion of a step (FR-ST-010, FR-TD-004): a completion with a snapshot
- * of the step plus exactly one points transaction, written atomically (FR-CP-007).
+ * Records a completion of a step (FR-ST-010, FR-TD-004): a completion with a snapshot of the
+ * step plus exactly one points transaction, written atomically (FR-CP-007). A TIMED step takes
+ * the minutes: the snapshot keeps its rate, the points are minutes × rate in tenths (14.4).
  */
 export async function completeStep(stepId: string, options: CompleteStepOptions = {}): Promise<MutationResult> {
   const today = localDate();
   const date = options.date ?? today;
   if (!isValidLocalDate(date) || date > today) throw new ValidationError('Некорректная дата');
   const note = normalizeNote(options.note);
+  const minutesGiven = options.minutes;
   const now = nowIso();
   const result = await db.transaction('rw', journalTables(), async () => {
     const step = await db.steps.get(stepId);
@@ -171,17 +192,20 @@ export async function completeStep(stepId: string, options: CompleteStepOptions 
       throw new DoubleSubmitError('Уже отмечено — подождите секунду');
     }
 
+    const timed = step.type === 'TIMED';
+    const minutes = timed ? requireMinutes(minutesGiven, 'Укажите длительность в минутах') : null;
+    const rate = step.pointsPerMinute ?? 0;
     const completion: StepCompletion = {
       id: newId(),
       skillId: skill.id,
       stepId: step.id,
       stepName: step.name,
       stepType: step.type,
-      pointsSnapshot: step.points,
-      durationMinutes: null,
-      pointsAwarded: step.points,
+      pointsSnapshot: timed ? rate : step.points,
+      durationMinutes: minutes,
+      pointsAwarded: timed ? timedPoints(minutes!, rate) : step.points,
       date,
-      source: options.source ?? 'MANUAL',
+      source: options.source ?? (isScheduledOn(step, date) ? 'SCHEDULED' : 'MANUAL'),
       status: 'ACTIVE',
       cancelledAt: null,
       note,
@@ -189,7 +213,7 @@ export async function completeStep(stepId: string, options: CompleteStepOptions 
       updatedAt: now,
     };
     await db.completions.add(completion);
-    return writeJournal({ skill, completion, deltaDeci: toDeci(completion.pointsAwarded), reason: 'COMPLETION', now });
+    return writeJournal({ skill, completion, deltaDeci: toDeci(completion.pointsAwarded), keepZero: true, reason: 'COMPLETION', now });
   });
   await requestStoragePersist().catch(() => {});
   await afterWrite();
@@ -213,6 +237,9 @@ export async function cancelCompletion(completionId: string): Promise<MutationRe
       skill,
       completion,
       deltaDeci: net > 0 ? -net : 0,
+      // A 0-point completion still needs its row: the history shows the cancellation and the
+      // achievement cache sees the change.
+      keepZero: true,
       reason: 'CANCELLATION',
       patch: { status: 'CANCELLED', cancelledAt: now, updatedAt: now },
       now,
@@ -235,6 +262,7 @@ export async function restoreCompletion(completionId: string): Promise<MutationR
       skill,
       completion,
       deltaDeci: toDeci(completion.pointsAwarded) - net,
+      keepZero: true,
       reason: 'RESTORE',
       patch: { status: 'ACTIVE', cancelledAt: null, updatedAt: now },
       now,
@@ -250,9 +278,7 @@ export async function restoreCompletion(completionId: string): Promise<MutationR
  * one CORRECTION row.
  */
 export async function correctDuration(completionId: string, minutes: number): Promise<MutationResult> {
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_MINUTES) {
-    throw new ValidationError(`Минуты: целое число от 1 до ${MAX_MINUTES}`);
-  }
+  requireMinutes(minutes, `Минуты: целое число от 1 до ${MAX_MINUTES}`);
   const now = nowIso();
   const result = await db.transaction('rw', journalTables(), async () => {
     const completion = await requireCompletion(completionId);
@@ -266,6 +292,8 @@ export async function correctDuration(completionId: string, minutes: number): Pr
       skill,
       completion,
       deltaDeci: toDeci(newPoints) - net,
+      // A change of minutes is history even when the points round to the same tenths.
+      keepZero: minutes !== completion.durationMinutes,
       reason: 'CORRECTION',
       patch: { durationMinutes: minutes, pointsAwarded: newPoints, updatedAt: now },
       now,

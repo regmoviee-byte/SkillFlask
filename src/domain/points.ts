@@ -4,6 +4,17 @@
 
 export const DECI = 10;
 
+/** A TIMED completion lasts 1..1440 minutes (a day). */
+export const MAX_MINUTES = 1440;
+/** Upper bound of a TIMED step's rate, points per minute. */
+export const MAX_RATE = 1000;
+
+/** A valid rate: in (0, MAX_RATE] with at most two decimals (decision 14.4). */
+export function isRate(value: unknown): value is number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > MAX_RATE) return false;
+  return Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+}
+
 export function toDeci(points: number): number {
   return Math.round(points * DECI);
 }

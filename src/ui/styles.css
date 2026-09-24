@@ -872,6 +872,12 @@ textarea.input {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+/* Near-black on near-black in dark mode: a lighter surface and a hairline mark the choice. */
+:root[data-theme='dark'] .segmented button.active {
+  background: color-mix(in srgb, var(--color-bg-elevated) 88%, #fff);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
 .segmented button:disabled {
   color: var(--color-fg-secondary);
   cursor: default;
@@ -3225,6 +3231,407 @@ html[data-motion='reduced'] .ach-card-medal {
   color: var(--color-fg-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------- Stepper (package 8) ---------- */
+
+/* [−] 30 [+]: 48 px round-square buttons around the number in the display size. The number is
+   a real field (tap → digit keyboard), dressed as text until focused. */
+.stepper-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px;
+  border-radius: var(--r-m);
+  background: var(--color-bg-elevated);
+}
+
+:root[data-theme='dark'] .stepper {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+.stepper-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast);
+}
+
+.stepper-button:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.stepper-button:disabled {
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-tertiary);
+  cursor: default;
+}
+
+.stepper-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.stepper-value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stepper-input {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.stepper-input:focus-visible,
+.stepper-input:focus {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.stepper-input::placeholder {
+  color: var(--color-fg-tertiary);
+}
+
+.stepper-unit {
+  flex: none;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+}
+
+.stepper-field.is-disabled .stepper {
+  opacity: 0.55;
+}
+
+.stepper-presets {
+  padding-top: 2px;
+}
+
+.stepper-presets .chip {
+  justify-content: center;
+  min-width: 48px;
+  min-height: 40px;
+}
+
+.stepper-presets .chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* ---------- Step form sections: type and schedule ---------- */
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.form-section .section-title {
+  margin-bottom: calc(-1 * var(--sp-1));
+}
+
+.segmented button[aria-pressed='true'] {
+  color: var(--color-fg);
+}
+
+.schedule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Seven toggles, Пн…Вс: they share the row and never wrap, 40 px wide at 320 px. */
+.weekday-chips {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.weekday-chip {
+  min-width: 0;
+  min-height: var(--tap-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:root[data-theme='dark'] .weekday-chip {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+.weekday-chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: none;
+}
+
+.weekday-chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.field-hint.is-warning {
+  color: var(--color-fg);
+}
+
+.timed-preview {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+/* ---------- «Сколько минут?» and the completion's minutes ---------- */
+
+.minutes-step {
+  margin: 0 0 var(--sp-3);
+}
+
+.minutes-earn {
+  margin: var(--sp-3) 0 0;
+  text-align: center;
+  color: var(--color-positive-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.completion-minutes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-3);
+}
+
+/* ---------- «Сегодня» v2 ---------- */
+
+.today-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-1);
+}
+
+.today-summary-text {
+  margin: 0;
+  min-width: 0;
+}
+
+.today-summary-points {
+  flex: none;
+  color: var(--color-positive-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The week as seven buttons: a past day is picked to record on it, days ahead are disabled.
+   Dots count completions (three at most); a day without any is simply dotless, never red. */
+.week-picker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-m);
+  background: var(--color-bg-elevated);
+}
+
+:root[data-theme='dark'] .week-picker {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+/* Narrow phones: no gaps, so each column stays a thumb wide (≥ 44 px from 360 px on; at
+   320 px the 16 px gutters leave 288 px, about 40 px a column, still 60 px tall). */
+@media (max-width: 380px) {
+  .week-picker {
+    gap: 0;
+    padding: 2px;
+  }
+}
+
+.week-picker-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 60px;
+  padding: 6px 0 5px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--color-fg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.week-picker-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-fg-secondary);
+}
+
+.week-picker-date {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-picker-dots {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.week-picker-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--liquid-deep);
+}
+
+:root[data-theme='dark'] .week-picker-dot {
+  background: var(--liquid-mid);
+}
+
+.week-picker-day.is-today .week-picker-name,
+.week-picker-day.is-today .week-picker-date {
+  color: var(--color-accent);
+}
+
+.week-picker-day[aria-pressed='true'] {
+  background: var(--color-accent);
+}
+
+.week-picker-day[aria-pressed='true'] .week-picker-name,
+.week-picker-day[aria-pressed='true'] .week-picker-date {
+  color: var(--color-on-accent);
+}
+
+.week-picker-day[aria-pressed='true'] .week-picker-dot {
+  background: var(--color-on-accent);
+}
+
+.week-picker-day:disabled {
+  cursor: default;
+}
+
+.week-picker-day:disabled .week-picker-name,
+.week-picker-day:disabled .week-picker-date {
+  color: var(--color-fg-tertiary);
+}
+
+.week-picker-day:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.today-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* A quota row: name, «Спорт · 1 из 3» and N segments under it. */
+.quota-row {
+  min-height: 64px;
+}
+
+.quota-segments {
+  display: flex;
+  gap: 3px;
+  max-width: 132px;
+  margin-top: 4px;
+}
+
+.quota-segment {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-bg-sunken);
+}
+
+:root[data-theme='dark'] .quota-segment {
+  background: var(--color-border);
+}
+
+.quota-segment.is-done {
+  background: var(--liquid-deep);
+}
+
+:root[data-theme='dark'] .quota-segment.is-done {
+  background: var(--liquid-mid);
+}
+
+.quota-bar.bar {
+  display: block;
+  max-width: 132px;
+  height: 5px;
+  margin-top: 4px;
+}
+
+.quota-bar .bar-fill {
+  display: block;
+}
+
+.today-more {
+  display: flex;
+  flex-direction: column;
+}
+
+.today-more > summary {
+  padding: 0 var(--sp-1);
+}
+
+.today-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-top: var(--sp-2);
+}
+
+.today-done-empty {
+  margin: 0;
+}
+
+/* Inactive dots of the home strip: the sunken tone sinks into a dark tile. */
+:root[data-theme='dark'] .week-day:not(.is-active) .week-dot {
+  background: var(--color-border);
 }
 
 /* ---------- Reduced motion ---------- */

@@ -11,8 +11,11 @@
 //    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
-import { formatDate, formatDateTime } from '../lib/dates';
-import { FLASKS, FLASKS_OF, formatNumber, formatPoints, plural, POINTS } from '../lib/format';
+import { formatDate, formatDateTime, formatWeekdayDate } from '../lib/dates';
+import { FLASKS, FLASKS_OF, formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
+
+/** The native bottom button's limit (MAX_BUTTON_TEXT in platform/buttons.ts; copy.test.ts keeps them equal). */
+export const BUTTON_TEXT_MAX = 24;
 
 const COMPLETIONS: [string, string, string] = ['выполнение', 'выполнения', 'выполнений'];
 const SKILLS: [string, string, string] = ['навык', 'навыка', 'навыков'];
@@ -21,6 +24,9 @@ const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
 const ACHIEVEMENTS: [string, string, string] = ['ачивка', 'ачивки', 'ачивок'];
 
 const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)} ${plural(n, forms)}`;
+
+/** «в сентябре»: the month of a quota period that is not the current one. */
+const MONTHS_IN = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
 
 /** «Колба 2: 45/150» — the flask state after an operation, as in the history. */
 const flaskState = (flask: number, points: number, capacity: number) =>
@@ -56,7 +62,8 @@ export const copy = Object.freeze({
     achievementLastOn: (date: string) => `Последняя ачивка · ${formatDate(date)}`,
     achievementNext: 'Следующая',
     achievementNextMeta: (title: string, current: number, target: number) => `${title} · ${formatNumber(current)} из ${formatNumber(target)}`,
-    achievementNone: 'Ачивки начнутся с первого действия',
+    /** Defensive: `next` is null only when every achievement is unlocked, which the tile shows as the last one. */
+    achievementNone: 'Ачивки начнутся с первого навыка',
     /** A second caption when a milestone was reached after the last achievement. */
     lastMilestone: (name: string, skillName: string, date: string) => `Веха «${name}» · ${skillName} · ${formatDate(date)}`,
     filterLabel: 'Какие навыки показать',
@@ -82,9 +89,6 @@ export const copy = Object.freeze({
     title: 'Сегодня',
     tileToday: 'Сегодня',
     pointsCaption: (n: number) => plural(n, POINTS),
-    tileActions: 'Действий',
-    /** Under the count of today's completions (the label already says «Действий»). */
-    actionsCaption: 'за сегодня',
     /** The week strip states facts only: no target, no count of the days without activity. */
     week: (n: number) => `Активных дней на неделе: ${n}`,
     weekdays: ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'],
@@ -100,6 +104,31 @@ export const copy = Object.freeze({
     noStepsTitle: 'Добавьте первое действие',
     noStepsText: 'Действия всех навыков собираются здесь, отметка — одним нажатием.',
     toSkill: (name: string) => `К навыку «${name}»`,
+    /** The line under the date: facts about today's plan, never about what is missing. */
+    summaryProgress: (done: number, planned: number) => `Сделано ${done} из ${planned}`,
+    summaryAllDone: 'Всё сделано на сегодня',
+    summaryNothing: 'На сегодня ничего не запланировано — отметьте что-нибудь из списка ниже',
+    /** A past day picked on the strip: the ✓ records on that date. */
+    summaryPast: (date: string) => `Отметки задним числом: ${formatWeekdayDate(date)}`,
+    /** The week strip: a column per day, Monday first; days ahead cannot be picked. */
+    weekPicker: 'День для отметок',
+    weekdaysShort: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+    dayLabel: (date: string, completions: number) =>
+      completions > 0 ? `${formatWeekdayDate(date)}: ${count(completions, COMPLETIONS)}` : formatWeekdayDate(date),
+    /** «Осталось» is used for today's plan only (tone rule 4); a past day lists its plan neutrally. */
+    remaining: 'Осталось',
+    plannedPast: 'По расписанию',
+    quotaWeek: 'На этой неделе',
+    quotaMonth: 'В этом месяце',
+    /** A quota of another month than the current one (the week strip crosses a month). */
+    quotaMonthOf: (month: number) => `В ${MONTHS_IN[month - 1] ?? 'этом месяце'}`,
+    quotaProgress: (done: number, target: number) => `${done} из ${target}`,
+    /** Accessible name of a quota's segmented bar. */
+    quotaBar: (done: number, target: number) => `Выполнено ${done} из ${target}`,
+    /** The other actions, folded under a plan: «Ещё 3 действия». */
+    moreCount: (n: number) => `Ещё ${count(n, ACTIONS)}`,
+    donePast: 'Сделано в этот день',
+    doneEmptyPast: 'В этот день отметок нет',
     /** The only coach hint of the app, shown once above the first button. */
     coach: 'Нажмите на кнопку с очками — они сразу упадут в колбу. Ошиблись? «Отменить» в подсказке снизу.',
     /** The chip is one button: its name says it is a hint and that a tap closes it. */
@@ -164,14 +193,31 @@ export const copy = Object.freeze({
     unhidden: 'Действие снова в списке',
   },
   stepRow: {
-    meta: (points: number, today: number) => (today > 0 ? `+${formatNumber(points)} · сегодня ×${today}` : `+${formatNumber(points)}`),
     /** The points sit on the ✓ itself; the line under the name only counts today's completions. */
     today: (today: number) => `сегодня ×${today}`,
+    /** The same count for a past day picked on «Сегодня». */
+    onDate: (n: number) => `в этот день ×${n}`,
     points: (points: number) => `+${formatNumber(points)}`,
+    /** A TIMED step's rate on its ✓: «0,5/мин». */
+    rate: (rate: number) => formatRate(rate),
     check: (name: string, points: number) => `Отметить: ${name}, +${formatPoints(points)}`,
+    checkTimed: (name: string, rate: number) => `Отметить: ${name}, ${formatNumber(rate)} ${plural(rate, POINTS)} в минуту`,
+  },
+  minutes: {
+    title: 'Сколько минут?',
+    field: 'Минуты',
+    unit: 'мин',
+    willEarn: (points: number) => `Начислится ${formatPoints(points)}`,
+    done: 'Готово',
+  },
+  stepper: {
+    less: 'Меньше',
+    more: 'Больше',
+    presets: 'Частые значения',
   },
   completion: {
     added: (points: number, stepName: string) => `+${formatNumber(points)} · ${stepName}`,
+    durationChanged: (delta: number) => `Длительность изменена: ${formatDelta(delta)} ${plural(Math.abs(delta), POINTS)}`,
     undo: 'Отменить',
     cancelled: (flask: number, points: number, capacity: number) => `Отменено · ${flaskState(flask, points, capacity)}`,
     restored: 'Возвращено',
@@ -179,6 +225,12 @@ export const copy = Object.freeze({
   completionSheet: {
     meta: (date: string, points: number, flask: number, inFlask: number, capacity: number) =>
       `${formatDate(date)} · +${formatNumber(points)} · ${flaskState(flask, inFlask, capacity)}`,
+    /** A TIMED completion: minutes and the rate it was recorded at. */
+    timedMeta: (minutes: number, rate: number) => `${formatMinutes(minutes)} · ${formatRate(rate)}`,
+    minutes: 'Минуты',
+    minutesPreview: (from: number, fromPoints: number, to: number, delta: number) =>
+      `Было ${formatMinutes(from)} (${formatNumber(fromPoints)}) → станет ${formatMinutes(to)} (${formatDelta(delta)})`,
+    recalc: 'Пересчитать',
     cancelledAt: (date: string) => `Отменено ${formatDate(date)}. Очки не учитываются.`,
     note: 'Заметка',
     notePlaceholder: 'Как прошло? Что получилось?',
@@ -210,6 +262,7 @@ export const copy = Object.freeze({
     skillArchived: 'Навык в архиве',
     skillRestored: 'Навык снова активен',
     duration: (from: number, to: number) => `Длительность: ${from} → ${to} мин`,
+    minutes: (n: number) => formatMinutes(n),
   },
   milestone: {
     completedAt: (date: string, flasks: number, points: number) =>
@@ -232,6 +285,13 @@ export const copy = Object.freeze({
     when: 'Когда выполнено',
     createNew: 'Создать новое действие',
     stepPoints: (points: number) => `+${formatPoints(points)}`,
+    duration: 'Длительность',
+    /** The bottom button of a TIMED step; «Записать» gives way when a large rate makes it too long. */
+    submitTimed: (minutes: number, points: number) => {
+      const text = `${minutes} мин · +${formatNumber(points)}`;
+      return `Записать ${text}`.length <= BUTTON_TEXT_MAX ? `Записать ${text}` : text;
+    },
+    submitNoMinutes: 'Укажите минуты',
   },
   stepForm: {
     title: 'Новое действие',
@@ -244,6 +304,31 @@ export const copy = Object.freeze({
     points: 'Очки за выполнение',
     preview: (perFlask: number, perMilestone: number) =>
       `≈ ${perFlask} ${plural(perFlask, COMPLETIONS)} до первой колбы · веха через ≈ ${perMilestone}`,
+    typeSection: 'Тип',
+    typeBoolean: 'Выполнено / нет',
+    typeTimed: 'По времени',
+    typeLocked: 'Тип действия нельзя изменить; создайте новое действие',
+    rate: 'Очков за минуту',
+    ratePlaceholder: 'Например, 0,5',
+    rateLow: 'При одной минуте очки округлятся до 0',
+    usualMinutes: 'Обычно минут',
+    usualMinutesHint: 'Необязательно — будет выбрано первым в «Сколько минут?»',
+    /** «30 мин → 15 очков» */
+    timedPreview: (minutes: number, points: number) => `${minutes} мин → ${formatPoints(points)}`,
+    scheduleSection: 'Повтор',
+    schedule: 'Когда показывать на «Сегодня»',
+    scheduleManual: 'Вручную, без расписания',
+    scheduleDaily: 'Каждый день',
+    scheduleWeekdays: 'По дням недели',
+    schedulePerWeek: 'N раз в неделю',
+    schedulePerMonth: 'N раз в месяц',
+    weekdays: 'Дни недели',
+    weekdayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
+    weekdaysEmpty: 'Выберите хотя бы один день недели',
+    timesPerWeek: 'Раз в неделю',
+    timesPerMonth: 'Раз в месяц',
+    dueHint: 'Появится в «Осталось» в эти дни. День без отметки ничего не отнимает.',
+    quotaHint: (n: number) => `Покажем на экране «Сегодня» каждый день, пока не наберётся ${n}. Пропуски ничего не отнимают.`,
     futureHint: 'Изменения касаются только будущих выполнений. Прошлое не пересчитывается.',
     hide: 'Убрать из списка',
     hideConfirmButton: 'Убрать',
@@ -294,14 +379,14 @@ export const copy = Object.freeze({
     summaryOf: (total: number) => `из ${formatNumber(total)}`,
     last: 'Последняя',
     lastMeta: (skillName: string | null, date: string) => (skillName ? `${skillName} · ${formatDate(date)}` : formatDate(date)),
-    noneYet: 'Первая ачивка — за первое действие',
+    noneYet: 'Первая ачивка — за первый навык',
     filterLabel: 'Какие ачивки показать',
     filterAll: 'Все',
     filterEarned: 'Получено',
     filterAhead: 'Впереди',
     ladders: 'Лестницы',
     badges: 'Значки',
-    ladderNext: (target: number, remaining: number) => `Следующая: ${formatNumber(target)} · осталось ${formatNumber(remaining)}`,
+    ladderNext: (target: number, remaining: number) => `Следующая: ${formatNumber(target)} · ещё ${formatNumber(remaining)}`,
     ladderDone: 'Все ступени пройдены',
     ladderTiers: (unlocked: number, total: number) => `Ступени · ${unlocked} из ${total}`,
     tierDateNone: '—',

@@ -19,7 +19,7 @@ import {
   syncAchievements,
   syncAchievementsOnStart,
 } from './achievements';
-import { cancelCompletion, completeStep, restoreCompletion } from './completions';
+import { cancelCompletion, completeStep, correctDuration, restoreCompletion } from './completions';
 import { restartSkill } from './lifecycle';
 import { getHomeView } from './queries';
 import { completeSkill, createSkill, deleteSkill, updateSkill, type SkillInput } from './skills';
@@ -177,6 +177,39 @@ describe('app start', () => {
   });
 });
 
+describe('timed practice', () => {
+  it('earns «Часы практики · 1» and «Марафон» from minutes, and «Марафон» again from a correction', async () => {
+    const skillId = await createSkill(input({ capacityBase: 1000 }));
+    const stepId = await createStep({ skillId, name: 'Практика', type: 'TIMED', pointsPerMinute: 0.5 });
+    const first = await completeStep(stepId, { minutes: 45 });
+    expect(ids(first.achievements)).not.toContain('marathon');
+    const second = await completeStep(stepId, { minutes: 20 });
+    expect(ids(second.achievements)).toContain('hours-1');
+    // A correction that makes one completion an hour long re-dates to that completion: it is
+    // filed quietly (the tab's dot), not celebrated as news of the correction.
+    const corrected = await correctDuration(first.completionId, 60);
+    expect(corrected.achievements).toEqual([]);
+    const completedAt = (await db.completions.get(first.completionId))!.createdAt;
+    expect(await db.achievementUnlocks.get('marathon')).toMatchObject({ unlockedAt: completedAt, celebratedAt: null, seenAt: null });
+    await cancelCompletion(first.completionId);
+    expect(await db.achievementUnlocks.get('marathon')).toBeUndefined();
+    expect(await db.achievementUnlocks.get('hours-1')).toBeUndefined();
+  });
+
+  it('files them quietly at start for a history recorded before the catalogue knew them', async () => {
+    const skillId = await createSkill(input({ capacityBase: 1000 }));
+    const stepId = await createStep({ skillId, name: 'Практика', type: 'TIMED', pointsPerMinute: 1 });
+    const { completionId } = await completeStep(stepId, { minutes: 90 });
+    // As after an app update that added the entries: their rows are missing.
+    await db.achievementUnlocks.bulkDelete(['hours-1', 'marathon']);
+    resetAchievementCache();
+    await syncAchievementsOnStart();
+    const createdAt = (await db.completions.get(completionId))!.createdAt;
+    expect(await db.achievementUnlocks.get('hours-1')).toMatchObject({ unlockedAt: createdAt, celebratedAt: null, seenAt: null });
+    expect(await db.achievementUnlocks.get('marathon')).toMatchObject({ unlockedAt: createdAt, skillId });
+  });
+});
+
 describe('backup', () => {
   it('keeps the ledger with celebratedAt through export and import, so nothing replays', async () => {
     const skillId = await createSkill(input());
@@ -213,14 +246,14 @@ describe('backup', () => {
 });
 
 describe('read models', () => {
-  it('builds the tab: 7 ladders, 11 badges, 44 in total, the last unlock and the unseen count', async () => {
+  it('builds the tab: 8 ladders, 12 badges, 49 in total, the last unlock and the unseen count', async () => {
     const skillId = await createSkill(input());
     const stepId = await createStep({ skillId, name: 'Разговор', points: 5 });
     for (let i = 0; i < 3; i++) await completeStep(stepId);
     const view = await getAchievementsView();
-    expect(view.ladders.map((l) => l.def.id)).toEqual(['actions', 'days', 'weeks', 'series', 'flasks', 'milestones', 'completed']);
-    expect(view.badges).toHaveLength(11);
-    expect(view.total).toBe(44);
+    expect(view.ladders.map((l) => l.def.id)).toEqual(['actions', 'days', 'weeks', 'series', 'hours', 'flasks', 'milestones', 'completed']);
+    expect(view.badges).toHaveLength(12);
+    expect(view.total).toBe(49);
     expect(view.unlockedCount).toBe(4); // first skill, first action, first flask, to the brim (10 of 10)
     expect(view.lastUnlocked?.def.id).toBe('first-flask');
     expect(view.skillNames[skillId]).toBe('Английский');

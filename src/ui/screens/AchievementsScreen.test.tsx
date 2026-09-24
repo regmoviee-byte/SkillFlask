@@ -62,20 +62,20 @@ async function history() {
 const ladder = (title: string) => screen.getByRole('article', { name: title });
 
 describe('AchievementsScreen', () => {
-  it('shows the summary, the filter, seven ladders and eleven badge tiles', async () => {
+  it('shows the summary, the filter, eight ladders and twelve badge tiles', async () => {
     await history();
     renderTab();
-    const ring = await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    const ring = await screen.findByRole('img', { name: 'Получено 3 из 49' });
     expect(ring.textContent).toBe('3');
-    expect(screen.getByText('из 44')).toBeTruthy();
+    expect(screen.getByText('из 49')).toBeTruthy();
     // The last unlock: three active days.
     expect(screen.getByText('Дни с практикой · 3')).toBeTruthy();
     const chips = within(screen.getByRole('group', { name: 'Какие ачивки показать' })).getAllByRole('button');
     expect(chips.map((c) => c.textContent)).toEqual(['Все', 'Получено', 'Впереди']);
-    expect(screen.getAllByRole('article')).toHaveLength(7);
-    expect(document.querySelectorAll('.ach-tile')).toHaveLength(11);
-    expect(within(ladder('Действия')).getByText('Следующая: 10 · осталось 7')).toBeTruthy();
-    expect(within(ladder('Дни с практикой')).getByText('Следующая: 10 · осталось 7')).toBeTruthy();
+    expect(screen.getAllByRole('article')).toHaveLength(8);
+    expect(document.querySelectorAll('.ach-tile')).toHaveLength(12);
+    expect(within(ladder('Действия')).getByText('Следующая: 10 · ещё 7')).toBeTruthy();
+    expect(within(ladder('Дни с практикой')).getByText('Следующая: 10 · ещё 7')).toBeTruthy();
     // The tiers fold out with their dates; tiers ahead show a dash.
     const days = ladder('Дни с практикой');
     expect(within(days).getByText('Ступени · 1 из 7')).toBeTruthy();
@@ -88,20 +88,20 @@ describe('AchievementsScreen', () => {
     const series = await screen.findByRole('article', { name: 'Лучшая серия' });
     // The record is two days (5 and 4 days ago), although today is a run of one.
     expect(series.querySelector('.ladder-number')?.textContent).toBe('2');
-    expect(series.textContent).toContain('Следующая: 3 · осталось 1');
+    expect(series.textContent).toContain('Следующая: 3 · ещё 1');
     expect(document.body.textContent).not.toMatch(/текущ|сгорел|пропущ|провал/i);
   });
 
   it('filters: «Получено» keeps the earned, «Впереди» the rest', async () => {
     await history();
     renderTab();
-    await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    await screen.findByRole('img', { name: 'Получено 3 из 49' });
     fireEvent.click(screen.getByRole('button', { name: 'Получено' }));
     expect(screen.getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Дни с практикой']);
     expect([...document.querySelectorAll('.ach-tile-title')].map((t) => t.textContent)).toEqual(['Первый навык', 'Первое действие']);
     fireEvent.click(screen.getByRole('button', { name: 'Впереди' }));
-    expect(screen.getAllByRole('article')).toHaveLength(7);
-    expect(document.querySelectorAll('.ach-tile')).toHaveLength(9);
+    expect(screen.getAllByRole('article')).toHaveLength(8);
+    expect(document.querySelectorAll('.ach-tile')).toHaveLength(10);
     // A locked tile tells how to get it; a tile on its way shows the progress.
     expect(screen.getByRole('button', { name: 'Первая колба: впереди' }).textContent).toContain('Наберите очки на целую колбу в любом…');
     expect(screen.getByRole('button', { name: 'Большой день: 1 из 5' }).textContent).toContain('1 из 5');
@@ -110,7 +110,7 @@ describe('AchievementsScreen', () => {
   it('opens the detail sheet from a tile', async () => {
     await history();
     renderTab();
-    await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    await screen.findByRole('img', { name: 'Получено 3 из 49' });
     fireEvent.click(screen.getByRole('button', { name: /^Первое действие: получена/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Первое действие' });
     expect(within(sheet).getByText('Бронза')).toBeTruthy();
@@ -132,7 +132,7 @@ describe('AchievementsScreen', () => {
     cleanup();
 
     renderTab();
-    await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    await screen.findByRole('img', { name: 'Получено 3 из 49' });
     // Still there right away; gone after the tab was on screen for 800 ms.
     expect(screen.getByRole('link', { name: 'Ачивки, новых: 3' })).toBeTruthy();
     await waitFor(() => expect(document.querySelector('.tab-badge')).toBeNull(), { timeout: 3000 });
@@ -143,20 +143,20 @@ describe('AchievementsScreen', () => {
   it('brings ?focus=id into view and pulses it', async () => {
     await history();
     renderTab('/achievements?focus=days-3');
-    await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    await screen.findByRole('img', { name: 'Получено 3 из 49' });
     const days = ladder('Дни с практикой');
     expect(days.classList.contains('is-focus')).toBe(true);
     expect(days.querySelector('details')?.open).toBe(true);
     cleanup();
     renderTab('/achievements?focus=first-step');
-    await screen.findByRole('img', { name: 'Получено 3 из 44' });
+    await screen.findByRole('img', { name: 'Получено 3 из 49' });
     expect(screen.getByRole('button', { name: /^Первое действие: получена/ }).classList.contains('is-focus')).toBe(true);
   });
 
   it('greets an empty start with the first achievement to come', async () => {
     renderTab();
-    await screen.findByRole('img', { name: 'Получено 0 из 44' });
-    expect(screen.getByText('Первая ачивка — за первое действие')).toBeTruthy();
+    await screen.findByRole('img', { name: 'Получено 0 из 49' });
+    expect(screen.getByText('Первая ачивка — за первый навык')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Получено' }));
     expect(screen.getByText('Полученные ачивки появятся здесь')).toBeTruthy();
   });

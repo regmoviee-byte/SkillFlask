@@ -30,6 +30,12 @@ export type ReplayEvent =
        * flasks, so the points replay exactly as the journal says.
        */
       effective: boolean;
+      /**
+       * Minutes of an effective TIMED completion on its COMPLETION row: the duration it has in
+       * the snapshot, corrections included (the earlier duration is not stored, so a
+       * correction re-dates to the completion, like any re-interpreted history). 0 elsewhere.
+       */
+      minutes: number;
     }
   | { at: string; kind: 'SKILL_COMPLETED'; skill: Skill };
 
@@ -58,6 +64,7 @@ export function buildEvents(snapshot: HistorySnapshot): ReplayEvent[] {
     const config = capacityOf(skill, snapshot.thresholds);
     for (const entry of buildTimeline(rows, config)) {
       const completion = entry.transaction.completionId ? completions.get(entry.transaction.completionId) : undefined;
+      const effective = entry.transaction.reason === 'COMPLETION' && completion?.status === 'ACTIVE';
       events.push({
         at: entry.transaction.createdAt,
         kind: 'TX',
@@ -66,7 +73,8 @@ export function buildEvents(snapshot: HistorySnapshot): ReplayEvent[] {
         before: entry.before,
         after: entry.after,
         levelChange: entry.levelChange,
-        effective: entry.transaction.reason === 'COMPLETION' && completion?.status === 'ACTIVE',
+        effective,
+        minutes: effective && completion.stepType === 'TIMED' ? (completion.durationMinutes ?? 0) : 0,
       });
     }
     if (skill.status === 'COMPLETED' && skill.completedAt) events.push({ at: skill.completedAt, kind: 'SKILL_COMPLETED', skill });

@@ -3,8 +3,8 @@ import { setClock } from '../lib/clock';
 import { installFreshDb, tickingClock } from '../test/harness';
 import { cancelCompletion, completeStep } from './completions';
 import { archiveSkill } from './lifecycle';
-import { getHomeView, getTodayView, hasActiveSteps, weekDates } from './queries';
-import { completeSkill, createSkill, type SkillInput } from './skills';
+import { getHomeView, hasActiveSteps, weekDates } from './queries';
+import { createSkill, type SkillInput } from './skills';
 import { createStep, setStepActive } from './steps';
 
 const input = (name: string, milestoneTarget = 10): SkillInput => ({
@@ -42,96 +42,8 @@ describe('week activity', () => {
     await cancelCompletion(cancelled.completionId);
     await completeStep(step); // today, Thursday
 
-    const expected = [true, false, false, true, false, false, false];
-    expect((await getTodayView(TODAY)).weekActivity).toEqual(expected);
-    expect((await getHomeView(TODAY)).weekActivity).toEqual(expected);
-  });
-
-  it('is all false for a new week', async () => {
-    const skillId = await createSkill(input('Английский'));
-    const step = await createStep({ skillId, name: 'Чтение', points: 3 });
-    await completeStep(step);
-    expect((await getTodayView('2026-09-28')).weekActivity).toEqual(Array(7).fill(false));
-  });
-});
-
-describe('getTodayView', () => {
-  it('lists the active steps of active skills only', async () => {
-    const english = await createSkill(input('Английский'));
-    const speaking = await createStep({ skillId: english, name: 'Разговор', points: 5 });
-    const hidden = await createStep({ skillId: english, name: 'Убранное', points: 1 });
-    await setStepActive(hidden, false);
-    const archived = await createSkill(input('Гитара'));
-    await createStep({ skillId: archived, name: 'Аккорды', points: 2 });
-    await archiveSkill(archived);
-    const done = await createSkill(input('Бег', 1));
-    const run = await createStep({ skillId: done, name: 'Пробежка', points: 10 });
-    await completeStep(run);
-    await completeSkill(done);
-    const empty = await createSkill(input('Чтение'));
-
-    const view = await getTodayView(TODAY);
-    expect(view.today).toBe(TODAY);
-    expect(view.groups.map((g) => [g.summary.skill.name, g.steps.map((s) => s.step.id)])).toEqual([
-      ['Английский', [speaking]],
-      // An active skill without actions is still there: the screen offers to add one.
-      ['Чтение', []],
-    ]);
-    expect(view.groups[1]?.summary.skill.id).toBe(empty);
-    // What was done today stays listed, whatever the skill's status is now.
-    expect(view.done.map((d) => [d.completion.stepName, d.skillName])).toEqual([['Пробежка', 'Бег']]);
-  });
-
-  it('counts only ACTIVE completions of today and keeps cancelled ones in «Сделано сегодня»', async () => {
-    const skillId = await createSkill(input('Английский'));
-    const speaking = await createStep({ skillId, name: 'Разговор', points: 5 });
-    const reading = await createStep({ skillId, name: 'Чтение', points: 3 });
-    await completeStep(speaking, { date: '2026-09-23' });
-    const first = await completeStep(speaking);
-    await completeStep(speaking);
-    await completeStep(reading);
-    await cancelCompletion(first.completionId);
-
-    const view = await getTodayView(TODAY);
-    const steps = view.groups[0]!.steps;
-    expect(steps.map((s) => [s.step.name, s.todayCount, s.lastDoneAt])).toEqual([
-      // Both were done today; equal dates keep the order the actions were created in.
-      ['Разговор', 1, TODAY],
-      ['Чтение', 1, TODAY],
-    ]);
-    expect(view.todayPoints).toBe(8);
-    expect(view.groups[0]!.summary.todayPoints).toBe(8);
-    // Newest first, the cancelled one included; yesterday's is not «today».
-    expect(view.done.map((d) => [d.completion.stepName, d.completion.status])).toEqual([
-      ['Чтение', 'ACTIVE'],
-      ['Разговор', 'ACTIVE'],
-      ['Разговор', 'CANCELLED'],
-    ]);
-  });
-
-  it('puts the most recently used steps and skills first', async () => {
-    const a = await createSkill(input('А'));
-    const a1 = await createStep({ skillId: a, name: 'А1', points: 1 });
-    const a2 = await createStep({ skillId: a, name: 'А2', points: 1 });
-    const a3 = await createStep({ skillId: a, name: 'А3', points: 1 });
-    const b = await createSkill(input('Б'));
-    const b1 = await createStep({ skillId: b, name: 'Б1', points: 1 });
-    const c = await createSkill(input('В'));
-    await createStep({ skillId: c, name: 'В1', points: 1 });
-
-    await completeStep(a3, { date: '2026-09-20' });
-    await completeStep(a2, { date: '2026-09-22' });
-    await completeStep(b1, { date: '2026-09-01' });
-
-    const view = await getTodayView(TODAY);
-    // Skills by the time of their last completion (Б was worked on last), never-used ones last.
-    expect(view.groups.map((g) => g.summary.skill.name)).toEqual(['Б', 'А', 'В']);
-    // Steps by the date they were last done, never-done ones in creation order after them.
-    expect(view.groups[1]!.steps.map((s) => s.step.id)).toEqual([a2, a3, a1]);
-    // A cancelled completion is no activity.
-    const latest = await completeStep(a1, { date: '2026-09-24' });
-    await cancelCompletion(latest.completionId);
-    expect((await getTodayView(TODAY)).groups[1]!.steps.map((s) => s.step.id)).toEqual([a2, a3, a1]);
+    expect((await getHomeView(TODAY)).weekActivity).toEqual([true, false, false, true, false, false, false]);
+    expect((await getHomeView('2026-09-28')).weekActivity).toEqual(Array(7).fill(false));
   });
 });
 

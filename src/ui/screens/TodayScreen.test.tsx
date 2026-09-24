@@ -3,12 +3,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setClock } from '../../lib/clock';
+import { addDays, formatWeekdayDate, isoWeekday, localDate, weekStart } from '../../lib/dates';
+import { db } from '../../data/db';
 import { cancelCompletion, completeStep } from '../../services/completions';
 import { archiveSkill } from '../../services/lifecycle';
 import { getSetting } from '../../services/settings';
 import { createSkill, type SkillInput } from '../../services/skills';
 import { createStep } from '../../services/steps';
-import { installFreshDb, tickingClock, todayNoon } from '../../test/harness';
+import { installFreshDb, tickingClock, todayNoon, withClock } from '../../test/harness';
 import { ToastProvider } from '../components/Toast';
 import { groupDone, TodayScreen } from './TodayScreen';
 import type { StepCompletion } from '../../domain/types';
@@ -30,6 +32,8 @@ const COACH = /^Подсказка: нажмите на кнопку с очка
 
 installFreshDb();
 beforeEach(() => setClock(tickingClock(todayNoon())));
+/** Monday of the current week: steps created then are planned on every day of the week. */
+const monday = () => weekStart(localDate());
 afterEach(cleanup);
 
 function renderToday() {
@@ -56,7 +60,7 @@ describe('TodayScreen', () => {
     expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['К навыку «Английский»', 'К навыку «Бег»', 'К навыку «Гитара»']);
   });
 
-  it('lists the actions of active skills, the tiles and what was done today', async () => {
+  it('lists the actions of active skills and what was done today', async () => {
     const english = await createSkill(input('Английский'));
     const speaking = await createStep({ skillId: english, name: 'Разговор', points: 5 });
     await createStep({ skillId: english, name: 'Чтение', points: 3 });
@@ -73,9 +77,9 @@ describe('TodayScreen', () => {
     expect(screen.queryByText('Аккорды')).toBeNull();
     expect(document.querySelector('.today-group-name')?.textContent).toBe('Английский');
     expect(screen.getByRole('link', { name: 'Задним числом: Английский' }).getAttribute('href')).toBe(`/skills/${english}/add`);
-    // Tiles: points and completions of today, cancelled ones not counted; the week strip has no target.
-    expect(screen.getByText('Действий').closest('.tile')?.textContent).toContain('1');
-    expect(screen.getByRole('img', { name: 'Активных дней на неделе: 1' })).toBeTruthy();
+    // Nothing is scheduled and something was done: no hint, the day's points say enough.
+    expect(screen.queryByText('На сегодня ничего не запланировано — отметьте что-нибудь из списка ниже')).toBeNull();
+    expect(document.querySelector('.today-summary-points')?.textContent).toBe('+5 очков');
     // «Сделано сегодня»: newest first, the cancelled one struck through with «отменено».
     const done = screen.getByText('Сделано сегодня').closest('section')!;
     const rows = within(done).getAllByRole('button');
@@ -83,6 +87,77 @@ describe('TodayScreen', () => {
     expect(rows[0]!.className).toContain('is-cancelled');
     // Nothing about overdue or missing days anywhere on the screen.
     expect(document.body.textContent).not.toMatch(/просроч|пропущ|осталось|не отмечено/i);
+  });
+
+  it('suggests the list below, as a quiet caption, on a day with nothing planned or done', async () => {
+    const english = await createSkill(input('Английский'));
+    await createStep({ skillId: english, name: 'Разговор', points: 5 });
+    renderToday();
+    const hint = await screen.findByText('На сегодня ничего не запланировано — отметьте что-нибудь из списка ниже');
+    expect(hint.className).toContain('t-caption');
+    expect(document.querySelector('.today-summary-points')).toBeNull();
+  });
+
+  it('shows «Осталось», the quota block and «Ещё» folded, with schedule captions', async () => {
+    const english = await withClock(`${monday()}T08:00:00`, async () => {
+      const id = await createSkill(input('Английский'));
+      await createStep({ skillId: id, name: 'Разговор', points: 5, schedule: { kind: 'DAILY' } });
+      await createStep({ skillId: id, name: 'Фильм', points: 3 });
+      await createStep({ skillId: id, name: 'Зал', points: 20, schedule: { kind: 'TIMES_PER_WEEK', times: 3 } });
+      return id;
+    }, 2000);
+    expect(english).toBeTruthy();
+    renderToday();
+    const remaining = (await screen.findByText('Осталось')).closest('section')!;
+    expect(within(remaining).getByText('Разговор')).toBeTruthy();
+    expect(within(remaining).getByText('Английский · каждый день')).toBeTruthy();
+    expect(screen.getByText('Сделано 0 из 1')).toBeTruthy();
+    const quota = screen.getByText('На этой неделе').closest('section')!;
+    expect(within(quota).getByText('Английский · 0 из 3')).toBeTruthy();
+    expect(within(quota).getByRole('img', { name: 'Выполнено 0 из 3' }).querySelectorAll('.quota-segment')).toHaveLength(3);
+    // The rest is folded while something is left, and says how much it holds.
+    const more = document.querySelector('details.today-more') as HTMLDetailsElement;
+    expect(more.open).toBe(false);
+    expect(more.querySelector('summary')?.textContent).toBe('Ещё 1 действие');
+
+    await act(async () => {
+      fireEvent.click(within(remaining).getByRole('button', { name: 'Отметить: Разговор, +5 очков' }));
+    });
+    expect(await screen.findByText('Всё сделано на сегодня')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText('Осталось')).toBeNull());
+    expect(document.body.textContent).not.toMatch(/просроч|пропущ|не отмечено/i);
+  });
+
+  it('opens a past day of the week: its plan, «В этот день отметок нет», and records on that date', async () => {
+    // A Thursday, whatever the real day: Monday..Wednesday are past days of its week.
+    const today = '2026-09-24';
+    expect(isoWeekday(today)).toBe(4);
+    const yesterday = addDays(today, -1);
+    const english = await withClock(`${weekStart(today)}T08:00:00`, () => createSkill(input('Английский')));
+    const daily = await withClock(`${weekStart(today)}T08:01:00`, () =>
+      createStep({ skillId: english, name: 'Разговор', points: 5, schedule: { kind: 'DAILY' } }),
+    );
+    setClock(tickingClock(`${today}T12:00:00`));
+    renderToday();
+    await screen.findByText('Осталось');
+    const strip = screen.getByRole('group', { name: 'День для отметок' });
+    // Days ahead cannot be picked.
+    const days = within(strip).getAllByRole('button');
+    expect(days).toHaveLength(7);
+    expect(days.filter((d) => (d as HTMLButtonElement).disabled)).toHaveLength(7 - isoWeekday(today));
+    fireEvent.click(within(strip).getByRole('button', { name: formatWeekdayDate(yesterday) }));
+    expect(await screen.findByText(`Отметки задним числом: ${formatWeekdayDate(yesterday)}`)).toBeTruthy();
+    expect(screen.getByText('В этот день отметок нет')).toBeTruthy();
+    // «Осталось» is about today only; the past day lists its plan neutrally.
+    const planned = screen.getByText('По расписанию').closest('section')!;
+    await act(async () => {
+      fireEvent.click(within(planned).getByRole('button', { name: 'Отметить: Разговор, +5 очков' }));
+    });
+    const picked = await within(strip).findByRole('button', { name: `${formatWeekdayDate(yesterday)}: 1 выполнение` });
+    expect(picked.getAttribute('aria-pressed')).toBe('true');
+    const stored = await db.completions.where('stepId').equals(daily).toArray();
+    expect(stored.map((c) => c.date)).toEqual([yesterday]);
+    expect(screen.queryByText('В этот день отметок нет')).toBeNull();
   });
 
   it('shows the coach hint once and forgets it after the first completion', async () => {

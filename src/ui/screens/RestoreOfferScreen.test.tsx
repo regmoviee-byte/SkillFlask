@@ -44,6 +44,10 @@ async function seedCloudCopy({ withCompletion = false } = {}): Promise<void> {
   db.close();
 }
 
+// Decompressing, importing and re-deriving the achievements is slower under a loaded full-suite
+// run than findByText's default second.
+const SLOW = { timeout: 5000 };
+
 const app = () =>
   render(
     <DbBoundary>
@@ -55,12 +59,12 @@ describe('restore offer on start', () => {
   it('appears on an empty database when the cloud holds a copy, and can be declined', async () => {
     await seedCloudCopy();
     app();
-    expect(await screen.findByText(/^Найдена резервная копия от .+: 1 навык, 0 выполнений\. Восстановить\?$/)).toBeTruthy();
+    expect(await screen.findByText(/^Найдена резервная копия от .+: 1 навык, 0 выполнений\. Восстановить\?$/, undefined, SLOW)).toBeTruthy();
     // The native button is configured in an effect that may land after the text is on screen.
     await waitFor(() => expect(fake.calls.some((call) => call.startsWith('MainButton.setParams') && call.includes('Восстановить'))).toBe(true));
 
     fireEvent.click(screen.getByRole('button', { name: 'Начать с чистого листа' }));
-    expect(await screen.findByText('приложение')).toBeTruthy();
+    expect(await screen.findByText('приложение', undefined, SLOW)).toBeTruthy();
     expect(await db.skills.count()).toBe(0);
     expect(await getSetting('restoreOfferShown', false)).toBe(true);
   });
@@ -68,18 +72,16 @@ describe('restore offer on start', () => {
   it('restores through the native main button', async () => {
     await seedCloudCopy();
     app();
-    await screen.findByText(/^Найдена резервная копия/);
+    await screen.findByText(/^Найдена резервная копия/, undefined, SLOW);
     fake.click('MainButton');
-    // The restore decompresses, imports and re-derives the achievements: slower under load
-    // than findByText's default second.
-    expect(await screen.findByText('приложение', undefined, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText('приложение', undefined, SLOW)).toBeTruthy();
     expect((await db.skills.toArray()).map((s) => s.name)).toEqual(['Английский']);
   });
 
   it('asks before starting fresh over a copy with history', async () => {
     await seedCloudCopy({ withCompletion: true });
     app();
-    await screen.findByText(/1 навык, 1 выполнение\. Восстановить\?$/);
+    await screen.findByText(/1 навык, 1 выполнение\. Восстановить\?$/, undefined, SLOW);
     const answers = ['cancel', 'ok'];
     fake.tg.showPopup = (params, cb) => {
       fake.calls.push(`showPopup(${params.message})`);
@@ -90,12 +92,12 @@ describe('restore offer on start', () => {
     // «Назад»: still on the offer.
     expect(screen.queryByText('приложение')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Начать с чистого листа' }));
-    expect(await screen.findByText('приложение')).toBeTruthy();
+    expect(await screen.findByText('приложение', undefined, SLOW)).toBeTruthy();
     expect(await db.skills.count()).toBe(0);
   });
 
   it('is skipped without a cloud copy', async () => {
     app();
-    expect(await screen.findByText('приложение')).toBeTruthy();
+    expect(await screen.findByText('приложение', undefined, SLOW)).toBeTruthy();
   });
 });

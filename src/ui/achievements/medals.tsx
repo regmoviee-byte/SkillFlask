@@ -25,6 +25,8 @@ export const MEDAL_GLYPHS: Record<MedalGlyph, string> = {
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM12 12.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z',
   mountain: 'M3 19l6.5-11 4 6.5 2-3L21 19H3z',
   bolt: 'M13 2 4 14h7l-1 8 9-12h-7l1-8z',
+  hourglass: 'M7 3h10M7 21h10M8 3v3.5a4 4 0 0 0 1.6 3.2L12 12l-2.4 2.3A4 4 0 0 0 8 17.5V21M16 3v3.5a4 4 0 0 1-1.6 3.2L12 12l2.4 2.3a4 4 0 0 1 1.6 3.2V21',
+  stopwatch: 'M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2.5M10 2h4M12 2v3M18.5 5.5 20 4',
 };
 
 export function MedalGlyphIcon({ glyph, size }: { glyph: MedalGlyph; size: number }) {

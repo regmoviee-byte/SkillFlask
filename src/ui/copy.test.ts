@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { formatNumber } from '../lib/format';
 import { CATALOG, LADDERS } from '../domain/achievements/catalog';
-import { copy } from './copy';
+import { MAX_BUTTON_TEXT } from '../platform/buttons';
+import { BUTTON_TEXT_MAX, copy } from './copy';
 
 const FORBIDDEN = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|баллы|балл\b|баллов/i;
 
@@ -68,9 +70,37 @@ describe('copy dictionary', () => {
   it('describes a completion toast and its undo', () => {
     expect(copy.completion.added(5, 'Чтение')).toBe('+5 · Чтение');
     expect(copy.completion.cancelled(1, 96, 100)).toBe('Отменено · Колба 1: 96/100');
-    expect(copy.stepRow.meta(5, 0)).toBe('+5');
-    expect(copy.stepRow.meta(5, 2)).toBe('+5 · сегодня ×2');
+    expect(copy.stepRow.points(5)).toBe('+5');
+    expect(copy.stepRow.today(2)).toBe('сегодня ×2');
     expect(copy.stepRow.check('Чтение', 5)).toBe('Отметить: Чтение, +5 очков');
+  });
+
+  it('says «осталось» only about today’s plan (tone rule 4)', () => {
+    const remaining = strings.filter(([, text]) => /осталось/i.test(text)).map(([path]) => path);
+    // The section itself, and the form's hint that names it.
+    expect(remaining).toEqual(['copy.today.remaining', 'copy.stepForm.dueHint']);
+  });
+
+  it('describes schedules, quotas and timed steps', () => {
+    expect(copy.today.summaryProgress(1, 3)).toBe('Сделано 1 из 3');
+    expect(copy.today.quotaProgress(1, 3)).toBe('1 из 3');
+    expect(copy.today.moreCount(2)).toBe('Ещё 2 действия');
+    expect(copy.today.quotaMonthOf(9)).toBe('В сентябре');
+    expect(copy.stepRow.rate(0.5)).toBe('0,5/мин');
+    expect(copy.stepRow.checkTimed('Чтение', 0.5)).toBe('Отметить: Чтение, 0,5 очка в минуту');
+    expect(copy.minutes.willEarn(15)).toBe('Начислится 15 очков');
+    expect(copy.addAction.submitTimed(45, 22.5)).toBe('Записать 45 мин · +22,5');
+    expect(copy.addAction.submitTimed(999, 999).length).toBeLessThanOrEqual(MAX_BUTTON_TEXT);
+    // A large rate drops «Записать» rather than overflow the native button.
+    expect(copy.addAction.submitTimed(999, 9990)).toBe(`999 мин · +${formatNumber(9990)}`);
+    expect(BUTTON_TEXT_MAX).toBe(MAX_BUTTON_TEXT);
+    for (const [minutes, rate] of [[1440, 1000], [999, 999.99], [1, 0.01]] as const) {
+      expect(copy.addAction.submitTimed(minutes, minutes * rate).length).toBeLessThanOrEqual(MAX_BUTTON_TEXT);
+    }
+    expect(copy.completionSheet.minutesPreview(30, 15, 45, 7.5)).toBe('Было 30 мин (15) → станет 45 мин (+7,5)');
+    expect(copy.completion.durationChanged(7.5)).toBe('Длительность изменена: +7,5 очка');
+    expect(copy.completion.durationChanged(-5)).toBe('Длительность изменена: −5 очков');
+    expect(copy.stepForm.timedPreview(30, 15)).toBe('30 мин → 15 очков');
   });
 
   it('never calls a level rollback a demotion in toasts', () => {

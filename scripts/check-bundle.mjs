@@ -4,12 +4,15 @@
 // over 148.4 KB). Package 6 («Сегодня», the home bento, the lifecycle) brings it to 161.9 KB.
 // 173 KB since package 7: the achievement engine, the 44-entry catalogue with its Russian
 // texts, the «Ачивки» tab, the detail sheet, the medal glyphs and the card add 8.7 KB (170.6 KB).
+// 181 KB since package 8: the schedule planner, «Сегодня» v2 (week picker, «Осталось», quotas),
+// timed steps (Stepper, «Сколько минут?», the step form's type/rate/schedule, minute
+// corrections) and their texts add 8.1 KB (178.9 KB).
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 173);
+const LIMIT_KB = Number(process.argv[2] ?? 181);
 const dir = 'dist/assets';
 
 let total = 0;

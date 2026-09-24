@@ -44,9 +44,10 @@ let cached: { db: SkillFlaskDb; key: string; evaluation: Evaluation } | null = n
 /**
  * The engine's result for the current database, re-evaluated only when the history changed.
  * The key holds the four small tables whole, and the size and newest row of the journal: a
- * completion never changes in a way the rules read without a journal row (cancel, restore,
- * correct all write one; a note edit writes none and matters to no rule). Runs inside a
- * transaction covering snapshotTables().
+ * completion never changes in a way the rules read without a journal row (a completion writes
+ * one even when worth 0 points; cancel and restore write one; a change of minutes writes a
+ * CORRECTION even when the points stay the same; a note edit writes none and matters to no
+ * rule). Runs inside a transaction covering snapshotTables().
  */
 async function evaluate(): Promise<Evaluation> {
   const [skills, milestones, thresholds, steps, completionCount, transactionCount, lastRow] = await Promise.all([

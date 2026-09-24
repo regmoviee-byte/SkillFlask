@@ -63,14 +63,12 @@ const layouts: Record<SkeletonLayout, ReactNode> = {
       <Row />
     </>
   ),
-  // The two tiles, a group header and its actions.
+  // The summary line, the week strip, a section title and its actions.
   today: (
     <>
-      <div className="skeleton-row">
-        <Block h={132} r={16} />
-        <Block h={132} r={16} />
-      </div>
-      <Line w="45%" />
+      <Line w="50%" />
+      <Block h={68} r={16} />
+      <Line w="30%" />
       <Row />
       <Row />
       <Row />

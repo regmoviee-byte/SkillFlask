@@ -37,6 +37,7 @@ describe('replay stats', () => {
           after: progress,
           levelChange: 0,
           effective: true,
+          minutes: 0,
         });
         const sorted = activeDates(dates.map((d) => ({ date: d, status: 'ACTIVE' })));
         expect(stats.global.activeDays).toBe(sorted.length);

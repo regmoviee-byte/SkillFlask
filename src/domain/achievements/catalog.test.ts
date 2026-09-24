@@ -18,13 +18,26 @@ function strings(): [string, string][] {
 }
 
 describe('achievement catalogue', () => {
-  it('has 7 ladders with 33 tiers and 11 badges: 44 entries with unique ids', () => {
-    expect(LADDERS).toHaveLength(7);
-    expect(LADDERS.reduce((n, l) => n + l.tiers.length, 0)).toBe(33);
-    expect(BADGES).toHaveLength(11);
-    expect(CATALOG).toHaveLength(44);
-    expect(new Set(CATALOG.map((d) => d.id)).size).toBe(44);
-    expect(new Set(LADDERS.map((l) => l.id)).size).toBe(7);
+  it('has 8 ladders with 37 tiers and 12 badges: 49 entries with unique ids', () => {
+    expect(LADDERS).toHaveLength(8);
+    expect(LADDERS.reduce((n, l) => n + l.tiers.length, 0)).toBe(37);
+    expect(BADGES).toHaveLength(12);
+    expect(CATALOG).toHaveLength(49);
+    expect(new Set(CATALOG.map((d) => d.id)).size).toBe(49);
+    expect(new Set(LADDERS.map((l) => l.id)).size).toBe(8);
+  });
+
+  it('counts hours of timed practice and has the marathon badge', () => {
+    const hours = LADDERS.find((l) => l.id === 'hours')!;
+    expect(hours).toMatchObject({ title: 'Часы практики', unit: ['час', 'часа', 'часов'] });
+    expect(hours.tiers.map((t) => [t.target, t.rarity])).toEqual([
+      [1, 'BRONZE'],
+      [10, 'SILVER'],
+      [50, 'GOLD'],
+      [100, 'GOLD'],
+    ]);
+    expect(CATALOG.find((d) => d.id === 'hours-10')!.description).toBe('10 часов практики');
+    expect(CATALOG.find((d) => d.id === 'marathon')).toMatchObject({ title: 'Марафон', rarity: 'GOLD', target: 60, description: 'Одно выполнение длиной час и больше' });
   });
 
   it('has whole targets of at least 1 and strictly increasing ladder tiers', () => {

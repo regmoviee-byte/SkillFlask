@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Screen } from '../ui/components/Screen';
 import { installFakeTelegram, type FakeTelegram } from '../test/fakeTelegram';
-import { useUnsavedGuard } from './buttons';
+import { useBottomButtons, useUnsavedGuard } from './buttons';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,6 +59,37 @@ describe('bottom buttons', () => {
     await act(async () => root.unmount());
     expect(fake.calls).toContain('MainButton.hide()');
     expect(fake.calls).toContain('SecondaryButton.hide()');
+  });
+
+  it('lets a sheet take the MainButton over and hands it back to the screen', async () => {
+    fake = installFakeTelegram('7.10');
+    const clicks: string[] = [];
+    function Sheet({ open }: { open: boolean }) {
+      useBottomButtons({ main: open ? { text: 'Готово', onClick: () => clicks.push('sheet') } : undefined }, 1);
+      return null;
+    }
+    function Page({ open }: { open: boolean }) {
+      return (
+        <MemoryRouter>
+          <Screen title="Экран" primary={{ text: 'Сохранить', onClick: () => clicks.push('screen') }}>
+            <Sheet open={open} />
+          </Screen>
+        </MemoryRouter>
+      );
+    }
+    await act(async () => root.render(<Page open={false} />));
+    await act(async () => root.render(<Page open />));
+    expect(fake.calls.at(-1)).toBe('MainButton.hideProgress()');
+    expect(fake.calls).toContain('MainButton.setParams({"text":"Готово","is_visible":true,"is_active":true})');
+    fake.click('MainButton');
+    await act(async () => root.render(<Page open={false} />));
+    const last = fake.calls.filter((c) => c.startsWith('MainButton.setParams')).at(-1);
+    expect(last).toBe('MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true})');
+    expect(fake.calls.slice(-3)).not.toContain('MainButton.hide()');
+    fake.click('MainButton');
+    expect(clicks).toEqual(['sheet', 'screen']);
+    // One SDK listener for both owners.
+    expect(fake.calls.filter((c) => c.startsWith('MainButton.onClick')).length).toBe(1);
   });
 
   it('keeps the secondary button in HTML on Telegram 6.1', async () => {

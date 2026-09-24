@@ -26,6 +26,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # Calendar logic (schedules, weeks from Monday, local dates) must not depend on the
+      # device zone: the suite runs again in a zone west of UTC that used to have DST.
+      - name: npm test (TZ=America/Sao_Paulo)
+        run: npm test
+        env:
+          TZ: America/Sao_Paulo
       - run: npm run build
       - run: npm run check-bundle
       - uses: actions/upload-pages-artifact@v3

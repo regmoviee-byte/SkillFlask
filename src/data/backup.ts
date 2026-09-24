@@ -8,6 +8,8 @@ import { db, SCHEMA_VERSION } from './db';
 import { MIGRATIONS } from './migrations/v2';
 import { isValidLocalDate, nowIso } from '../lib/dates';
 import { isPoints } from '../domain/points';
+import { ScheduleError, validateSchedule } from '../domain/schedule';
+import type { StepSchedule } from '../domain/types';
 import { runAfterImport } from '../services/afterWrite';
 import { verifyJournal } from '../services/journal';
 import { getSetting, type SettingKey } from '../services/settings';
@@ -90,20 +92,15 @@ const points: Check = isPoints;
 /** A journal delta: signed, at most one decimal. */
 const delta: Check = (v) => typeof v === 'number' && isPoints(Math.abs(v));
 const rate: Check = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+/** The shapes validateSchedule accepts: weekdays 1..7 (at least one), quotas of 1..31. */
 const schedule: Check = (v) => {
   if (!v || typeof v !== 'object') return false;
-  const s = v as { kind?: unknown; days?: unknown; times?: unknown };
-  switch (s.kind) {
-    case 'MANUAL':
-    case 'DAILY':
-      return true;
-    case 'WEEKDAYS':
-      return Array.isArray(s.days) && s.days.every((d) => Number.isInteger(d) && d >= 1 && d <= 7);
-    case 'TIMES_PER_WEEK':
-    case 'TIMES_PER_MONTH':
-      return int(1)(s.times);
-    default:
-      return false;
+  try {
+    validateSchedule(v as StepSchedule);
+    return true;
+  } catch (error) {
+    if (error instanceof ScheduleError) return false;
+    throw error;
   }
 };
 

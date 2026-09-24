@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FLASKS, FLASKS_OF, formatDelta, formatPoints, plural } from './format';
+import { FLASKS, FLASKS_OF, formatDelta, formatMinutes, formatPoints, formatRate, parseDecimal, plural } from './format';
 
 describe('plural', () => {
   it('declines flasks as a subject', () => {
@@ -24,5 +24,27 @@ describe('formatting', () => {
     expect(formatPoints(1)).toBe('1 очко');
     expect(formatDelta(-2.5)).toBe('−2,5');
     expect(formatDelta(0)).toBe('0');
+  });
+
+  it('formats a rate with up to two decimals and minutes', () => {
+    expect(formatRate(0.5)).toBe('0,5/мин');
+    expect(formatRate(0.25)).toBe('0,25/мин');
+    expect(formatRate(2)).toBe('2/мин');
+    expect(formatMinutes(30)).toBe('30 мин');
+    expect(formatMinutes(1440)).toBe('1440 мин');
+  });
+});
+
+describe('parseDecimal', () => {
+  it('accepts a comma or a dot', () => {
+    expect(parseDecimal('0,5')).toBe(0.5);
+    expect(parseDecimal('0.25')).toBe(0.25);
+    expect(parseDecimal(' 2 ')).toBe(2);
+    expect(parseDecimal(',5')).toBe(0.5);
+    expect(parseDecimal('1,')).toBe(1);
+  });
+
+  it('rejects anything else', () => {
+    for (const text of ['', ' ', 'abc', '1,2,3', '-1', '1e3', '0,5 мин']) expect(parseDecimal(text), text).toBeNull();
   });
 });

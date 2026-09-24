@@ -1,5 +1,5 @@
-// The achievement catalogue of v0.3 (proposal 2.2): 7 ladders with 33 tiers and 11 badges,
-// 44 entries. Rules read the replay stats only. Principles: nothing rewards opening the app,
+// The achievement catalogue of v0.3 (proposal 2.2): 8 ladders with 37 tiers and 12 badges,
+// 49 entries («Часы практики» and «Марафон» came with timed steps in package 8). Rules read the replay stats only. Principles: nothing rewards opening the app,
 // the time of day, calendar dates or a return after a break; nothing is taken away for a day
 // without practice; no bonus points; no secrets. Rarity is a visual tone.
 //
@@ -64,6 +64,17 @@ export const LADDERS: readonly LadderDef[] = [
     tiers: tiers([3, B], [7, S], [14, G], [30, G]),
     value: (s) => s.global.bestDayStreak,
     tierDescription: (n) => `Рекорд: ${count(n, ['день', 'дня', 'дней'])} подряд`,
+  },
+  {
+    id: 'hours',
+    title: 'Часы практики',
+    unit: ['час', 'часа', 'часов'],
+    icon: 'hourglass',
+    description: 'Время, отмеченное во временных действиях, в полных часах.',
+    howTo: 'Считаются минуты временных действий. Отменённые выполнения не считаются.',
+    tiers: tiers([1, B], [10, S], [50, G], [100, G]),
+    value: (s) => Math.floor(s.global.totalMinutes / 60),
+    tierDescription: (n) => `${count(n, ['час', 'часа', 'часов'])} практики`,
   },
   {
     id: 'flasks',
@@ -220,6 +231,17 @@ export const BADGES: readonly AchievementDef[] = [
     icon: 'bolt',
     target: 5,
     value: (s) => s.global.maxCompletionsInDay,
+  }),
+  badge({
+    id: 'marathon',
+    title: 'Марафон',
+    description: 'Одно выполнение длиной час и больше',
+    howTo: 'Отметьте временное действие длительностью 60 минут или больше.',
+    rarity: G,
+    icon: 'stopwatch',
+    target: 60,
+    value: (s) => s.global.maxDurationMinutes,
+    skillOf: eventSkill,
   }),
 ];
 
