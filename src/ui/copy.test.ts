@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CATALOG, LADDERS } from '../domain/achievements/catalog';
 import { copy } from './copy';
 
 const FORBIDDEN = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|баллы|балл\b|баллов/i;
@@ -79,6 +80,17 @@ describe('copy dictionary', () => {
 
   it('is frozen', () => {
     expect(Object.isFrozen(copy)).toBe(true);
+  });
+});
+
+describe('achievement catalogue', () => {
+  it('keeps every achievement string clean: no loss, no «вернулся», no forbidden words', () => {
+    const texts = [
+      ...LADDERS.flatMap((l) => [l.title, l.description, l.howTo, ...l.unit]),
+      ...CATALOG.flatMap((d) => [d.title, d.description, d.howTo]),
+    ];
+    expect(texts.length).toBeGreaterThan(44 * 3);
+    expect(texts.filter((text) => FORBIDDEN.test(text) || /сгорел|пропущ|вернул/i.test(text))).toEqual([]);
   });
 });
 

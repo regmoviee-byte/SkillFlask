@@ -3,8 +3,9 @@ import { newId } from '../lib/ids';
 import { nowIso } from '../lib/dates';
 import { canCompleteSkill } from '../domain/milestone';
 import type { Milestone, Skill } from '../domain/types';
-import { afterWrite } from './afterWrite';
-import { progressTables, requireActiveSkill, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
+import { publishEarned } from './achievements';
+import { afterWrite, syncInTransaction } from './afterWrite';
+import { journalTables, requireActiveSkill, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
 
 // Skill lifecycle. Steps live in ./steps.ts and the journal in ./completions.ts; both are
 // re-exported here so existing importers keep one entry point.
@@ -85,21 +86,25 @@ export async function createSkill(raw: SkillInput): Promise<string> {
     createdAt: now,
     updatedAt: now,
   };
-  await db.transaction('rw', [db.skills, db.milestones, db.levelThresholds], async () => {
+  const earned = await db.transaction('rw', journalTables(), async () => {
     await db.skills.add(skill);
     await db.milestones.add(milestone);
     await replaceThresholds(skill.id, input.manualCapacities);
+    return syncInTransaction({ skillId: skill.id, now });
   });
   await afterWrite();
+  publishEarned(earned);
   return skill.id;
 }
 
 export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
   const input = validateSkillInput(raw);
   const now = nowIso();
-  await db.transaction('rw', progressTables(), async () => {
+  const earned = await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(id);
     if (skill.status === 'COMPLETED') throw new ValidationError('Завершённый навык доступен только для чтения');
+    // An archived skill is read-only too: its capacities would re-interpret history unseen.
+    requireActiveSkill(skill);
     const patch = {
       name: input.name,
       description: input.description,
@@ -119,10 +124,13 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
         updatedAt: now,
       });
     }
-    // A changed target or capacity re-interprets the journal; the reach date follows it.
+    // A changed target or capacity re-interprets the journal; the reach date follows it, and
+    // so do the achievements (unlocks re-dated or locked again, new ones filed quietly).
     await syncMilestone({ ...skill, ...patch }, now);
+    return syncInTransaction({ skillId: id, now });
   });
   await afterWrite();
+  publishEarned(earned);
 }
 
 /**
@@ -132,7 +140,7 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
 export async function deleteSkill(id: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.achievementUnlocks],
+    journalTables(),
     async () => {
       await Promise.all([
         db.milestones.where('skillId').equals(id).delete(),
@@ -145,6 +153,8 @@ export async function deleteSkill(id: string): Promise<void> {
         db.achievementUnlocks.filter((u) => u.skillId === id).modify({ skillId: null }),
       ]);
       await db.skills.delete(id);
+      // Its history is gone, and so are the achievements only it held (silently).
+      await syncInTransaction({ skillId: null, now: nowIso() });
     },
   );
   await afterWrite();
@@ -164,11 +174,13 @@ export async function continueAfterMilestone(skillId: string): Promise<void> {
 /** "Завершить навык": explicit user action once the milestone is reached (section 6). */
 export async function completeSkill(skillId: string): Promise<void> {
   const now = nowIso();
-  await db.transaction('rw', [db.skills, db.milestones], async () => {
+  const earned = await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(skillId);
     const milestone = await db.milestones.where('skillId').equals(skillId).first();
     if (!canCompleteSkill(skill, milestone)) throw new ValidationError('Навык можно завершить только после достижения вехи');
     await db.skills.update(skillId, { status: 'COMPLETED', completedAt: now, updatedAt: now });
+    return syncInTransaction({ skillId, now });
   });
   await afterWrite();
+  publishEarned(earned);
 }

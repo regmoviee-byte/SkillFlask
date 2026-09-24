@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
 import { NavLink, useLocation } from 'react-router';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { haptics } from '../../platform/haptics';
+import { countUnseenAchievements } from '../../services/achievements';
 import { copy } from '../copy';
 import { Icon, type IconName } from './Icon';
 
@@ -23,18 +25,16 @@ export const TabBarContext = createContext(false);
 
 export const useHasTabBar = () => useContext(TabBarContext);
 
-interface TabBarProps {
-  /** A dot per tab (package 7 feeds the achievements tab). */
-  badges?: Partial<Record<TabKey, boolean>>;
-}
-
-export function TabBar({ badges = {} }: TabBarProps) {
+export function TabBar() {
   const location = useLocation();
+  // A dot on «Ачивки» while there are unlocks the tab has not shown yet.
+  const unseen = useLiveQuery(countUnseenAchievements, [], 0);
 
   return (
     <nav className="tab-bar" aria-label={copy.tabs.navLabel}>
       {TABS.map((tab) => {
         const active = location.pathname === tab.to;
+        const dot = tab.key === 'achievements' && unseen > 0;
         return (
           <NavLink
             key={tab.key}
@@ -42,6 +42,7 @@ export function TabBar({ badges = {} }: TabBarProps) {
             className="tab"
             replace
             aria-current={active ? 'page' : undefined}
+            aria-label={dot ? copy.achievements.tabNew(unseen) : undefined}
             onClick={(event) => {
               haptics.select();
               if (active) {
@@ -53,7 +54,7 @@ export function TabBar({ badges = {} }: TabBarProps) {
           >
             <Icon name={tab.icon} filled={active} />
             <span>{tab.label}</span>
-            {badges[tab.key] && <span className="tab-badge" aria-hidden="true" />}
+            {dot && <span className="tab-badge" aria-hidden="true" />}
           </NavLink>
         );
       })}

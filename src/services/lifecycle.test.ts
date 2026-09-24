@@ -45,6 +45,13 @@ async function reachedSkill() {
 }
 
 describe('archiveSkill', () => {
+  it('makes the skill read-only, its settings included', async () => {
+    const { skillId } = await reachedSkill();
+    await archiveSkill(skillId);
+    await expect(updateSkill(skillId, { ...english, capacityBase: 1 })).rejects.toThrow('Навык не активен');
+    expect((await db.skills.get(skillId))!.capacityBase).toBe(english.capacityBase);
+  });
+
   it('hides the skill from «Сегодня» and keeps its whole history', async () => {
     const { skillId, speaking } = await reachedSkill();
     const historyBefore = await getSkillHistory(skillId);
@@ -193,15 +200,17 @@ describe('restartSkill', () => {
 });
 
 describe('deleteSkill', () => {
-  it('forgets the skill in shown achievements instead of leaving a dangling reference', async () => {
+  it('takes its achievements along and re-credits the ones another skill still holds', async () => {
     const { skillId } = await reachedSkill();
     const other = await createSkill(english);
-    await db.achievementUnlocks.bulkAdd([
-      { id: 'first-flask', unlockedAt: new Date().toISOString(), skillId, celebratedAt: null, seenAt: null },
-      { id: 'first-skill', unlockedAt: new Date().toISOString(), skillId: other, celebratedAt: null, seenAt: null },
-    ]);
+    expect(await db.achievementUnlocks.get('first-flask')).toMatchObject({ skillId });
+    expect(await db.achievementUnlocks.get('first-skill')).toMatchObject({ skillId });
     await deleteSkill(skillId);
-    expect(await db.achievementUnlocks.get('first-flask')).toMatchObject({ skillId: null });
-    expect(await db.achievementUnlocks.get('first-skill')).toMatchObject({ skillId: other });
+    // Nothing is left pointing at the deleted skill: every later backup stays importable.
+    const rows = await db.achievementUnlocks.toArray();
+    expect(rows.filter((row) => row.skillId === skillId)).toEqual([]);
+    expect(await db.achievementUnlocks.get('first-flask')).toBeUndefined();
+    const created = (await db.skills.get(other))!.createdAt;
+    expect(await db.achievementUnlocks.get('first-skill')).toMatchObject({ skillId: other, unlockedAt: created });
   });
 });

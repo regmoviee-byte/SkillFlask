@@ -14,6 +14,7 @@ import {
   setCompletionNote,
   SAME_TAP_MS,
 } from './completions';
+import { CATALOG } from '../domain/achievements/catalog';
 import { registerAfterCommitHook, registerInTransactionHook } from './afterWrite';
 import { DoubleSubmitError } from './core';
 import { getSkillHistory } from './history';
@@ -323,9 +324,10 @@ describe('afterWrite hooks', () => {
     const skillId = await createSkill(skillInput);
     const stepId = await createStep({ skillId, name: 'Шаг', points: 5 });
     const calls: string[] = [];
+    const extra = CATALOG.find((d) => d.id === 'actions-10')!;
     const offSync = registerInTransactionHook(async ({ skillId: changed, now }) => {
       calls.push(`sync:${changed === skillId}:${(await db.completions.count()) === 1}`);
-      return [{ id: 'first-completion', unlockedAt: now }];
+      return [{ def: extra, unlocked: true, unlockedAt: now, skillId: null, current: 10, target: 10 }];
     });
     const offBackup = registerAfterCommitHook(() => {
       calls.push('backup');
@@ -333,7 +335,8 @@ describe('afterWrite hooks', () => {
     });
     try {
       const result = await completeStep(stepId);
-      expect(result.achievements).toEqual([{ id: 'first-completion', unlockedAt: expect.any(String) }]);
+      // The built-in achievement sync runs first, then the registered hooks.
+      expect(result.achievements.map((s) => s.def.id)).toEqual(['first-step', 'actions-10']);
       expect(calls).toEqual(['sync:true:true', 'backup']);
     } finally {
       offSync();

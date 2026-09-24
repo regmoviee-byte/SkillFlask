@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * A flag that turns on only after `active` has been true for `delayMs` (so fast loads never
@@ -7,11 +7,16 @@ import { useEffect, useState } from 'react';
 export function useDelayedFlag(active: boolean, { delayMs = 150, minMs = 300 }: { delayMs?: number; minMs?: number } = {}): boolean {
   const [shown, setShown] = useState(false);
   const [shownAt, setShownAt] = useState(0);
+  // The latest value as rendered: a timer that fires after a render turned `active` off, but
+  // before that render's effects ran (a busy main thread), must not switch the flag on.
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   useEffect(() => {
     if (active) {
       if (shown) return;
       const timer = window.setTimeout(() => {
+        if (!activeRef.current) return;
         setShown(true);
         setShownAt(Date.now());
       }, delayMs);

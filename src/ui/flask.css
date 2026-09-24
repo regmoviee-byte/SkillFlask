@@ -298,11 +298,3 @@ html[data-motion='reduced'] .ring-value {
 .mini-flask.is-full .mini-flask-glass {
   stroke: var(--liquid-deep);
 }
-
-.mini-flask.is-gold .mini-flask-liquid {
-  fill: var(--gold-2);
-}
-
-.mini-flask.is-gold .mini-flask-glass {
-  stroke: var(--gold-3);
-}

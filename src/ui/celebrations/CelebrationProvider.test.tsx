@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
-import { MemoryRouter, useNavigate } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CATALOG } from '../../domain/achievements/catalog';
+import type { AchievementState } from '../../domain/achievements/types';
 import type { Progress } from '../../domain/progression';
+import { filterStillUnlocked, markCelebrated, onAchievementsEarned } from '../../services/achievements';
 import type { MutationResult } from '../../services/completions';
 import { getSkillWithMilestone } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
@@ -12,9 +15,19 @@ import { CelebrationProvider, useCelebrations, useCelebrationStage } from './Cel
 
 vi.mock('../../services/queries', () => ({ getSkillWithMilestone: vi.fn() }));
 vi.mock('../../services/skills', () => ({ completeSkill: vi.fn(), continueAfterMilestone: vi.fn() }));
-vi.mock('../../platform/haptics', () => ({
-  haptics: { levelUp: vi.fn(), milestone: vi.fn(), success: vi.fn(), error: vi.fn(), tap: vi.fn() },
+vi.mock('../../services/achievements', () => ({
+  markCelebrated: vi.fn(async () => {}),
+  onAchievementsEarned: vi.fn(() => () => {}),
+  filterStillUnlocked: vi.fn(async (states: unknown[]) => states),
 }));
+vi.mock('../../platform/haptics', () => ({
+  haptics: { levelUp: vi.fn(), milestone: vi.fn(), success: vi.fn(), error: vi.fn(), tap: vi.fn(), press: vi.fn(), select: vi.fn() },
+}));
+
+const earned = (id: string, skillId: string | null = 's1'): AchievementState => {
+  const def = CATALOG.find((d) => d.id === id)!;
+  return { def, unlocked: true, unlockedAt: '2026-09-24T10:00:00.000Z', skillId, current: def.target, target: def.target };
+};
 
 const progress = (completed: number, points: number, capacity = 100): Progress => ({
   totalPoints: completed * 100 + points,
@@ -67,9 +80,13 @@ const milestone = {
 let api: ReturnType<typeof useCelebrations>;
 let stage: ReturnType<typeof useCelebrationStage>;
 
+let location = '';
+
 function Probe({ live }: { live: Progress }) {
   api = useCelebrations();
   stage = useCelebrationStage('s1', live);
+  const { pathname, search } = useLocation();
+  location = pathname + search;
   return <p data-testid="shown">{stage.shown?.pointsInCurrentFlask}</p>;
 }
 
@@ -102,6 +119,8 @@ beforeEach(() => {
   vi.mocked(getSkillWithMilestone).mockResolvedValue({ skill, milestone });
   vi.mocked(haptics.levelUp).mockClear();
   vi.mocked(haptics.milestone).mockClear();
+  vi.mocked(haptics.press).mockClear();
+  vi.mocked(markCelebrated).mockClear();
 });
 afterEach(() => {
   cleanup();
@@ -178,5 +197,85 @@ describe('CelebrationProvider', () => {
     act(() => navigate('/skills/s1'));
     await act(() => done);
     expect(screen.getByText(/^Колба \d+ заполнена$/)).toBeTruthy();
+  });
+
+  it('announces a new achievement with a card at the top, after the flask, and opens it on the tab', async () => {
+    renderProvider();
+    await act(() =>
+      api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1, 150), levelChange: 1, achievements: [earned('first-flask')] }), {
+        skillId: 's1',
+      }),
+    );
+    // The level-up card has the place first; the achievement waits until it has left.
+    expect(screen.getByText('Колба 1 заполнена')).toBeTruthy();
+    expect(screen.queryByText('Новая ачивка')).toBeNull();
+    fireEvent.click(screen.getByText('Колба 1 заполнена'));
+    const title = await screen.findByText('Первая колба', undefined, { timeout: 2000 });
+    expect(screen.getByText('Новая ачивка')).toBeTruthy();
+    expect(screen.getByText('Английский')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(haptics.press).toHaveBeenCalledTimes(1);
+    expect(markCelebrated).toHaveBeenCalledWith(['first-flask'], expect.any(String));
+    fireEvent.click(title.closest('button')!);
+    expect(location).toBe('/achievements?focus=first-flask');
+  });
+
+  it('tells more than two achievements of one write in one card', async () => {
+    renderProvider();
+    await act(() =>
+      api.celebrateResult(result({ achievements: [earned('first-step'), earned('first-flask'), earned('exact'), earned('milestones-1')] }), {
+        skillId: 's1',
+      }),
+    );
+    expect(await screen.findByText('Первое действие и ещё 3 ачивки')).toBeTruthy();
+    expect(screen.getByText('Первая колба, Ювелирно, Вехи · 1')).toBeTruthy();
+    expect(haptics.press).toHaveBeenCalledTimes(1);
+    expect(markCelebrated).toHaveBeenCalledWith(['first-step', 'first-flask', 'exact', 'milestones-1'], expect.any(String));
+  });
+
+  it('shows two achievements as two cards, one after the other', async () => {
+    renderProvider();
+    await act(() => api.celebrateResult(result({ achievements: [earned('first-step'), earned('two-fronts', null)] }), { skillId: 's1' }));
+    expect(await screen.findByText('Первое действие')).toBeTruthy();
+    expect(screen.queryByText('Два фронта')).toBeNull();
+    // Swipe up dismisses; the next card follows after a short gap.
+    const card = screen.getByText('Первое действие').closest('button')!;
+    fireEvent.touchStart(card, { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientY: 60 }] });
+    expect(await screen.findByText('Два фронта', undefined, { timeout: 2000 })).toBeTruthy();
+    // A global one has no skill: the caption says what it is for.
+    expect(screen.getByText('Действия в двух навыках за один день')).toBeTruthy();
+    expect(haptics.press).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for the milestone sheet to close before a card', async () => {
+    renderProvider();
+    await act(() =>
+      api.celebrateResult(
+        result({ before: progress(2, 95), after: progress(3, 0), levelChange: 1, milestoneReached: true, achievements: [earned('milestones-1')] }),
+        { skillId: 's1' },
+      ),
+    );
+    await screen.findByRole('dialog', { name: 'Веха достигнута: Достичь C1' });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(screen.queryByText('Новая ачивка')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Решу позже' }));
+    expect(await screen.findByText('Вехи · 1', undefined, { timeout: 2000 })).toBeTruthy();
+  });
+
+  it('shows what other writes published (a new skill, a completed one)', async () => {
+    renderProvider();
+    const listener = vi.mocked(onAchievementsEarned).mock.calls.at(-1)![0];
+    act(() => listener([earned('first-skill')]));
+    expect(await screen.findByText('Первый навык')).toBeTruthy();
+  });
+
+  it('drops a waiting card whose achievement an undo took away', async () => {
+    vi.mocked(filterStillUnlocked).mockImplementationOnce(async () => []);
+    renderProvider();
+    await act(() => api.celebrateResult(result({ achievements: [earned('first-step')] }), { skillId: 's1' }));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(screen.queryByText('Новая ачивка')).toBeNull();
+    expect(markCelebrated).not.toHaveBeenCalled();
   });
 });

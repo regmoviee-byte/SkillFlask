@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { motionMode, useMotion, type MotionMode } from './useMotion';
+import { motionMode, type MotionMode } from './useMotion';
 
 // «+5» flies from the ✓ to the flask before the liquid moves: the eye follows the points into
 // the glass. A fixed pill over everything, WAAPI along an arc (a raised mid keyframe), 550 ms.
@@ -47,10 +46,4 @@ export async function flyPoints(from: Element | null | undefined, to: Element | 
   );
   await Promise.race([animation.finished.catch(() => undefined), new Promise((resolve) => window.setTimeout(resolve, DURATION + FALLBACK_MS))]);
   pill.remove();
-}
-
-/** `flyPoints` bound to the current motion mode. */
-export function usePointsFly(): (from: Element | null | undefined, to: Element | null | undefined, text: string) => Promise<void> {
-  const motion = useMotion();
-  return useCallback((from, to, text) => flyPoints(from, to, text, motion), [motion]);
 }

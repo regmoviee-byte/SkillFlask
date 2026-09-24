@@ -18,6 +18,7 @@ const COMPLETIONS: [string, string, string] = ['выполнение', 'выпо
 const SKILLS: [string, string, string] = ['навык', 'навыка', 'навыков'];
 const ACTIONS: [string, string, string] = ['действие', 'действия', 'действий'];
 const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
+const ACHIEVEMENTS: [string, string, string] = ['ачивка', 'ачивки', 'ачивок'];
 
 const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)} ${plural(n, forms)}`;
 
@@ -51,9 +52,13 @@ export const copy = Object.freeze({
     newSkill: 'Новый навык',
     tileFlasks: 'Заполнено',
     flasksCaption: (n: number) => plural(n, FLASKS),
-    /** The wide tile; package 7 replaces it with the last or next achievement. */
-    lastMilestone: (name: string, skillName: string, date: string) => `Последняя веха: ${name} · ${skillName} · ${formatDate(date)}`,
-    noMilestone: 'Достигнутые вехи появятся здесь',
+    /** The wide tile: the last achievement, or the closest next one with its progress. */
+    achievementLastOn: (date: string) => `Последняя ачивка · ${formatDate(date)}`,
+    achievementNext: 'Следующая',
+    achievementNextMeta: (title: string, current: number, target: number) => `${title} · ${formatNumber(current)} из ${formatNumber(target)}`,
+    achievementNone: 'Ачивки начнутся с первого действия',
+    /** A second caption when a milestone was reached after the last achievement. */
+    lastMilestone: (name: string, skillName: string, date: string) => `Веха «${name}» · ${skillName} · ${formatDate(date)}`,
     filterLabel: 'Какие навыки показать',
     filterActive: 'Активные',
     filterCompleted: 'Достигнутые',
@@ -282,9 +287,41 @@ export const copy = Object.freeze({
     confirmRemove: 'Навык и вся его история будут удалены без возможности восстановления. Удалить?',
     removed: 'Навык удалён',
   },
-  placeholders: {
-    achievementsTitle: 'Ачивки',
-    achievementsHint: 'Ачивки появятся в следующих версиях. Пока достигнутые вехи видны на главной.',
+  achievements: {
+    title: 'Ачивки',
+    /** The summary ring's accessible name. */
+    summaryLabel: (unlocked: number, total: number) => `Получено ${formatNumber(unlocked)} из ${formatNumber(total)}`,
+    summaryOf: (total: number) => `из ${formatNumber(total)}`,
+    last: 'Последняя',
+    lastMeta: (skillName: string | null, date: string) => (skillName ? `${skillName} · ${formatDate(date)}` : formatDate(date)),
+    noneYet: 'Первая ачивка — за первое действие',
+    filterLabel: 'Какие ачивки показать',
+    filterAll: 'Все',
+    filterEarned: 'Получено',
+    filterAhead: 'Впереди',
+    ladders: 'Лестницы',
+    badges: 'Значки',
+    ladderNext: (target: number, remaining: number) => `Следующая: ${formatNumber(target)} · осталось ${formatNumber(remaining)}`,
+    ladderDone: 'Все ступени пройдены',
+    ladderTiers: (unlocked: number, total: number) => `Ступени · ${unlocked} из ${total}`,
+    tierDateNone: '—',
+    progress: (current: number, target: number) => `${formatNumber(current)} из ${formatNumber(target)}`,
+    rarity: { BRONZE: 'Бронза', SILVER: 'Серебро', GOLD: 'Золото' },
+    howTo: 'Как получить',
+    earnedOn: (date: string, skillName: string | null) => `Получена ${formatDate(date)}${skillName ? ` · ${skillName}` : ''}`,
+    ahead: 'Ещё впереди',
+    earnedNone: 'Полученные ачивки появятся здесь',
+    aheadNone: 'Все ачивки получены',
+    /** Accessible names: a tile, a tier, the tab with its dot. */
+    tileLabel: (title: string, state: string) => `${title}: ${state}`,
+    stateEarned: (date: string) => `получена ${formatDate(date)}`,
+    stateProgress: (current: number, target: number) => `${formatNumber(current)} из ${formatNumber(target)}`,
+    stateAhead: 'впереди',
+    tabNew: (n: number) => `Ачивки, новых: ${n}`,
+    /** The card at the top after a write earned something. */
+    cardOverline: 'Новая ачивка',
+    cardMore: (title: string, more: number) => `${title} и ещё ${more} ${plural(more, ACHIEVEMENTS)}`,
+    cardOpen: (title: string) => `Новая ачивка: ${title}. Открыть «Ачивки»`,
   },
   settings: {
     title: 'Настройки',

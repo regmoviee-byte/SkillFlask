@@ -4,6 +4,7 @@ import type { SkillStatus } from '../../domain/types';
 import { getHomeView, type HomeView } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
 import { EmptyState } from '../components/EmptyState';
+import { Badge } from '../components/Badge';
 import { Flask } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
@@ -14,8 +15,8 @@ import { copy } from '../copy';
 import { useToday } from '../hooks/useToday';
 
 // Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
-// dots, the flasks filled so far, the last milestone — then the skill cards. Facts only:
-// no charts, no targets, nothing about days without activity.
+// dots, the flasks filled so far, the last achievement (or the next one) — then the skill
+// cards. Facts only: no charts, no targets, nothing about days without activity.
 
 const t = copy.home;
 
@@ -85,7 +86,8 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
   const segments = SEGMENTS.filter((segment) => counts[segment.status] > 0);
   const shown = counts[filter] > 0 ? filter : (segments[0]?.status ?? 'ACTIVE');
   const visible = home.summaries.filter((s) => s.skill.status === shown);
-  const showChips = counts.COMPLETED + counts.ARCHIVED > 0;
+  // A filter with one option filters nothing: the chips appear from two non-empty segments.
+  const showChips = segments.length >= 2;
   // «Новый навык» closes the active list; with no active skill left it closes whatever is shown.
   const showNewCard = shown === 'ACTIVE' || counts.ACTIVE === 0;
 
@@ -103,13 +105,7 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
             </span>
           )}
         </Tile>
-        <Link to="/achievements" className="tile tile--wide pressable">
-          <Icon name="flag" size={22} className="tile-icon" />
-          <span className={`tile-text${home.lastMilestone ? '' : ' hint'}`}>
-            {home.lastMilestone ? t.lastMilestone(home.lastMilestone.name, home.lastMilestone.skillName, home.lastMilestone.reachedAt) : t.noMilestone}
-          </span>
-          <Icon name="chevron-right" size={20} className="tile-chevron" />
-        </Link>
+        <AchievementTile home={home} />
       </div>
 
       {showChips && (
@@ -146,5 +142,46 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
         )}
       </ul>
     </>
+  );
+}
+
+/**
+ * The wide tile: «Последняя ачивка» with its medal and date, or «Следующая» with its progress
+ * before the first one. A milestone reached after the last achievement stays as a caption.
+ */
+function AchievementTile({ home }: { home: HomeView }) {
+  const { last, next } = home.achievements;
+  const milestone = home.lastMilestone;
+  const showMilestone = milestone !== null && (!last || milestone.reachedAt > last.unlockedAt!);
+  return (
+    <Link to="/achievements" className="tile tile--wide tile--achievement pressable">
+      {last ? (
+        <Badge rarity={last.def.rarity} size={32} state="unlocked" icon={last.def.icon} />
+      ) : next ? (
+        <Badge rarity={next.def.rarity} size={32} state="locked" icon={next.def.icon} />
+      ) : (
+        <Icon name="medal" size={22} className="tile-icon" />
+      )}
+      <span className="tile-text">
+        {last ? (
+          <>
+            <span className="tile-ach-label">{t.achievementLastOn(last.unlockedAt!)}</span>
+            <span className="tile-ach-title">{last.def.title}</span>
+          </>
+        ) : next ? (
+          <>
+            <span className="tile-ach-label">{t.achievementNext}</span>
+            <span className="tile-ach-title">{t.achievementNextMeta(next.def.title, next.current, next.target)}</span>
+            <span className="bar tile-ach-bar" aria-hidden="true">
+              <span className="bar-fill" style={{ width: `${Math.round((next.current / next.target) * 100)}%` }} />
+            </span>
+          </>
+        ) : (
+          <span className="hint">{t.achievementNone}</span>
+        )}
+        {showMilestone && <span className="tile-ach-caption">{t.lastMilestone(milestone.name, milestone.skillName, milestone.reachedAt)}</span>}
+      </span>
+      <Icon name="chevron-right" size={20} className="tile-chevron" />
+    </Link>
   );
 }

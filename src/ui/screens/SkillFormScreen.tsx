@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillFormData } from '../../services/queries';
 import { archiveSkill } from '../../services/lifecycle';
@@ -92,6 +92,8 @@ export function SkillFormScreen() {
       </Screen>
     );
   }
+  // Archived and completed skills are read-only: the form is not offered, not even by URL.
+  if (editing && existing && existing.skill.status !== 'ACTIVE') return <Navigate to={`/skills/${skillId}`} replace />;
 
   // Undefined while the skill is still loading: the form renders its skeleton meanwhile.
   const initial: FormState | undefined = existing

@@ -31,7 +31,7 @@ export type CelebrationEvent =
       levelUp: LevelUpPlay | null;
     }
   | { kind: 'skillCompleted'; skillId: string }
-  /* Package 7 fills these from MutationResult.achievements. */
+  /* From MutationResult.achievements; the provider shows them as cards, after everything else. */
   | { kind: 'achievement'; state: AchievementState };
 
 export const PRIORITY: Record<CelebrationEvent['kind'], number> = {

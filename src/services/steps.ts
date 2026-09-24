@@ -6,8 +6,9 @@ import { db } from '../data/db';
 import { newId } from '../lib/ids';
 import { localDate, nowIso } from '../lib/dates';
 import type { StepDefinition } from '../domain/types';
-import { afterWrite } from './afterWrite';
-import { requireActiveSkill, requireInt, requireName, requireSkill, ValidationError } from './core';
+import { publishEarned } from './achievements';
+import { afterWrite, syncInTransaction } from './afterWrite';
+import { journalTables, requireActiveSkill, requireInt, requireName, requireSkill, ValidationError } from './core';
 
 export interface StepInput {
   skillId: string;
@@ -36,7 +37,7 @@ async function requireStep(id: string): Promise<StepDefinition> {
 export async function createStep(raw: StepInput): Promise<string> {
   const { name, points } = validate(raw);
   const now = nowIso();
-  const id = await db.transaction('rw', [db.skills, db.steps], async () => {
+  const { id, earned } = await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(raw.skillId);
     requireActiveSkill(skill);
     const step: StepDefinition = {
@@ -54,9 +55,10 @@ export async function createStep(raw: StepInput): Promise<string> {
       updatedAt: now,
     };
     await db.steps.add(step);
-    return step.id;
+    return { id: step.id, earned: await syncInTransaction({ skillId: skill.id, now }) };
   });
   await afterWrite();
+  publishEarned(earned);
   return id;
 }
 
@@ -67,10 +69,12 @@ export async function createStep(raw: StepInput): Promise<string> {
 export async function updateStep(id: string, raw: StepPatch): Promise<void> {
   const { name, points } = validate(raw);
   const now = nowIso();
-  await db.transaction('rw', [db.skills, db.steps], async () => {
+  await db.transaction('rw', journalTables(), async () => {
     const step = await requireStep(id);
     requireActiveSkill(await requireSkill(step.skillId));
     await db.steps.update(id, { name, points, updatedAt: now });
+    // No rule reads a step's name or points today; the sync keeps every write uniform.
+    await syncInTransaction({ skillId: step.skillId, now });
   });
   await afterWrite();
 }
@@ -78,13 +82,16 @@ export async function updateStep(id: string, raw: StepPatch): Promise<void> {
 /** Hides a step from the lists («Убрать из списка») or brings it back; history stays intact. */
 export async function setStepActive(id: string, isActive: boolean): Promise<void> {
   const now = nowIso();
-  await db.transaction('rw', [db.skills, db.steps], async () => {
+  const earned = await db.transaction('rw', journalTables(), async () => {
     const step = await requireStep(id);
     requireActiveSkill(await requireSkill(step.skillId));
-    if (step.isActive === isActive) return;
+    if (step.isActive === isActive) return [];
     await db.steps.update(id, { isActive, updatedAt: now });
+    // «Набор инструментов» counts the steps on the list: hiding one may lock it again.
+    return syncInTransaction({ skillId: step.skillId, now });
   });
   await afterWrite();
+  publishEarned(earned);
 }
 
 export async function getStep(id: string): Promise<StepDefinition | null> {

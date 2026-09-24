@@ -34,9 +34,7 @@ export function requireInt(value: number, min: number, what: string): number {
 }
 
 // Computed on demand: `db` is a live binding that tests swap per test.
-export const progressTables = () => [db.skills, db.milestones, db.levelThresholds, db.transactions];
-
-/** Every table a journal mutation may touch, including the achievement sync (package 7). */
+/** Every table a mutation may touch, including the achievement sync (services/achievements.ts). */
 export const journalTables = () => [
   db.skills,
   db.milestones,
@@ -91,7 +89,7 @@ export interface MilestoneSync {
 /**
  * Recomputes progress from the journal and brings the milestone cache in line with it.
  * The reach date is derived from the journal (FR-MS-007), so editing the target later keeps
- * the historical date. Must run inside a transaction covering `progressTables()`.
+ * the historical date. Must run inside a transaction covering the skills, milestones, thresholds and transactions.
  */
 export async function syncMilestone(skill: Skill, now: string): Promise<MilestoneSync> {
   const { timeline, progress } = await loadTimeline(skill);

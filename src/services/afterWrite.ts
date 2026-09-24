@@ -1,11 +1,13 @@
-// Hooks that follow every data mutation: package 7 registers the achievement sync (runs
-// inside the mutation's transaction, so unlocks commit or roll back with the journal), the
-// cloud backup scheduler (services/backupSync.ts) runs after the commit and never blocks it.
-// A backup import or a full wipe replaces every table at once and runs the import hooks
-// inside its transaction instead (package 7: re-derive unlocks without celebrating them).
+// Hooks that follow every data mutation. The achievement sync (services/achievements.ts) is
+// built in and runs first, inside the mutation's transaction, so unlocks commit or roll back
+// with the journal; other in-transaction hooks may be registered after it. The cloud backup
+// scheduler (services/backupSync.ts) runs after the commit and never blocks it. A backup
+// import or a full wipe replaces every table at once and runs the import hooks inside its
+// transaction instead (the achievements are re-derived there without being celebrated).
 
 import type { AchievementState } from '../domain/types';
 import { logError } from '../platform/errorLog';
+import { syncAchievements, syncAfterImport } from './achievements';
 
 export interface WriteContext {
   /** Skill whose journal changed; null for writes that are not tied to one skill. */
@@ -13,7 +15,7 @@ export interface WriteContext {
   now: string;
 }
 
-/** Runs inside the write transaction (it covers `journalTables()`); returns what changed. */
+/** Runs inside the write transaction (it covers `journalTables()`); returns what it earned. */
 export type InTransactionHook = (context: WriteContext) => Promise<AchievementState[]>;
 /** Runs after the commit; failures are swallowed so a scheduled backup never fails a write. */
 export type AfterCommitHook = () => void | Promise<void>;
@@ -41,9 +43,14 @@ export const registerInTransactionHook = (hook: InTransactionHook) => register(i
 export const registerAfterCommitHook = (hook: AfterCommitHook) => register(afterCommitHooks, hook);
 export const registerAfterImportHook = (hook: AfterImportHook) => register(afterImportHooks, hook);
 
-/** Called by journal mutations right before their transaction ends. */
+/**
+ * Called by every mutation of the journal, the skills or the steps right before its
+ * transaction ends (which must cover `journalTables()`): returns the achievements this write
+ * earned (see syncAchievements).
+ */
 export async function syncInTransaction(context: WriteContext): Promise<AchievementState[]> {
-  const changed: AchievementState[] = [];
+  const { earnedNow } = await syncAchievements(context.now);
+  const changed: AchievementState[] = [...earnedNow];
   for (const hook of inTransactionHooks) changed.push(...(await hook(context)));
   return changed;
 }
@@ -62,5 +69,6 @@ export async function afterWrite(): Promise<void> {
 
 /** Called by importBackup and wipeAllData right before their transaction ends. */
 export async function runAfterImport(context: ImportContext): Promise<void> {
+  await syncAfterImport(context);
   for (const hook of afterImportHooks) await hook(context);
 }

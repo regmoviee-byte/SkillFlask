@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router';
+import { syncAchievementsOnStart } from '../services/achievements';
 import { flushCloudBackup } from '../services/backupSync';
 import { getSetting } from '../services/settings';
 import { useAppLifecycle } from '../platform/telegram';
@@ -10,7 +11,7 @@ import { isTabRoute, TabBar, TabBarContext } from './components/TabBar';
 import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
-import { AchievementsScreen } from './screens/PlaceholderScreens';
+import { AchievementsScreen } from './screens/AchievementsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
@@ -38,6 +39,9 @@ function Shell() {
   useEffect(() => {
     // The «Уменьшить движение» setting (package 4) is applied on top of prefers-reduced-motion.
     getSetting<MotionPreference>('motion', 'system').then(setMotionPreference, () => {});
+    // Files unlocks that appeared without a write (a catalogue entry added in an update):
+    // quietly, never celebrated. Idempotent, so StrictMode's second run changes nothing.
+    void syncAchievementsOnStart();
   }, []);
   // Leaving the app (Telegram `deactivated`, or the page hidden) saves pending changes to the
   // cloud at once instead of after the 30 s debounce.

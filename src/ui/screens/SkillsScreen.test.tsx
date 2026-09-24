@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setClock } from '../../lib/clock';
+import { addDays, localDate } from '../../lib/dates';
 import { completeStep } from '../../services/completions';
 import { archiveSkill } from '../../services/lifecycle';
 import { completeSkill, createSkill, type SkillInput } from '../../services/skills';
@@ -79,8 +80,25 @@ describe('SkillsScreen', () => {
     expect(english.querySelectorAll('.milestone-dot')).toHaveLength(3);
     expect(english.querySelectorAll('.milestone-dot.is-done')).toHaveLength(1);
     expect(screen.getByRole('link', { name: /Сегодня/ }).getAttribute('href')).toBe('/today');
-    expect(screen.getByText('Достигнутые вехи появятся здесь').closest('a')?.getAttribute('href')).toBe('/achievements');
+    // The wide tile: the last achievement — two skills on one day.
+    const tile = screen.getByText(/^Последняя ачивка · /).closest('a')!;
+    expect(tile.getAttribute('href')).toBe('/achievements');
+    expect(tile.textContent).toContain('Два фронта');
+    expect(tile.querySelector('.ach-badge.is-unlocked')).toBeTruthy();
     expect(document.querySelector('.dashed-card')?.getAttribute('href')).toBe('/skills/new');
+  });
+
+  it('keeps a milestone reached after the last achievement as a caption of the wide tile', async () => {
+    const a = await createSkill(input('Английский', 1));
+    await completeStep(await createStep({ skillId: a, name: 'Разговор', points: 10 }));
+    const b = await createSkill(input('Бег', 1));
+    const run = await createStep({ skillId: b, name: 'Пробежка', points: 10 });
+    // Another date, so nothing new is earned: only the milestone of «Бег» is newer.
+    await completeStep(run, { date: addDays(localDate(), -1) });
+
+    renderHome();
+    const tile = (await screen.findByText(/^Последняя ачивка · /)).closest('a')!;
+    expect(tile.querySelector('.tile-ach-caption')?.textContent).toMatch(/^Веха «Цель» · Бег · /);
   });
 
   it('offers only the segments that have skills', async () => {
@@ -98,7 +116,10 @@ describe('SkillsScreen', () => {
     expect(cardNames()).toEqual(['Английский', 'Гитара']);
     // The reached milestone of an active skill wears the laurel chip.
     expect(document.querySelector('.skill-card')?.textContent).toContain('веха достигнута');
-    expect(screen.getByText(/^Последняя веха: Цель · Английский · /)).toBeTruthy();
+    // The milestone came with «Вехи · 1» at the same moment: no separate milestone caption.
+    const tile = screen.getByText(/^Последняя ачивка · /).closest('a')!;
+    expect(tile.textContent).toContain('Вехи · 1');
+    expect(tile.querySelector('.tile-ach-caption')).toBeNull();
 
     fireEvent.click(chip('Архив'));
     expect(cardNames()).toEqual(['Бег']);
@@ -118,6 +139,16 @@ describe('SkillsScreen', () => {
     expect(cardNames()).toEqual(['Английский']);
     expect(document.querySelector('.skill-card')?.textContent).toContain('1 колба');
     expect(screen.getByRole('img', { name: 'Навык достигнут: 1 колба' })).toBeTruthy();
+  });
+
+  it('offers no filter with a single segment: only completed skills are shown as they are', async () => {
+    const a = await createSkill(input('Английский', 1));
+    await completeStep(await createStep({ skillId: a, name: 'Разговор', points: 10 }));
+    await completeSkill(a);
+    renderHome();
+    await screen.findByText('Заполнено');
+    expect(cardNames()).toEqual(['Английский']);
+    expect(filterGroup()).toBeNull();
   });
 
   it('opens the segment named in the URL and falls back when it is empty', async () => {

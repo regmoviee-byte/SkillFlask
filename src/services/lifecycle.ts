@@ -8,16 +8,19 @@ import { db } from '../data/db';
 import { newId } from '../lib/ids';
 import { localDate, nowIso } from '../lib/dates';
 import type { LevelThreshold, Milestone, Skill, StepDefinition } from '../domain/types';
-import { afterWrite } from './afterWrite';
-import { progressTables, requireSkill, syncMilestone, ValidationError } from './core';
+import { publishEarned } from './achievements';
+import { afterWrite, syncInTransaction } from './afterWrite';
+import { journalTables, requireSkill, syncMilestone, ValidationError } from './core';
 
 /** ACTIVE → ARCHIVED: the skill leaves «Сегодня» and the active list, its history stays. */
 export async function archiveSkill(id: string): Promise<void> {
   const now = nowIso();
-  await db.transaction('rw', [db.skills], async () => {
+  await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(id);
     if (skill.status !== 'ACTIVE') throw new ValidationError('В архив можно убрать только активный навык');
     await db.skills.update(id, { status: 'ARCHIVED', archivedAt: now, updatedAt: now });
+    // No rule reads the archive state; the sync keeps every write uniform.
+    await syncInTransaction({ skillId: id, now });
   });
   await afterWrite();
 }
@@ -28,13 +31,14 @@ export async function archiveSkill(id: string): Promise<void> {
  */
 export async function restoreSkill(id: string): Promise<void> {
   const now = nowIso();
-  await db.transaction('rw', progressTables(), async () => {
+  await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(id);
     if (skill.status !== 'ARCHIVED') throw new ValidationError('Навык не в архиве');
     const patch = { status: 'ACTIVE' as const, archivedAt: null, updatedAt: now };
     await db.skills.update(id, patch);
     // Progress is untouched; the milestone cache is only brought in line with the journal.
     await syncMilestone({ ...skill, ...patch }, now);
+    await syncInTransaction({ skillId: id, now });
   });
   await afterWrite();
 }
@@ -49,7 +53,7 @@ export async function restartSkill(id: string): Promise<string> {
   const now = nowIso();
   const today = localDate();
   const newSkillId = newId();
-  await db.transaction('rw', [db.skills, db.milestones, db.levelThresholds, db.steps], async () => {
+  const earned = await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(id);
     if (skill.status === 'ACTIVE') throw new ValidationError('Начать заново можно только архивный или достигнутый навык');
     const [milestone, thresholds, steps] = await Promise.all([
@@ -83,7 +87,9 @@ export async function restartSkill(id: string): Promise<string> {
         return { ...step, id: newId(), skillId: newSkillId, scheduleFrom: today, createdAt, updatedAt: createdAt };
       }),
     );
+    return syncInTransaction({ skillId: newSkillId, now });
   });
   await afterWrite();
+  publishEarned(earned);
   return newSkillId;
 }

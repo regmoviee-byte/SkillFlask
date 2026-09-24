@@ -15,12 +15,13 @@ import {
 import { setClock } from '../lib/clock';
 import { installFreshDb, tickingClock, todayNoon } from '../test/harness';
 import { registerAfterImportHook } from '../services/afterWrite';
-import { cancelCompletion, completeStep } from '../services/completions';
+import { cancelCompletion, completeStep, restoreCompletion } from '../services/completions';
+import { archiveSkill, restartSkill, restoreSkill } from '../services/lifecycle';
 import { verifyJournal } from '../services/journal';
 import { getSkillDetails, listSkillSummaries } from '../services/queries';
 import { getSetting, setSetting } from '../services/settings';
-import { createSkill, type SkillInput } from '../services/skills';
-import { createStep } from '../services/steps';
+import { completeSkill, continueAfterMilestone, createSkill, deleteSkill, updateSkill, type SkillInput } from '../services/skills';
+import { createStep, setStepActive, updateStep } from '../services/steps';
 
 installFreshDb();
 beforeEach(() => setClock(tickingClock(todayNoon())));
@@ -115,6 +116,36 @@ describe('export → wipe → import', () => {
   });
 });
 
+describe('every mutation', () => {
+  it('leaves a database whose export imports again (no dangling achievement rows)', async () => {
+    const [english, sport] = await seed();
+    const talk = (await db.steps.where('skillId').equals(english).toArray())[0]!.id;
+    for (let i = 0; i < 4; i++) await completeStep(talk); // 30 points: the milestone (8 + 15)
+    const extra = await createStep({ skillId: english, name: 'Письмо', points: 2 });
+    await updateStep(extra, { name: 'Письмо, эссе', points: 3 });
+    await setStepActive(extra, false);
+    const done = await completeStep(talk);
+    await cancelCompletion(done.completionId);
+    await restoreCompletion(done.completionId);
+    await continueAfterMilestone(english);
+    await updateSkill(english, { ...skillInput('Английский'), capacityBase: 12 });
+    await completeSkill(english);
+    const copy = await restartSkill(english);
+    await archiveSkill(sport);
+    await restoreSkill(sport);
+    // The skill that holds the first unlocks goes, with its history.
+    await deleteSkill(english);
+    await createStep({ skillId: copy, name: 'Разговор', points: 5 });
+
+    const file = await exportBackup();
+    expect(file.tables.achievementUnlocks.length).toBeGreaterThan(0);
+    const again = migrateBackup(clone(file));
+    await wipeAllData();
+    await importBackup(again);
+    expect(await verifyJournal()).toEqual([]);
+  });
+});
+
 describe('older files', () => {
   it('imports a schema-v1 backup through the shared migration transforms', async () => {
     const file = migrateBackup(fixture);
@@ -165,6 +196,12 @@ describe('rejected files', () => {
     const tx = rows(file, 'transactions').findIndex((t) => t.completionId !== null);
     expect(reject((f) => (rows(f, 'transactions')[tx].skillId = other(rows(f, 'transactions')[tx].skillId)))).toThrow(`Файл повреждён: transactions[${tx}].skillId`);
     expect(reject((f) => (rows(f, 'completions')[0].skillId = other(rows(f, 'completions')[0].skillId)))).toThrow('Файл повреждён: completions[0].skillId');
+  });
+
+  it('rejects points outside a completion: only a correction may have no completion', () => {
+    expect(reject((f) => (rows(f, 'transactions')[0].completionId = null))).toThrow('Файл повреждён: transactions[0].completionId');
+    const orphan = { ...rows(file, 'transactions')[0], id: 'orphan', completionId: null, reason: 'CORRECTION', delta: 1 };
+    expect(() => migrateBackup({ ...clone(file), tables: { ...clone(file).tables, transactions: [...rows(file, 'transactions'), orphan] } })).not.toThrow();
   });
 
   it('checks the skill of an achievement unlock', () => {

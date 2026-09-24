@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CATALOG } from '../../domain/achievements/catalog';
+import type { AchievementState } from '../../domain/achievements/types';
 import type { Progress } from '../../domain/progression';
 import type { MutationResult } from '../../services/completions';
 import { byPriority, daysSince, orderCelebrations, type CelebrationEvent } from './orderCelebrations';
@@ -24,6 +26,11 @@ const result = (over: Partial<MutationResult> = {}): MutationResult => ({
   achievements: [],
   ...over,
 });
+
+const achievementState = (id: string, unlockedAt: string | null): AchievementState => {
+  const def = CATALOG.find((d) => d.id === id)!;
+  return { def, unlocked: unlockedAt !== null, unlockedAt, skillId: null, current: unlockedAt ? def.target : 0, target: def.target };
+};
 
 const skill = { id: 's1', name: 'Английский', createdAt: '2026-09-01T09:00:00' };
 const milestone = { name: 'Достичь C1', reachedAt: '2026-09-24T10:00:00' };
@@ -62,7 +69,7 @@ describe('orderCelebrations', () => {
   });
 
   it('orders milestone > levelUp > skillCompleted > achievement', () => {
-    const achievement: CelebrationEvent = { kind: 'achievement', state: { id: 'first-flask', unlockedAt: '2026-09-24T10:00:00' } };
+    const achievement: CelebrationEvent = { kind: 'achievement', state: achievementState('first-flask', '2026-09-24T10:00:00') };
     const completed: CelebrationEvent = { kind: 'skillCompleted', skillId: 's1' };
     const levelUp: CelebrationEvent = { kind: 'levelUp', skillId: 's1', levels: 1, fromFill: 0.9, toFill: 0.1, newFlask: 2, remainder: 10 };
     const ms = orderCelebrations(result({ milestoneReached: true }), skill, milestone)[0]!;
@@ -74,10 +81,7 @@ describe('orderCelebrations', () => {
         before: progress(0, 96, 100),
         after: progress(1, 1, 150),
         levelChange: 1,
-        achievements: [
-          { id: 'first-flask', unlockedAt: '2026-09-24T10:00:00' },
-          { id: 'closed-again', unlockedAt: null },
-        ],
+        achievements: [achievementState('first-flask', '2026-09-24T10:00:00'), achievementState('toolbox', null)],
       }),
       skill,
       milestone,

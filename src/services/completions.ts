@@ -41,7 +41,10 @@ export interface MutationResult {
   levelChange: number;
   milestoneReached: boolean;
   milestoneLost: boolean;
-  /** Achievements this mutation opened or closed; always empty until package 7. */
+  /**
+   * Achievements this write earned (services/achievements.ts: unlocked at or after its own
+   * timestamp). Ones it locked again are not reported: that happens silently.
+   */
   achievements: AchievementState[];
 }
 

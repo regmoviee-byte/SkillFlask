@@ -3,6 +3,7 @@ import { addDays, localDate, weekStart } from '../lib/dates';
 import { fromDeci, toDeci } from '../domain/points';
 import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
 import type { LevelThreshold, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
+import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
 
 // Read models for the UI. Everything is derived from the journal on every read (principle 8),
 // inside a read transaction so a mutation in flight never produces a half-updated view.
@@ -90,6 +91,8 @@ export interface HomeView {
   /** Filled flasks over every skill, completed and archived ones included. */
   totalFlasks: number;
   lastMilestone: { skillId: string; skillName: string; name: string; reachedAt: string } | null;
+  /** The wide tile: the last achievement, or the closest next one. */
+  achievements: HomeAchievementLine;
 }
 
 export interface TodayStep {
@@ -203,11 +206,12 @@ const overviewTables = () => [db.skills, db.milestones, db.levelThresholds, db.s
 
 /**
  * The home screen in one live query: the skills with their flask, today's points and the
- * week's active days, the flasks filled so far and the last milestone reached.
+ * week's active days, the flasks filled so far, the last milestone reached and the
+ * achievement line (one query, so the wide tile never pops in after the rest).
  */
 export async function getHomeView(today: string = localDate()): Promise<HomeView> {
   return db.transaction('r', overviewTables(), async () => {
-    const { summaries, todayPoints, weekActivity } = await readOverview(today);
+    const [{ summaries, todayPoints, weekActivity }, achievements] = await Promise.all([readOverview(today), getHomeAchievementLine()]);
     const reached = summaries
       .filter((s) => s.milestone?.reachedAt)
       .sort((a, b) => newestFirst(a.milestone!.reachedAt, b.milestone!.reachedAt))[0];
@@ -219,6 +223,7 @@ export async function getHomeView(today: string = localDate()): Promise<HomeView
       lastMilestone: reached
         ? { skillId: reached.skill.id, skillName: reached.skill.name, name: reached.milestone!.name, reachedAt: reached.milestone!.reachedAt! }
         : null,
+      achievements,
     };
   });
 }

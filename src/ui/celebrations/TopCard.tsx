@@ -4,7 +4,8 @@ import { copy } from '../copy';
 
 // A flask filled where its flask is not on screen (Today, «Задним числом», a scrolled skill
 // screen): an opaque card slides in under the safe area, the ring fills, and it leaves by
-// itself after 3.5 s. Tap or swipe up dismisses. Not a modal: the screen stays usable.
+// itself after 3.5 s. Tap (or Enter on its button) or swipe up dismisses. Not a modal: the
+// screen stays usable.
 
 export interface TopCardContent {
   /** Fill of the flask before the write; the ring animates from here to full. */
@@ -26,7 +27,8 @@ export function TopCard({ content, onDone }: { content: TopCardContent; onDone()
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      setState('shown');
+      // A dismissal in the very first frame wins over the entrance.
+      setState((current) => (current === 'enter' ? 'shown' : current));
       setRing(1);
     });
     const timer = window.setTimeout(() => setState('leaving'), SHOW_MS);
@@ -44,30 +46,32 @@ export function TopCard({ content, onDone }: { content: TopCardContent; onDone()
 
   const dismiss = () => setState('leaving');
 
+  // The card is a status region; the button inside dismisses it (tap, Enter or Space).
   return (
-    <div
-      className="top-card anim-func"
-      data-state={state}
-      role="status"
-      onClick={dismiss}
-      onTouchStart={(event) => {
-        startY.current = event.touches[0]?.clientY ?? null;
-      }}
-      onTouchMove={(event) => {
-        const y = event.touches[0]?.clientY;
-        if (startY.current !== null && y !== undefined && startY.current - y > 16) {
-          startY.current = null;
-          dismiss();
-        }
-      }}
-    >
-      <Ring value={ring} size={48} stroke={4}>
-        {content.flask}
-      </Ring>
-      <span className="top-card-text">
-        <span className="t-body-strong">{copy.celebration.topTitle(content.flask)}</span>
-        <span className="top-card-caption">{content.skillName}</span>
-      </span>
+    <div className="top-card anim-func" data-state={state} role="status">
+      <button
+        type="button"
+        className="top-card-body"
+        onClick={dismiss}
+        onTouchStart={(event) => {
+          startY.current = event.touches[0]?.clientY ?? null;
+        }}
+        onTouchMove={(event) => {
+          const y = event.touches[0]?.clientY;
+          if (startY.current !== null && y !== undefined && startY.current - y > 16) {
+            startY.current = null;
+            dismiss();
+          }
+        }}
+      >
+        <Ring value={ring} size={48} stroke={4}>
+          {content.flask}
+        </Ring>
+        <span className="top-card-text">
+          <span className="t-body-strong">{copy.celebration.topTitle(content.flask)}</span>
+          <span className="top-card-caption">{content.skillName}</span>
+        </span>
+      </button>
     </div>
   );
 }

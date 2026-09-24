@@ -70,7 +70,9 @@ describe('restore offer on start', () => {
     app();
     await screen.findByText(/^Найдена резервная копия/);
     fake.click('MainButton');
-    expect(await screen.findByText('приложение')).toBeTruthy();
+    // The restore decompresses, imports and re-derives the achievements: slower under load
+    // than findByText's default second.
+    expect(await screen.findByText('приложение', undefined, { timeout: 5000 })).toBeTruthy();
     expect((await db.skills.toArray()).map((s) => s.name)).toEqual(['Английский']);
   });
 

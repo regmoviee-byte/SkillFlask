@@ -118,13 +118,5 @@ export interface AchievementUnlock {
   seenAt: string | null;
 }
 
-/**
- * An achievement whose state a mutation changed (opened or closed again). Package 7 derives
- * these from the journal; until then every MutationResult carries an empty list.
- */
-export interface AchievementState {
-  /** Achievement id from the catalogue. */
-  id: string;
-  /** Null when the mutation closed the achievement again. */
-  unlockedAt: string | null;
-}
+/** An achievement evaluated from the journal (domain/achievements); mutations return the ones they opened. */
+export type { AchievementState } from './achievements/types';

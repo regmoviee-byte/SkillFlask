@@ -87,6 +87,9 @@ const settled = () => page.waitForTimeout(800);
 const tab = (name) => page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name });
 // The home filter: toggle buttons in a group, the segment kept in the URL.
 const filterGroup = () => page.getByRole('group', { name: 'Какие навыки показать' });
+// The level-up card; an achievement card shares its place and motion (.top-card.ach-card).
+const levelCard = { waitFor: (o) => page.locator('.top-card:not(.ach-card)').waitFor(o), click: () => page.locator('.top-card:not(.ach-card)').click() };
+const achCard = (text) => page.locator('.ach-card', { hasText: text });
 const segment = (name) => filterGroup().getByRole('button', { name, exact: true });
 
 // `/` opens the skills while there is no action to tap, «Сегодня» afterwards.
@@ -148,6 +151,9 @@ await check.click();
 await page.waitForTimeout(300);
 if (await page.getByText('Уже отмечено', { exact: false }).count()) throw new Error('a quick second tap reached the same-tap guard');
 if (!(await page.getByRole('button', { name: 'Отменить', exact: true }).count())) throw new Error('a quick second tap replaced the undo toast');
+// The first completion earns «Первое действие»: a card under the header, never a sheet.
+await achCard('Первое действие').waitFor();
+if (await page.locator('.sheet').count()) errors.push('an achievement opened a sheet');
 await shot('toast-undo');
 await page.getByRole('button', { name: 'Отменить', exact: true }).click();
 await page.getByText('Отменено · Колба 1: 0/10').waitFor();
@@ -266,9 +272,9 @@ await page.reload();
 await page.getByText(/Навык достигнут/).first().waitFor();
 // History holds the «Сегодня» visit from above; go home directly.
 await page.goto(`${baseUrl}#/skills`);
-// The only skill is completed: its segment is the only chip and is shown right away.
-await segment('Достигнутые').waitFor();
-if (await segment('Активные').count()) errors.push('an empty «Активные» segment is offered');
+// The only skill is completed: it is shown right away, without a one-option filter.
+await page.locator('.skill-card.is-completed').waitFor();
+if (await filterGroup().count()) errors.push('a filter with a single segment is offered');
 await shot('skills-completed');
 // The completed card's ring: gold with the check in its centre (the ring's own rotated svg
 // must not take the icon along).
@@ -317,7 +323,7 @@ await page.getByRole('button', { name: 'Отметить выполненным'
 await page.locator('.top-card', { hasText: /Колба \d+ заполнена/ }).waitFor();
 await page.waitForTimeout(500);
 await shot('topcard');
-await page.locator('.top-card').waitFor({ state: 'detached' });
+await levelCard.waitFor({ state: 'detached' });
 
 // Edit form: the delete confirmation is a danger sheet; cancel it.
 await page.getByRole('link', { name: 'Изменить навык' }).click();
@@ -353,7 +359,7 @@ const idleToday = (skill) => page.locator('.today-group', { hasText: skill }).lo
 await todayCheck('Тренировки').click();
 await page.locator('.top-card', { hasText: /Колба \d+ заполнена/ }).waitFor();
 await shot('today-topcard');
-await page.locator('.top-card').waitFor({ state: 'detached' });
+await levelCard.waitFor({ state: 'detached' });
 if (await page.locator('.coach-chip').count()) errors.push('the coach chip stayed after the first completion');
 await page.getByText('Сделано сегодня').waitFor();
 await shot('today-done');
@@ -463,12 +469,61 @@ await page.getByRole('navigation', { name: 'Разделы' }).waitFor();
 await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
 await shot('home-after');
 
+// The home tile names the last achievement.
+const homeTile = page.locator('.tile--achievement');
+if (!(await homeTile.getByText(/^Последняя ачивка · /).count())) errors.push('the home tile does not show the last achievement');
+await homeTile.screenshot({ path: `${outDir}/${String(++n).padStart(2, '0')}-home-achievement-tile.png` });
+
+// «Ачивки»: the dot on the tab until the tab was on screen, the summary ring, the filter, the
+// seven ladders with their tiers, the badge tiles, the detail sheet. Never a current streak.
+const achTab = tab('Ачивки');
+if (!(await achTab.locator('.tab-badge').count())) errors.push('no dot on «Ачивки» for unseen achievements');
+if (!/новых: \d+/.test((await achTab.getAttribute('aria-label')) ?? '')) errors.push('the «Ачивки» tab does not say how many are new');
+await achTab.click();
+await page.getByRole('img', { name: /^Получено \d+ из 44$/ }).waitFor();
+await shot('achievements');
+await achTab.locator('.tab-badge').waitFor({ state: 'detached', timeout: 3000 });
+if ((await page.locator('.ladder-card').count()) !== 7) errors.push(`ladder cards: ${await page.locator('.ladder-card').count()}`);
+if ((await page.locator('.ach-tile').count()) !== 11) errors.push(`badge tiles: ${await page.locator('.ach-tile').count()}`);
+if (await page.getByText(/текущ|сгорел|пропущ|провал/i).count()) errors.push('the achievements tab mentions a current streak or a loss');
+const series = page.getByRole('article', { name: 'Лучшая серия' });
+await series.getByText(/^Ступени/).click();
+await series.scrollIntoViewIfNeeded();
+await page.waitForTimeout(300);
+await shot('achievements-ladder-tiers');
+await page.getByRole('heading', { name: 'Значки' }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await shot('achievements-badges');
+await page.locator('.ach-tile.is-unlocked').first().click();
+const achSheet = page.locator('.achievement-sheet');
+await achSheet.getByText('Как получить').waitFor();
+await achSheet.getByText(/^Получена /).waitFor();
+await page.waitForTimeout(400);
+await shot('achievement-sheet');
+await page.keyboard.press('Escape');
+await achSheet.waitFor({ state: 'detached' });
+await page.locator('.ach-tile.is-progress, .ach-tile.is-locked').first().click();
+await achSheet.getByText('Ещё впереди').waitFor();
+await page.waitForTimeout(400);
+await shot('achievement-sheet-ahead');
+await page.keyboard.press('Escape');
+await achSheet.waitFor({ state: 'detached' });
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.getByRole('button', { name: 'Получено', exact: true }).click();
+await page.getByRole('button', { name: 'Получено', exact: true, pressed: true }).waitFor();
+if (await page.locator('.ach-tile.is-locked, .ach-tile.is-progress').count()) errors.push('«Получено» lists achievements still ahead');
+await shot('achievements-earned');
+await page.getByRole('button', { name: 'Все', exact: true }).click();
+// A 360 px phone: nothing scrolls sideways.
+await page.setViewportSize({ width: 360, height: 780 });
+await page.waitForTimeout(200);
+const achOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+if (achOverflow > 0) errors.push(`the achievements tab scrolls sideways by ${achOverflow}px at 360 px`);
+await page.setViewportSize(contextOptions.viewport);
+
 // Root tabs: the bar is only on the four root routes; legacy paths redirect.
-for (const name of ['Ачивки', 'Настройки']) {
-  await tab(name).click();
-  await page.waitForTimeout(200);
-  await shot(`tab-${name}`);
-}
+await tab('Настройки').click();
+await page.waitForTimeout(200);
+await shot('tab-Настройки');
 await page.goto(`${baseUrl}#/todo`);
 await page.waitForURL(/#\/today$/);
 await page.goto(`${baseUrl}#/account`);
@@ -552,10 +607,16 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
   await page.locator('.milestone-sheet').getByRole('button', { name: 'Решу позже' }).click();
   await page.locator('.milestone-sheet').waitFor({ state: 'detached' });
   await page.getByRole('button', { name: 'TopCard' }).click();
-  await page.locator('.top-card').waitFor();
+  await levelCard.waitFor();
   await shot('styleguide-topcard');
-  await page.locator('.top-card').click();
-  await page.locator('.top-card').waitFor({ state: 'detached' });
+  await levelCard.click();
+  await levelCard.waitFor({ state: 'detached' });
+  // Medals in every look, and the «Новая ачивка» card: one, then four told as one.
+  await page.getByRole('button', { name: 'Четыре сразу' }).scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Четыре сразу' }).click();
+  await achCard(/и ещё 3 ачивки/).waitFor();
+  await shot('styleguide-achievement-card');
+  await achCard(/и ещё 3 ачивки/).waitFor({ state: 'detached', timeout: 6000 });
   await page.getByRole('button', { name: 'Контекстный лист' }).click();
   await page.getByRole('dialog').waitFor();
   await shot('styleguide-context-sheet');
@@ -574,6 +635,35 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
   await shot('styleguide-error-boundary');
 } else {
   console.log('styleguide: skipped (DEV-only route; run against `npm run dev` to capture it)');
+}
+
+// Demo data (dev server only): a seeded month of history on the «Ачивки» tab and the home tile.
+{
+  const seedContext = await browser.newContext(contextOptions);
+  await applyTheme(seedContext);
+  const seedPage = await openPage(seedContext);
+  await seedPage.goto(baseUrl);
+  await seedPage.getByText('Первый навык').first().waitFor();
+  if (await seedPage.evaluate(() => typeof window.__skillFlask?.seed === 'function')) {
+    await seedPage.evaluate(() => window.__skillFlask.seed({ days: 60, seed: 7 }));
+    const previous = page;
+    page = seedPage;
+    // The seed writes through the real services, so its first skill and steps queue cards; a
+    // fresh load starts without them (nothing is ever celebrated on load).
+    await page.goto(`${baseUrl}#/skills`);
+    await page.reload();
+    await page.locator('.tile--achievement').waitFor();
+    await shot('seed-home');
+    await page.goto(`${baseUrl}#/achievements`);
+    await page.getByRole('img', { name: /^Получено \d+ из 44$/ }).waitFor();
+    await shot('seed-achievements');
+    await page.getByRole('heading', { name: 'Значки' }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await shot('seed-achievements-badges');
+    page = previous;
+  } else {
+    console.log('seeded achievements: skipped (the seed exists in DEV builds only)');
+  }
+  await seedContext.close();
 }
 
 // ---- Inside a fake Telegram: restore offer, cloud status, background flush ----
@@ -611,6 +701,18 @@ await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('3');
 await page.getByLabel('Первая колба').fill('5000');
 await page.getByRole('button', { name: 'Создать навык' }).click();
+// A fresh start: the first skill earns «Первый навык»; a tap on its card opens it on the tab.
+await achCard('Первый навык').waitFor();
+await page.waitForTimeout(500);
+await shot('achievement-card-320');
+await achCard('Первый навык').click();
+await page.waitForURL(/#\/achievements\?focus=first-skill$/);
+await page.locator('.ach-tile.is-focus', { hasText: 'Первый навык' }).waitFor();
+await page.waitForTimeout(400);
+await shot('achievements-focus-320');
+const narrowAch = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+if (narrowAch > 0) errors.push(`the achievements tab scrolls sideways by ${narrowAch}px at 320 px`);
+await page.goBack();
 await page.getByRole('button', { name: 'Создать первое действие' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Большой проект');
 await page.getByLabel('Очки за выполнение').fill('1250');

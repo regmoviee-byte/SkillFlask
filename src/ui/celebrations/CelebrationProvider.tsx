@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
+import type { AchievementState } from '../../domain/achievements/types';
 import type { Progress } from '../../domain/progression';
+import { nowIso } from '../../lib/dates';
+import { filterStillUnlocked, markCelebrated, onAchievementsEarned } from '../../services/achievements';
 import type { MutationResult } from '../../services/completions';
 import { getSkillWithMilestone } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
@@ -10,6 +13,7 @@ import { openSheetCount } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 import { flyPoints, onScreen } from '../hooks/usePointsFly';
+import { AchievementCard, type AchievementCardContent } from './AchievementCard';
 import { MilestoneSheet } from './MilestoneSheet';
 import { orderCelebrations, type CelebrationEvent, type LevelUpPlay } from './orderCelebrations';
 import { TopCard, type TopCardContent } from './TopCard';
@@ -18,6 +22,10 @@ import { TopCard, type TopCardContent } from './TopCard';
 // hold that stage before they write (so the live query cannot move the flask first) and hand
 // the service result over. Then, in order: the points fly into the glass, the flask plays its
 // level-up (or a TopCard says so where the flask is not on screen), the milestone sheet opens.
+// New achievements come last, as cards at the top on a queue of their own (400 ms apart, one
+// card for more than two from one write), so a quick next tap never waits for them; a card
+// waits until no sheet is open and the TopCard has left. Achievements of writes without a
+// MutationResult (a new skill or step, completing a skill) arrive through onAchievementsEarned.
 // Never an overlay, never confetti; nothing plays unless this session wrote something.
 
 export interface CelebrationStage {
@@ -75,6 +83,11 @@ type MilestoneEvent = Extract<CelebrationEvent, { kind: 'milestone' }>;
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 const NAVIGATION_TIMEOUT_MS = 1000;
 const SHEET_WAIT_MS = 2000;
+/** Pause between two achievement cards. */
+const CARD_GAP_MS = 400;
+/** More achievements than this from one write are told in one card: «… и ещё 2 ачивки». */
+const CARD_MAX_SEPARATE = 2;
+const POLL_MS = 100;
 
 /**
  * A sheet pushes a history entry; another sheet still closing (the completion sheet after
@@ -91,6 +104,7 @@ async function sheetsSettled(): Promise<void> {
 export function CelebrationProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const navigationWaiters = useRef(new Set<() => void>());
   useEffect(() => {
     navigationWaiters.current.forEach((resolve) => resolve());
@@ -115,6 +129,70 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   const [milestone, setMilestone] = useState<MilestoneEvent | null>(null);
   const [topCard, setTopCard] = useState<(TopCardContent & { key: number }) | null>(null);
   const topKey = useRef(0);
+  // Set together with the state (not from a render), so a card queued right after sees them.
+  const topCardShown = useRef(false);
+  const milestoneShown = useRef(false);
+
+  // ---- Achievement cards: their own queue ----
+  const cards = useRef<AchievementState[][]>([]);
+  const pumping = useRef(false);
+  const cardDone = useRef<(() => void) | null>(null);
+  const [card, setCard] = useState<(AchievementCardContent & { key: number }) | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const pumpCards = useCallback(async () => {
+    if (pumping.current) return;
+    pumping.current = true;
+    try {
+      for (let queued = cards.current.shift(); queued && mounted.current; queued = cards.current.shift()) {
+        // Not over a sheet (the milestone sheet, a confirmation) nor over the level-up card.
+        while (mounted.current && (openSheetCount() > 0 || milestoneShown.current || topCardShown.current)) await wait(POLL_MS);
+        if (!mounted.current) break;
+        // An undo in the meantime may have taken some of them away again.
+        const batch = await filterStillUnlocked(queued);
+        const first = batch[0];
+        if (!first) continue;
+        let skillName: string | null = null;
+        if (batch.length === 1 && first.skillId) {
+          skillName = (await getSkillWithMilestone(first.skillId).catch(() => null))?.skill.name ?? null;
+        }
+        const shown = new Promise<void>((resolve) => (cardDone.current = resolve));
+        topKey.current += 1;
+        setCard({ key: topKey.current, states: batch, skillName });
+        haptics.press();
+        markCelebrated(
+          batch.map((s) => s.def.id),
+          nowIso(),
+        ).catch((error: unknown) => logError(error, 'markCelebrated'));
+        await shown;
+        await wait(CARD_GAP_MS);
+      }
+    } catch (error) {
+      logError(error, 'achievement card');
+    } finally {
+      pumping.current = false;
+    }
+  }, []);
+
+  /** Queues the cards of one write: one each for up to two, one for them all beyond that. */
+  const queueCards = useCallback(
+    (states: AchievementState[]) => {
+      const earned = states.filter((s) => s.unlockedAt !== null);
+      if (!earned.length) return;
+      if (earned.length > CARD_MAX_SEPARATE) cards.current.push(earned);
+      else cards.current.push(...earned.map((s) => [s]));
+      void pumpCards();
+    },
+    [pumpCards],
+  );
+
+  useEffect(() => onAchievementsEarned(queueCards), [queueCards]);
 
   const register = useCallback((skillId: string, stage: CelebrationStage) => {
     stages.current.set(skillId, stage);
@@ -149,6 +227,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     if (ctx.after) stage?.show(ctx.after);
     if (withTopCard) {
       topKey.current += 1;
+      topCardShown.current = true;
       setTopCard({ key: topKey.current, fromFill: play.fromFill, flask: play.newFlask - 1, skillName: ctx.skillName ?? '' });
     }
   }, []);
@@ -161,6 +240,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
       if (ctx.source && ctx.points !== undefined && flask) {
         await flyPoints(ctx.source, flask.element(), copy.stepRow.points(ctx.points));
       }
+      const achievements: AchievementState[] = [];
       for (const event of events) {
         switch (event.kind) {
           case 'levelUp':
@@ -171,6 +251,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
             if (event.levelUp) await playLevelUp(event.levelUp, ctx, stage, flask, false);
             await sheetsSettled();
             haptics.milestone();
+            milestoneShown.current = true;
             setMilestone(event);
             break;
           case 'skillCompleted':
@@ -179,12 +260,14 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
             showToast(copy.toast.skillCompleted);
             break;
           case 'achievement':
-            // Package 7: the achievement toast/sheet.
+            achievements.push(event.state);
             break;
         }
       }
+      // Last, and without holding up the next write's flask.
+      queueCards(achievements);
     },
-    [playLevelUp, showToast],
+    [playLevelUp, showToast, queueCards],
   );
 
   const enqueue = useCallback(
@@ -227,10 +310,35 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   return (
     <CelebrationContext.Provider value={value}>
       {children}
-      {topCard && <TopCard key={topCard.key} content={topCard} onDone={() => setTopCard(null)} />}
+      {topCard && (
+        <TopCard
+          key={topCard.key}
+          content={topCard}
+          onDone={() => {
+            topCardShown.current = false;
+            setTopCard(null);
+          }}
+        />
+      )}
+      {card && (
+        <AchievementCard
+          key={card.key}
+          content={card}
+          yieldPlace={topCard !== null}
+          onOpen={(id) => navigate(`/achievements?focus=${encodeURIComponent(id)}`)}
+          onDone={() => {
+            setCard(null);
+            cardDone.current?.();
+            cardDone.current = null;
+          }}
+        />
+      )}
       <MilestoneSheet
         event={milestone}
-        onClose={() => setMilestone(null)}
+        onClose={() => {
+          milestoneShown.current = false;
+          setMilestone(null);
+        }}
         onCompleted={(skillId) => void celebrate([{ kind: 'skillCompleted', skillId }], { skillId })}
       />
     </CelebrationContext.Provider>

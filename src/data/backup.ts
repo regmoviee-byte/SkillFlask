@@ -238,6 +238,12 @@ export function validateBackup(tables: Record<string, unknown[]>): void {
       }
     });
   }
+  // A journal row outside a completion escapes verifyJournal's per-completion net check, so
+  // only a CORRECTION may stand alone (none is written today): a hand-edited file cannot
+  // credit points without a completion.
+  (tables.transactions as Row[]).forEach((row, i) => {
+    if (row.completionId === null && row.reason !== 'CORRECTION') throw corrupt(`transactions[${i}].completionId`);
+  });
   for (const [table, field, target] of REFERENCES) {
     const ids = new Set((tables[target] as Row[]).map((row) => row.id));
     (tables[table] as Row[]).forEach((row, i) => {

@@ -254,7 +254,8 @@ button {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-danger);
+  /* News, not a warning: the accent, never red. */
+  background: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-bg-elevated);
 }
 
@@ -1897,10 +1898,12 @@ button.timeline-row {
 
 /* ---------- Celebrations ---------- */
 
-/* A flask filled away from its flask: an opaque card under the safe area, never a modal. */
+/* A flask filled away from its flask, or a new achievement: an opaque card just under the
+   screen header (52 px under the safe area), so the back button and the header action stay
+   reachable. Never a modal. */
 .top-card {
   position: fixed;
-  top: calc(var(--safe-top) + var(--sp-2));
+  top: calc(var(--safe-top) + 52px + var(--sp-1));
   left: 50%;
   z-index: 30;
   display: flex;
@@ -1908,7 +1911,7 @@ button.timeline-row {
   gap: var(--sp-3);
   width: min(528px, calc(100% - 2 * var(--gutter)));
   height: 72px;
-  padding: 0 var(--card-padding);
+  padding: 0;
   border-radius: var(--r-l);
   background: var(--color-bg-elevated);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
@@ -1938,6 +1941,23 @@ button.timeline-row {
 /* .anim-func already shrinks the transition to a fade; the card just does not slide. */
 html[data-motion='reduced'] .top-card {
   transform: translate(-50%, 0);
+}
+
+/* The whole card is one button: a tap dismisses the level-up card, opens an achievement. */
+.top-card-body {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--card-padding);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
 .top-card-text {
@@ -2668,6 +2688,13 @@ html[data-motion='reduced'] .toggle::after {
   height: 114px;
 }
 
+.sg-medals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
 .sg-flasks .flask-glow {
   display: none;
 }
@@ -2677,6 +2704,527 @@ html[data-motion='reduced'] .toggle::after {
   grid-template-columns: 140px 1fr;
   align-items: center;
   gap: var(--sp-4);
+}
+
+/* ---------- Achievements ---------- */
+
+/* A medal (components/Badge.tsx). Earned: the rarity's metal as a radial gradient, a thin
+   inner white ring, a white glyph. Ahead: a sunken disc with a dashed rim — not yet, never
+   «failed». */
+.ach-badge {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.ach-badge.is-unlocked {
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+.ach-badge.is-unlocked svg {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+}
+
+.ach-badge--bronze.is-unlocked {
+  background: radial-gradient(circle at 32% 28%, var(--bronze-1), var(--bronze-2));
+}
+
+.ach-badge--silver.is-unlocked {
+  background: radial-gradient(circle at 32% 28%, var(--silver-1), var(--silver-2));
+}
+
+.ach-badge--gold.is-unlocked {
+  background: radial-gradient(circle at 32% 28%, var(--gold-1), var(--gold-3));
+}
+
+.ach-badge.is-locked {
+  background: var(--color-bg-sunken);
+  border: 1.5px dashed var(--color-fg-tertiary);
+  color: var(--color-fg-tertiary);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .ach-badge.is-locked {
+    border-color: color-mix(in srgb, var(--color-fg-tertiary) 70%, transparent);
+  }
+}
+
+/* The rarity as a word: «Бронза / Серебро / Золото». */
+.rarity-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-full);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.rarity-chip--bronze {
+  background: rgba(138, 90, 43, 0.14);
+  color: var(--bronze-2);
+}
+
+.rarity-chip--silver {
+  background: rgba(143, 152, 166, 0.18);
+  color: #5d6572;
+}
+
+.rarity-chip--gold {
+  background: rgba(224, 169, 42, 0.18);
+  color: var(--gold-3);
+}
+
+:root[data-theme='dark'] .rarity-chip--bronze {
+  color: var(--bronze-1);
+}
+
+:root[data-theme='dark'] .rarity-chip--silver {
+  color: var(--silver-1);
+}
+
+:root[data-theme='dark'] .rarity-chip--gold {
+  color: var(--gold-1);
+}
+
+/* Summary: the ring «7 из 44» and the last unlock. */
+.ach-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--card-padding);
+}
+
+.ach-summary-ring {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ach-summary-ring .ring-label {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ach-summary-of {
+  color: var(--color-fg-secondary);
+}
+
+.ach-summary-last {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ach-summary-label {
+  color: var(--color-section-header);
+}
+
+.ach-summary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.ach-summary-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ach-summary-title,
+.ach-summary-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ach-summary-meta {
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.ach-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ach-section .section-title {
+  margin-bottom: 0;
+}
+
+.ach-empty {
+  margin: 0;
+  padding: var(--sp-4) var(--sp-1);
+  text-align: center;
+}
+
+/* A ladder: medal, title and description, the counter; the bar to the next tier; the tiers. */
+.ladder-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--card-padding) var(--card-padding) var(--sp-1);
+}
+
+.ladder-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ladder-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ladder-value {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.ladder-number {
+  font-size: 32px;
+}
+
+.ladder-unit {
+  font-size: 13px;
+  color: var(--color-fg-secondary);
+}
+
+.ladder-bar {
+  margin-top: var(--sp-1);
+}
+
+.bar-fill.is-done {
+  background: var(--gold-2);
+}
+
+.ladder-next {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.ladder-tiers summary {
+  min-height: 40px;
+  font-size: 15px;
+}
+
+.ladder-tier-row {
+  display: flex;
+  gap: var(--sp-1);
+  margin: 0 calc(-1 * var(--card-padding));
+  padding: 0 var(--card-padding) var(--sp-3);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.ladder-tier-row::-webkit-scrollbar {
+  display: none;
+}
+
+.ladder-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+  padding: var(--sp-1) 2px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.ladder-tier-target {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ladder-tier-date {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+}
+
+/* Badge tiles, two per row. */
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ach-grid > li {
+  display: flex;
+}
+
+.ach-tile {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  aspect-ratio: 1 / 1.08;
+  padding: var(--sp-3);
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.ach-tile .ring,
+.ach-tile .ach-badge {
+  flex: none;
+}
+
+.ach-tile--bronze.is-unlocked {
+  border-color: rgba(138, 90, 43, 0.35);
+}
+
+.ach-tile--silver.is-unlocked {
+  border-color: rgba(143, 152, 166, 0.5);
+}
+
+.ach-tile--gold.is-unlocked {
+  border-color: rgba(224, 169, 42, 0.55);
+}
+
+.ach-tile-title {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  /* «Набор инструментов» on a 320 px phone: hyphenate rather than overflow. */
+  hyphens: auto;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ach-tile-caption {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-fg-secondary);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ?focus=id: the tile or ladder pulses twice. The ring is a pseudo-element whose opacity
+   animates, so nothing but opacity moves. */
+.ach-tile.is-focus::after,
+.ladder-card.is-focus::after,
+.ladder-tier.is-focus::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: ach-pulse 700ms var(--ease-out) 300ms 2;
+}
+
+.ladder-tier.is-focus {
+  position: relative;
+}
+
+@keyframes ach-pulse {
+  50% {
+    opacity: 1;
+  }
+}
+
+html[data-motion='reduced'] .ach-tile.is-focus::after,
+html[data-motion='reduced'] .ladder-card.is-focus::after,
+html[data-motion='reduced'] .ladder-tier.is-focus::after {
+  animation: none;
+  opacity: 1;
+}
+
+/* The detail sheet. */
+.ach-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0 var(--sp-4);
+  text-align: center;
+}
+
+.ach-detail-title {
+  margin: var(--sp-1) 0 0;
+}
+
+.ach-detail-description {
+  margin: 0;
+  color: var(--color-fg-secondary);
+}
+
+.ach-howto {
+  align-self: stretch;
+  padding: var(--sp-3) var(--card-padding);
+  border-radius: var(--r-m);
+  background: var(--color-bg-sunken);
+  text-align: left;
+}
+
+.ach-howto h3 {
+  margin: 0 0 var(--sp-1);
+  color: var(--color-section-header);
+}
+
+.ach-howto p {
+  margin: 0;
+}
+
+.ach-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  text-align: left;
+}
+
+.ach-progress .t-caption {
+  color: var(--color-fg-secondary);
+}
+
+.ach-detail-foot {
+  margin: 0;
+  color: var(--color-fg-secondary);
+}
+
+.ach-detail-foot.is-earned {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+/* The card announcing a new achievement: the TopCard's place and motion, a turning medal. */
+.top-card.ach-card {
+  height: auto;
+  min-height: 72px;
+}
+
+.ach-card .top-card-body {
+  min-height: 72px;
+  padding-block: var(--sp-3);
+}
+
+.ach-card-medal {
+  display: flex;
+  flex: none;
+  transform: perspective(200px) rotateY(90deg);
+  transition: transform 500ms var(--ease-spring);
+}
+
+.ach-card[data-state='shown'] .ach-card-medal,
+.ach-card[data-state='leaving'] .ach-card-medal {
+  transform: none;
+}
+
+html[data-motion='reduced'] .ach-card-medal {
+  transform: none;
+  transition: none;
+}
+
+.ach-card-overline {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.ach-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The home tile: «Последняя ачивка» with its medal, or «Следующая» with a bar. */
+.tile--achievement .tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tile-ach-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-section-header);
+}
+
+.tile-ach-title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-ach-bar {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+}
+
+.tile-ach-bar .bar-fill {
+  display: block;
+}
+
+.tile-ach-caption {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Reduced motion ---------- */

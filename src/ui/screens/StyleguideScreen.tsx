@@ -2,7 +2,11 @@ import { useRef, useState, type ReactNode } from 'react';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
 import { applyTheme } from '../../platform/theme';
+import { BADGES } from '../../domain/achievements/catalog';
+import type { Rarity } from '../../domain/achievements/types';
+import { AchievementCard } from '../celebrations/AchievementCard';
 import { MilestoneSheet } from '../celebrations/MilestoneSheet';
+import { Badge } from '../components/Badge';
 import { TopCard } from '../celebrations/TopCard';
 import { ContextSheet } from '../components/ContextSheet';
 import { Flask, type FlaskHandle } from '../components/Flask';
@@ -174,6 +178,10 @@ export default function StyleguideScreen() {
               TopCard
             </button>
           </div>
+        </Section>
+
+        <Section title="Медали ачивок">
+          <AchievementDemo />
         </Section>
 
         <Section title="Кнопки и чипы">
@@ -376,5 +384,42 @@ export default function StyleguideScreen() {
         ]}
       />
     </Screen>
+  );
+}
+
+const RARITIES: Rarity[] = ['BRONZE', 'SILVER', 'GOLD'];
+
+/** Every medal look (earned per rarity, on its way, ahead) and the «Новая ачивка» card. */
+function AchievementDemo() {
+  const [card, setCard] = useState<{ key: number; count: number } | null>(null);
+  const states = BADGES.slice(0, card?.count ?? 1).map((def) => ({
+    def,
+    unlocked: true,
+    unlockedAt: new Date().toISOString(),
+    skillId: null,
+    current: def.target,
+    target: def.target,
+  }));
+  return (
+    <>
+      <div className="card card-padded sg-medals">
+        {RARITIES.map((rarity) => (
+          <Badge key={rarity} rarity={rarity} size={56} state="unlocked" icon="star" />
+        ))}
+        <Badge rarity="GOLD" size={56} state="progress" icon="flask-stack" progress={0.6} />
+        <Badge rarity="GOLD" size={56} state="locked" icon="trophy" />
+      </div>
+      <div className="button-row">
+        <button type="button" className="button" onClick={() => setCard({ key: Date.now(), count: 1 })}>
+          Карточка ачивки
+        </button>
+        <button type="button" className="button" onClick={() => setCard({ key: Date.now(), count: 4 })}>
+          Четыре сразу
+        </button>
+      </div>
+      {card && (
+        <AchievementCard key={card.key} content={{ states, skillName: 'Английский' }} onOpen={() => {}} onDone={() => setCard(null)} />
+      )}
+    </>
   );
 }
