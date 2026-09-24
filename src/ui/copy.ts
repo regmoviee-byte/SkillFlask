@@ -23,6 +23,9 @@ const ACTIONS: [string, string, string] = ['действие', 'действия
 const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
 const ACHIEVEMENTS: [string, string, string] = ['ачивка', 'ачивки', 'ачивок'];
 
+/** Genitive after «из»: «из 1 очка», «из 10 очков», «из 21 очка». */
+const POINTS_OF: [string, string, string] = ['очка', 'очков', 'очков'];
+
 const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)} ${plural(n, forms)}`;
 
 /** «в сентябре»: the month of a quota period that is not the current one. */
@@ -151,6 +154,8 @@ export const copy = Object.freeze({
   },
   skill: {
     edit: 'Изменить навык',
+    /** The header ⋯ button that opens the skill's context menu. */
+    menu: 'Меню навыка',
     flask: 'Колба',
     reached: 'Достигнут',
     milestoneReachedIcon: 'Веха достигнута',
@@ -191,6 +196,36 @@ export const copy = Object.freeze({
     hiddenSteps: (n: number) => `Убранные действия (${n})`,
     unhide: 'Вернуть',
     unhidden: 'Действие снова в списке',
+  },
+  marks: {
+    mark: 'Засечка',
+    title: 'Засечки',
+    add: 'Добавить засечку',
+    newTitle: 'Новая засечка',
+    editTitle: 'Изменить засечку',
+    name: 'Название',
+    namePlaceholder: 'Пробный тест, экзамен, конкурс',
+    date: 'Дата',
+    description: 'Описание',
+    descriptionPlaceholder: 'Необязательно',
+    save: 'Сохранить',
+    edit: 'Изменить',
+    remove: 'Удалить',
+    keep: 'Оставить',
+    confirmRemove: (title: string) => `Удалить засечку «${title}»?`,
+    added: 'Засечка добавлена',
+    saved: 'Засечка сохранена',
+    removed: 'Засечка удалена',
+    /** Where the mark sits, against the flask's capacity as it is now. */
+    position: (flask: number, points: number, capacity: number) =>
+      `Колба ${flask}, ${formatNumber(points)} из ${formatNumber(capacity)} ${plural(capacity, POINTS_OF)}`,
+    /** A row of the «Засечки» list. */
+    rowFlask: (flask: number) => `Колба ${flask}`,
+    /** The history row's caption. */
+    historyPosition: (flask: number, points: number) => `Колба ${flask} · ${formatPoints(points)}`,
+    empty: 'Отмечайте важные события на пути: экзамен, конкурс, новый проект.',
+    /** The accessible name of a caption on the hero flask. */
+    onFlask: (title: string) => `Засечка: ${title}`,
   },
   stepRow: {
     /** The points sit on the ✓ itself; the line under the name only counts today's completions. */
@@ -250,6 +285,8 @@ export const copy = Object.freeze({
     cancellationOf: (stepName: string) => `Отмена: ${stepName}`,
     restoreOf: (stepName: string) => `Возврат: ${stepName}`,
     correctionOf: (stepName: string) => `Коррекция: ${stepName}`,
+    /** A correction of the minutes that did not change the points (and whose minutes cannot be told from them). */
+    minutesChanged: 'Минуты изменены',
     cancelledBadge: 'Отменено',
     flaskState,
     /** LEVEL_UP separator; `levels` > 1 when one operation filled several flasks. */

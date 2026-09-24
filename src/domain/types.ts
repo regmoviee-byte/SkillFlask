@@ -108,6 +108,26 @@ export interface SettingRow {
   value: unknown;
 }
 
+/**
+ * «Засечка» (section 10): a memorable event pinned to an exact place on the skill's path. The
+ * position is a business fact captured once at creation — the flask number, the points inside
+ * it and the total — never a share of the image height, and it is never recomputed: a later
+ * rollback or capacity edit does not move it. Kept on archive and completion (FR-HS-006).
+ */
+export interface Mark extends Timestamps {
+  id: string;
+  skillId: string;
+  /** 1..60 characters, trimmed. */
+  title: string;
+  /** Up to 500 characters; '' when there is none. */
+  description: string;
+  /** Local YYYY-MM-DD of the event, never after the day it was written. */
+  date: string;
+  flaskNumber: number;
+  pointsInFlask: number;
+  totalPoints: number;
+}
+
 /** What has already been shown for an achievement; the achievement itself is derived from the journal. */
 export interface AchievementUnlock {
   /** Achievement id from the catalogue. */

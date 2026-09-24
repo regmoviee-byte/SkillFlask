@@ -22,6 +22,8 @@ import { getSkillDetails, listSkillSummaries } from '../services/queries';
 import { getSetting, setSetting } from '../services/settings';
 import { completeSkill, continueAfterMilestone, createSkill, deleteSkill, updateSkill, type SkillInput } from '../services/skills';
 import { createStep, setStepActive, updateStep } from '../services/steps';
+import { createMark, deleteMark, updateMark } from '../services/marks';
+import { addDays, localDate } from '../lib/dates';
 
 installFreshDb();
 beforeEach(() => setClock(tickingClock(todayNoon())));
@@ -50,6 +52,7 @@ async function seed(): Promise<string[]> {
   const mistake = await completeStep(read);
   await cancelCompletion(mistake.completionId);
   await completeStep(run, { note: 'Лёгкий темп' });
+  await createMark(english, { title: 'Пробный тест', description: '72 из 100', date: addDays(localDate(), -1) });
   await setSetting('coachTodaySeen', true);
   return [english, sport];
 }
@@ -78,8 +81,12 @@ describe('export → wipe → import', () => {
     expect(await db.transactions.count()).toBe(0);
 
     // Through text, as a file or a pasted copy would arrive.
+    expect(file.schemaVersion).toBe(3);
+    expect(file.tables.marks).toHaveLength(1);
     const stats = await importBackup(parseBackupText(JSON.stringify(file)));
     expect(stats).toMatchObject({ skills: 2, completions: 3 });
+    expect(await db.marks.toArray()).toEqual(file.tables.marks);
+    expect(details[0]!.marks).toHaveLength(1);
     expect(await listSkillSummaries()).toEqual(summaries);
     expect(await Promise.all(ids.map((id) => getSkillDetails(id)))).toEqual(details);
     expect(await getSetting('coachTodaySeen', false)).toBe(true);
@@ -127,6 +134,10 @@ describe('every mutation', () => {
     const done = await completeStep(talk);
     await cancelCompletion(done.completionId);
     await restoreCompletion(done.completionId);
+    const mark = await createMark(english, { title: 'Экзамен' });
+    await updateMark(mark, { title: 'Экзамен B2', description: 'Сдан', date: localDate() });
+    await deleteMark(await createMark(english, { title: 'Черновик' }));
+    await createMark(sport, { title: 'Забег' });
     await continueAfterMilestone(english);
     await updateSkill(english, { ...skillInput('Английский'), capacityBase: 12 });
     await completeSkill(english);
@@ -139,6 +150,8 @@ describe('every mutation', () => {
 
     const file = await exportBackup();
     expect(file.tables.achievementUnlocks.length).toBeGreaterThan(0);
+    // The deleted skill took its marks with it; the other skill keeps its own.
+    expect(file.tables.marks.map((m) => (m as { title: string }).title)).toEqual(['Забег']);
     const again = migrateBackup(clone(file));
     await wipeAllData();
     await importBackup(again);
@@ -166,6 +179,29 @@ describe('older files', () => {
     expect(await verifyJournal()).toEqual([]);
     const summaries = await listSkillSummaries();
     expect(summaries.map((s) => s.skill.name)).toEqual(['Английский', 'Тренировки']);
+  });
+});
+
+describe('schema-v2 files', () => {
+  it('import with an empty marks table', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    // What the previous release wrote: schemaVersion 2 and no marks table.
+    file.schemaVersion = 2;
+    delete (file.tables as Record<string, unknown>).marks;
+    const migrated = migrateBackup(file);
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.tables.marks).toEqual([]);
+    await importBackup(migrated);
+    expect(await db.marks.count()).toBe(0);
+    expect(await verifyJournal()).toEqual([]);
+  });
+
+  it('are told apart from a damaged v3 file, which must have the table', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    delete (file.tables as Record<string, unknown>).marks;
+    expect(() => migrateBackup(file)).toThrow('Файл повреждён: tables.marks');
   });
 });
 
@@ -208,6 +244,16 @@ describe('rejected files', () => {
     const unlock = { id: 'first-step', unlockedAt: file.exportedAt, skillId: 'nope', celebratedAt: null, seenAt: null };
     expect(reject((f) => (f.tables.achievementUnlocks = [unlock]))).toThrow('Файл повреждён: achievementUnlocks[0].skillId');
     expect(() => migrateBackup({ ...clone(file), tables: { ...clone(file).tables, achievementUnlocks: [{ ...unlock, skillId: null }] } })).not.toThrow();
+  });
+
+  it('checks the marks: a real skill, a title, a date and points', () => {
+    expect(reject((f) => (rows(f, 'marks')[0].skillId = 'nope'))).toThrow('Файл повреждён: marks[0].skillId');
+    expect(reject((f) => (rows(f, 'marks')[0].title = ''))).toThrow('Файл повреждён: marks[0].title');
+    expect(reject((f) => (rows(f, 'marks')[0].title = 'x'.repeat(61)))).toThrow('Файл повреждён: marks[0].title');
+    expect(reject((f) => (rows(f, 'marks')[0].date = '2026-02-30'))).toThrow('Файл повреждён: marks[0].date');
+    expect(reject((f) => (rows(f, 'marks')[0].flaskNumber = 0))).toThrow('Файл повреждён: marks[0].flaskNumber');
+    expect(reject((f) => (rows(f, 'marks')[0].pointsInFlask = 0.05))).toThrow('Файл повреждён: marks[0].pointsInFlask');
+    expect(reject((f) => delete rows(f, 'marks')[0].description)).toThrow('Файл повреждён: marks[0].description');
   });
 
   it('names the field of a bad value', () => {
@@ -259,6 +305,7 @@ describe('wipeAllData', () => {
     await wipeAllData();
     expect(await db.skills.count()).toBe(0);
     expect(await db.completions.count()).toBe(0);
+    expect(await db.marks.count()).toBe(0);
     expect(await getSetting('installId', '')).toBe(installId);
     expect(await getSetting('cloudBackupEnabled', true)).toBe(false);
     // Offered again on the next start when the cloud still holds a copy.

@@ -45,7 +45,8 @@ export async function restoreSkill(id: string): Promise<void> {
 
 /**
  * «Начать заново» for an archived or completed skill: a new ACTIVE skill with the same name,
- * labels, capacities, milestone and active steps, and an empty journal. Steps start their
+ * labels, capacities, milestone and active steps, and an empty journal. Marks are events of
+ * the original's path and stay with it. Steps start their
  * schedule today. The original skill and its history are left exactly as they are; the copy
  * remembers it in `originSkillId`. Returns the new skill's id.
  */

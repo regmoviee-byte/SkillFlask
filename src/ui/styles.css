@@ -1439,11 +1439,11 @@ html[data-motion='reduced'] .liquid-bar-fill {
   white-space: nowrap;
 }
 
-/* Hero: the flask (140 px) and its numbers. */
+/* Hero: the flask (140 px, wider with mark captions: flask.css) and its numbers. */
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-2) 0 var(--sp-4);
@@ -1492,6 +1492,14 @@ html[data-motion='reduced'] .liquid-bar-fill {
   color: var(--color-fg-secondary);
   font-size: 14px;
   font-weight: 600;
+}
+
+/* Marks on the hero flask: its captions widen the first column, so the numbers get a
+   narrower one; a long total may wrap inside its (then rounded-rectangle) badge. */
+.hero--marks .hero-total {
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 /* Under 375 px the numeral is 48 px (tokens.css) and the column may wrap its lines. */
@@ -1791,6 +1799,22 @@ button.timeline-row {
   background: var(--color-fg-tertiary);
 }
 
+/* A mark: a pennant on the line instead of a dot. */
+.timeline-mark-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+}
+
 .timeline-main {
   flex: 1;
   min-width: 0;
@@ -2020,6 +2044,142 @@ html[data-motion='reduced'] .top-card {
   align-self: center;
   min-height: 44px;
   font-size: 15px;
+}
+
+/* ---------- Marks («Засечки», skill screen) ---------- */
+
+.marks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.marks-card {
+  overflow: hidden;
+}
+
+.marks-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--card-padding);
+}
+
+.marks-empty .hint {
+  margin: 0;
+}
+
+.marks-add {
+  min-height: 40px;
+  padding: 0 var(--sp-4);
+  background: var(--color-accent-soft);
+}
+
+.mark-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--row-min-height);
+  padding: 8px var(--card-padding);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mark-row-icon {
+  flex: none;
+  color: var(--color-fg-secondary);
+}
+
+/* The title on its own line, the flask under it: neither hides the other on a narrow phone. */
+.mark-row-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mark-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mark-row-flask {
+  font-size: 14px;
+}
+
+.mark-row-flask,
+.mark-row-date {
+  color: var(--color-fg-secondary);
+}
+
+.mark-row-date {
+  flex: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+button.ghost-row {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The mark sheet: what it is, where it sits, and the form to change it. */
+.mark-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.mark-view p {
+  margin: 0;
+}
+
+.mark-view-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.mark-view-position {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mark-view-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.mark-form-position {
+  margin: 0;
+}
+
+.field-error {
+  margin: 0;
+  padding-left: var(--sp-1);
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.input[aria-invalid='true'] {
+  box-shadow: 0 0 0 2px var(--color-danger);
 }
 
 /* ---------- Actions card (skill screen) ---------- */

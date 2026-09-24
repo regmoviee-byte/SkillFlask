@@ -102,6 +102,14 @@ const filterGroup = () => page.getByRole('group', { name: 'Какие навык
 const levelCard = { waitFor: (o) => page.locator('.top-card:not(.ach-card)').waitFor(o), click: () => page.locator('.top-card:not(.ach-card)').click() };
 const achCard = (text) => page.locator('.ach-card', { hasText: text });
 const segment = (name) => filterGroup().getByRole('button', { name, exact: true });
+// The skill's ⋯ menu (a context sheet): «Изменить навык», «Добавить засечку».
+const skillMenu = async (item) => {
+  await page.getByRole('button', { name: 'Меню навыка' }).click();
+  const menu = page.locator('.sheet', { has: page.getByRole('button', { name: 'Добавить засечку' }) });
+  await menu.getByRole('button', { name: item }).click();
+  await menu.waitFor({ state: 'detached' });
+};
+const markSheet = page.locator('.mark-sheet');
 
 // `/` opens the skills while there is no action to tap, «Сегодня» afterwards.
 await page.goto(baseUrl);
@@ -179,6 +187,60 @@ for (let i = 0; i < 9; i++) {
     await shot('skill-levelup');
   }
   if (i === 2) await shot('skill-progress');
+  if (i === 3) {
+    // 20 points: 10 of 15 in flask 2. A mark «Пробный тест» pins that place: a tick on the
+    // right wall of the flask with its caption, a row under «Засечки», a row in the history.
+    await idleCheck.waitFor();
+    await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+    await page.getByText('Отмечайте важные события на пути', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'Меню навыка' }).click();
+    await page.locator('.sheet', { has: page.getByRole('button', { name: 'Добавить засечку' }) }).waitFor();
+    await settled();
+    await shot('skill-menu');
+    await page.locator('.sheet').getByRole('button', { name: 'Добавить засечку' }).click();
+    await markSheet.getByRole('heading', { name: 'Новая засечка' }).waitFor();
+    await markSheet.getByRole('button', { name: 'Сохранить' }).click();
+    await markSheet.getByText('Укажите название засечки').waitFor();
+    await markSheet.getByLabel('Название').fill('Пробный тест');
+    await markSheet.getByLabel('Описание').fill('Грамматика 72 из 100, аудирование 18 из 25');
+    await settled();
+    await shot('mark-sheet');
+    await markSheet.getByRole('button', { name: 'Сохранить' }).click();
+    await page.getByText('Засечка добавлена').waitFor();
+    await markSheet.waitFor({ state: 'detached' });
+    await page.locator('.flask-mark').first().waitFor();
+    const caption = page.getByRole('button', { name: 'Засечка: Пробный тест', exact: true });
+    await caption.waitFor();
+    // The tick sits two thirds up the flask (10 of 15), right of the glass, captioned beside it.
+    const place = await page.evaluate(() => {
+      const svg = document.querySelector('.flask--hero .flask-svg').getBoundingClientRect();
+      const tick = document.querySelector('.flask-mark-tick').getBoundingClientRect();
+      const label = document.querySelector('.flask-mark-caption').getBoundingClientRect();
+      const info = document.querySelector('.hero-info').getBoundingClientRect();
+      return { height: (svg.bottom - tick.top) / svg.height, captionRight: label.right, infoLeft: info.left, right: tick.left - svg.left };
+    });
+    if (place.height < 0.5 || place.height > 0.8) errors.push(`the mark tick sits at ${place.height.toFixed(2)} of the flask, expected about 0.66`);
+    if (place.captionRight > place.infoLeft) errors.push('the mark caption runs into the hero numbers');
+    await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+    await shot('skill-mark');
+    await page.getByText('Засечки', { exact: true }).evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.locator('.mark-row', { hasText: 'Пробный тест' }).waitFor();
+    await shot('marks-list');
+    await caption.click();
+    await markSheet.getByText('Колба 2, 10 из 15 очков').waitFor();
+    await settled();
+    await shot('mark-view');
+    await page.keyboard.press('Escape');
+    await markSheet.waitFor({ state: 'detached' });
+    // A 360 px phone with a captioned mark: nothing scrolls sideways.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.waitForTimeout(200);
+    const markOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (markOverflow > 0) errors.push(`the skill screen with a mark scrolls sideways by ${markOverflow}px at 360 px`);
+    await shot('skill-mark-360');
+    await page.setViewportSize(contextOptions.viewport);
+  }
 }
 // The milestone is a sheet with «Решу позже»; the decision stays on the rack.
 const milestoneSheet = page.locator('.milestone-sheet');
@@ -208,7 +270,20 @@ await page.getByText('История').evaluate((el) => el.scrollIntoView({ bloc
 await page.getByText('Веха «Достичь C1» достигнута').waitFor();
 await page.getByText('Колба 2 заполнена').waitFor();
 if (!(await page.locator('.timeline-row.is-cancelled').count())) errors.push('the cancelled completion is not struck through in the timeline');
+if (!(await page.locator('.timeline-mark', { hasText: 'Пробный тест' }).count())) errors.push('the mark is not in the history');
 await shot('history');
+await page.locator('.timeline-mark').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await shot('history-mark');
+// Edit the mark from its history row; the position never changes.
+await page.locator('.timeline-mark').click();
+await markSheet.getByRole('button', { name: 'Изменить' }).click();
+await markSheet.getByRole('heading', { name: 'Изменить засечку' }).waitFor();
+await markSheet.getByLabel('Название').fill('Пробный тест B2');
+await markSheet.getByRole('button', { name: 'Сохранить' }).click();
+await page.getByText('Засечка сохранена').waitFor();
+await markSheet.waitFor({ state: 'detached' });
+await page.locator('.timeline-mark', { hasText: 'Пробный тест B2' }).waitFor();
+await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await page.locator('button.timeline-row').first().click();
 const sheet = page.locator('.completion-sheet');
 await sheet.waitFor();
@@ -336,8 +411,8 @@ await page.waitForTimeout(500);
 await shot('topcard');
 await levelCard.waitFor({ state: 'detached' });
 
-// Edit form: the delete confirmation is a danger sheet; cancel it.
-await page.getByRole('link', { name: 'Изменить навык' }).click();
+// Edit form (through the ⋯ menu): the delete confirmation is a danger sheet; cancel it.
+await skillMenu('Изменить навык');
 await page.getByRole('button', { name: 'Удалить навык' }).click();
 await dialog.waitFor();
 await shot('confirm-delete-sheet');
@@ -528,7 +603,7 @@ await page.setViewportSize(contextOptions.viewport);
 // the banner with «Продолжить с этого места» on the skill.
 await tab('Навыки').click();
 await page.locator('.skill-card', { hasText: 'Тренировки' }).click();
-await page.getByRole('link', { name: 'Изменить навык' }).click();
+await skillMenu('Изменить навык');
 await page.getByRole('button', { name: 'Архивировать навык' }).click();
 await dialog.waitFor();
 await shot('confirm-archive');
@@ -588,6 +663,8 @@ await shot('restart-skill');
 await page.getByRole('button', { name: 'Назад' }).click();
 await page.getByRole('navigation', { name: 'Разделы' }).waitFor();
 await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+// «Назад» from the copy lands on the active skills, where the copy is listed.
+if (!(await page.locator('.skill-card', { hasText: 'Английский C1 → C2' }).count())) errors.push('«Назад» from the restarted copy does not show it on the home screen');
 await shot('home-after');
 
 // The home tile names the last achievement.
@@ -1025,6 +1102,20 @@ await tab('Навыки').click();
 await page.locator('.skill-card', { hasText: 'Чтение' }).click();
 await page.locator('.check-button').first().click();
 await page.getByRole('button', { name: 'Отменить', exact: true }).waitFor();
+// A mark inside Telegram: «Сохранить» is the native MainButton while the sheet is open (no
+// HTML copy of it in the sheet), and it goes away with the sheet.
+await skillMenu('Добавить засечку');
+const tgMarkSheet = page.locator('.mark-sheet');
+await tgMarkSheet.getByLabel('Название').fill('Экзамен');
+await page.locator('#tg-main', { hasText: 'Сохранить' }).waitFor();
+if (await tgMarkSheet.getByRole('button', { name: 'Сохранить' }).count()) errors.push('the mark sheet shows an HTML «Сохранить» next to the native MainButton');
+await settled();
+await shot('tg-mark-sheet');
+await page.locator('#tg-main', { hasText: 'Сохранить' }).click();
+await page.getByText('Засечка добавлена').waitFor();
+await tgMarkSheet.waitFor({ state: 'detached' });
+await page.getByRole('button', { name: 'Засечка: Экзамен', exact: true }).waitFor();
+if (await page.locator('#tg-main', { hasText: 'Сохранить' }).count()) errors.push('the native «Сохранить» stayed after the mark sheet closed');
 await page.locator('#tg-back').click();
 await tab('Настройки').click();
 await page.getByText('Есть несохранённые изменения').waitFor();

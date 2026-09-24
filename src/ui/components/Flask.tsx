@@ -1,7 +1,9 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
+import { formatNumber } from '../../lib/format';
 import { copy } from '../copy';
 import { useMotion, type MotionMode } from '../hooks/useMotion';
+import { PLAIN_TICKS, scaleTicks } from './flaskScale';
 import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, phaseTiming, refillTarget, type PhaseTiming } from './flaskAnimation';
 
 // The flask: the product's signature object. One glass, one liquid group moved by a single
@@ -18,7 +20,6 @@ const TRAVEL = 192;
 const BOTTOM = SURFACE + TRAVEL;
 // Two periods of 160 units, amplitude 6: translating by −160 loops seamlessly.
 const WAVE = `M0 ${SURFACE} Q40 ${SURFACE - 12} 80 ${SURFACE} T160 ${SURFACE} T240 ${SURFACE} T320 ${SURFACE} V${SURFACE + 16} H0 Z`;
-const TICKS = [0.25, 0.5, 0.75];
 const BUBBLES = [
   { cx: 58, r: 2, delay: 0 },
   { cx: 72, r: 3, delay: 180 },
@@ -36,6 +37,53 @@ const DROPS: [number, number, number][] = [
   [122, 19, 55],
   [130, 26, 70],
 ];
+
+// Marks («засечки») on the hero: a tick on the right inner wall, a pennant outside it and a
+// caption to the right. The capacity scale moves to the left wall while marks are drawn.
+const MARK_CAPTIONS = 4;
+const MARK_CAPTION_CHARS = 12;
+/** Lowest tick: above this y the rounded bottom leaves the wall too close to the centre. */
+const MARK_LOWEST = 212;
+/** Highest tick: the pennant (12 units tall) stays clear of the rim (y 16–32). */
+const MARK_HIGHEST = 46;
+/** Minimum distance between two captions (viewBox units, ≈ 16 px). */
+const CAPTION_GAP = 18;
+/** Left edge of the captions (viewBox units): past the outer wall and the pennant. */
+const CAPTION_X = 132;
+const VIEW_W = 160;
+const VIEW_H = 260;
+
+/** A mark as the hero draws it; `height` is 0..1 of this flask (domain/marks.ts markHeight). */
+export interface FlaskMark {
+  id: string;
+  /** The mark's title; the caption shortens it. */
+  label: string;
+  height: number;
+}
+
+const markY = (height: number) => Math.min(Math.max(BOTTOM - clamp(height) * TRAVEL, MARK_HIGHEST), MARK_LOWEST);
+/** x of a wall at `y`: straight down to y 186, then the half circle of the bottom around (80, 186). */
+const wallX = (y: number, r: number) => (y <= 186 ? 80 + r : 80 + Math.sqrt(Math.max(0, r * r - (y - 186) ** 2)));
+
+/** «Пробный тест» fits; longer titles end with «…» (the list under the flask has them in full). */
+function shortLabel(label: string): string {
+  return label.length > MARK_CAPTION_CHARS ? `${label.slice(0, MARK_CAPTION_CHARS - 1).trimEnd()}…` : label;
+}
+
+/** Caption y positions, top to bottom, at least CAPTION_GAP apart and inside the flask. */
+function captionYs(ys: number[]): number[] {
+  const order = ys.map((y, i) => ({ y, i })).sort((a, b) => a.y - b.y);
+  const placed = order.map((o) => o.y);
+  for (let k = 1; k < placed.length; k++) placed[k] = Math.max(placed[k]!, placed[k - 1]! + CAPTION_GAP);
+  const max = VIEW_H - 10;
+  if (placed.length && placed[placed.length - 1]! > max) {
+    placed[placed.length - 1] = max;
+    for (let k = placed.length - 2; k >= 0; k--) placed[k] = Math.min(placed[k]!, placed[k + 1]! - CAPTION_GAP);
+  }
+  const out = Array<number>(ys.length);
+  order.forEach((o, k) => (out[o.i] = placed[k]!));
+  return out;
+}
 
 export type FlaskState = 'empty' | 'active' | 'complete';
 
@@ -63,6 +111,9 @@ export interface FlaskProps {
   motion?: MotionMode;
   /** Accessible name; «Колба заполнена на N%» by default. */
   label?: string;
+  /** Hero only: marks of this flask, oldest first; the newest MARK_CAPTIONS get a caption. */
+  marks?: FlaskMark[];
+  onMarkTap?(id: string): void;
   ref?: Ref<FlaskHandle>;
 }
 
@@ -109,7 +160,7 @@ function installPauseWhenHidden(): void {
   sync();
 }
 
-export function Flask({ fill, capacity, size = 'hero', state = 'active', motion: motionProp, label, ref }: FlaskProps) {
+export function Flask({ fill, capacity, size = 'hero', state = 'active', motion: motionProp, label, marks, onMarkTap, ref }: FlaskProps) {
   const systemMotion = useMotion();
   const motion = motionProp ?? systemMotion;
   // useId() may contain characters that break url(#id) references.
@@ -309,10 +360,21 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
     [motion],
   );
 
+  // Static: marks never animate, and the caller decides which flask they belong to (they leave
+  // with their flask at the overflow beat). The room for captions and the scale on the left
+  // wall stay until the choreography ends, so nothing beside the flask jumps mid-animation.
+  const shownMarks = hero ? (marks ?? []) : [];
+  const reserved = useRef(false);
+  reserved.current = scripted ? reserved.current || shownMarks.length > 0 : shownMarks.length > 0;
+  const marked = reserved.current;
+  const captioned = shownMarks.slice(-MARK_CAPTIONS);
+  const captionY = captionYs(captioned.map((m) => markY(m.height)));
+
   const classes = [
     'flask',
     `flask--${size}`,
     `flask--${state}`,
+    marked ? 'flask--marked' : '',
     filling && hero ? 'liquid--filling' : '',
     scripted ? 'flask--scripted' : '',
   ].filter(Boolean);
@@ -360,19 +422,33 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
         </g>
         <path d={GLASS} className="flask-outline" />
         {hero &&
-          TICKS.map((mark) => {
-            const y = BOTTOM - mark * TRAVEL;
+          (capacity !== undefined ? scaleTicks(capacity) : PLAIN_TICKS.map((share) => ({ share, value: null }))).map(({ share, value }) => {
+            const y = BOTTOM - share * TRAVEL;
             return (
-              <g key={mark} className="flask-tick">
-                <line x1="122" x2="129" y1={y} y2={y} />
-                {capacity !== undefined && (
-                  <text x="132" y={y} dominantBaseline="central">
-                    {Math.round(capacity * mark)}
+              <g key={share} className="flask-tick">
+                {marked ? <line x1="31" x2="38" y1={y} y2={y} /> : <line x1="122" x2="129" y1={y} y2={y} />}
+                {value !== null && (
+                  <text x={marked ? 28 : 132} y={y} dominantBaseline="central" textAnchor={marked ? 'end' : 'start'}>
+                    {formatNumber(value)}
                   </text>
                 )}
               </g>
             );
           })}
+        {shownMarks.map((mark) => {
+          const y = markY(mark.height);
+          const inner = wallX(y, 35);
+          const pole = wallX(y, 40) + 3;
+          return (
+            // Pointer only: the captions below are the accessible way in, and so is the list.
+            <g key={mark.id} className="flask-mark" aria-hidden="true" onClick={onMarkTap ? () => onMarkTap(mark.id) : undefined}>
+              <rect x={inner - 14} y={y - 13} width={pole - inner + 26} height={20} className="flask-mark-hit" />
+              <line x1={inner - 10} x2={inner} y1={y} y2={y} className="flask-mark-tick" />
+              <line x1={pole} x2={pole} y1={y + 1} y2={y - 12} className="flask-mark-pole" />
+              <path d={`M${pole} ${y - 12}L${pole + 9} ${y - 8.5}L${pole} ${y - 5}Z`} className="flask-mark-flag" />
+            </g>
+          );
+        })}
         {state === 'complete' && <rect ref={corkRef} x="58" y="2" width="44" height="18" rx="6" className="flask-cork" />}
         <rect x="26" y="16" width="108" height="16" rx="8" className="flask-rim" />
         {hero && (
@@ -389,6 +465,18 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           </>
         )}
       </svg>
+      {captioned.map((mark, i) => (
+        <button
+          key={mark.id}
+          type="button"
+          className="flask-mark-caption"
+          style={{ left: `${(CAPTION_X / VIEW_W) * 100}%`, top: `${(captionY[i]! / VIEW_H) * 100}%` }}
+          aria-label={copy.marks.onFlask(mark.label)}
+          onClick={onMarkTap ? () => onMarkTap(mark.id) : undefined}
+        >
+          {shortLabel(mark.label)}
+        </button>
+      ))}
     </div>
   );
 }

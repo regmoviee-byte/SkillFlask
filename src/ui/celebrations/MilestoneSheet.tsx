@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { completeSkill, continueAfterMilestone } from '../../services/skills';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
@@ -15,14 +15,23 @@ import type { CelebrationEvent } from './orderCelebrations';
 
 type MilestoneEvent = Extract<CelebrationEvent, { kind: 'milestone' }>;
 
+/** What the two choices write; the styleguide passes stubs for its demo skill. */
+export interface MilestoneActions {
+  complete(skillId: string): Promise<void>;
+  keepGoing(skillId: string): Promise<void>;
+}
+
+const SERVICE_ACTIONS: MilestoneActions = { complete: completeSkill, keepGoing: continueAfterMilestone };
+
 interface MilestoneSheetProps {
   event: MilestoneEvent | null;
   onClose(): void;
   /** The skill was completed from the sheet: the provider plays the skillCompleted moment. */
   onCompleted(skillId: string): void;
+  actions?: MilestoneActions;
 }
 
-export function MilestoneSheet({ event, onClose, onCompleted }: MilestoneSheetProps) {
+export function MilestoneSheet({ event, onClose, onCompleted, actions = SERVICE_ACTIONS }: MilestoneSheetProps) {
   // Keep the content while the sheet animates out.
   const [shown, setShown] = useState(event);
   if (event !== null && event !== shown) setShown(event);
@@ -44,7 +53,7 @@ export function MilestoneSheet({ event, onClose, onCompleted }: MilestoneSheetPr
     if (!ok) return;
     setBusy(true);
     try {
-      await completeSkill(skillId);
+      await actions.complete(skillId);
       closeRef.current();
       onCompleted(skillId);
     } catch (error) {
@@ -57,7 +66,7 @@ export function MilestoneSheet({ event, onClose, onCompleted }: MilestoneSheetPr
   async function keepGoing() {
     setBusy(true);
     try {
-      await continueAfterMilestone(skillId);
+      await actions.keepGoing(skillId);
       haptics.tap();
       closeRef.current();
       showToast(t.continued);
@@ -126,14 +135,16 @@ const LEAVES = Array.from({ length: 7 }, (_, i) => {
 
 /** A gold, corked flask in a laurel wreath (140 px, drawn with the tokens). */
 export function MilestoneArt() {
+  // Ids per copy: two mounted wreaths must not share (and break) each other's gradient.
+  const id = `milestone${useId().replace(/[^\w-]/g, '')}`;
   return (
     <svg className="milestone-art" viewBox="0 0 140 140" width="140" height="140" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="milestone-gold" x1="0" x2="0" y1="0" y2="1">
+        <linearGradient id={`${id}-gold`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor="var(--gold-1)" />
           <stop offset="1" stopColor="var(--gold-3)" />
         </linearGradient>
-        <clipPath id="milestone-inner">
+        <clipPath id={`${id}-inner`}>
           <path d="M59 36 V92 A11 11 0 0 0 81 92 V36 Z" />
         </clipPath>
       </defs>
@@ -145,7 +156,7 @@ export function MilestoneArt() {
         </g>
       ))}
       <path d="M56 34 V92 A14 14 0 0 0 84 92 V34 Z" fill="var(--color-bg-elevated)" />
-      <rect x="50" y="52" width="40" height="60" fill="url(#milestone-gold)" clipPath="url(#milestone-inner)" />
+      <rect x="50" y="52" width="40" height="60" fill={`url(#${id}-gold)`} clipPath={`url(#${id}-inner)`} />
       <path d="M56 34 V92 A14 14 0 0 0 84 92 V34 Z" fill="none" stroke="var(--color-fg)" strokeOpacity="0.45" strokeWidth="2.5" />
       <rect x="62" y="20" width="16" height="11" rx="3" fill="var(--color-fg)" fillOpacity="0.6" />
       <rect x="51" y="28" width="38" height="8" rx="4" fill="var(--color-bg-elevated)" stroke="var(--color-fg)" strokeOpacity="0.45" strokeWidth="2.5" />

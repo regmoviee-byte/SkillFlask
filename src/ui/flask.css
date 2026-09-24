@@ -153,6 +153,71 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Marks («засечки»): a static tick on the right inner wall, a pennant outside the glass and a
+   caption to the right. The captions overflow the 140 px box; the hero leaves room for them. */
+.flask--hero.flask--marked {
+  margin-right: 62px;
+}
+
+@media (max-width: 374px) {
+  .flask--hero.flask--marked {
+    margin-right: 52px;
+  }
+
+  .flask-mark-caption {
+    max-width: 78px;
+  }
+}
+
+.flask-mark {
+  cursor: pointer;
+}
+
+.flask-mark-hit {
+  fill: transparent;
+}
+
+.flask-mark-tick,
+.flask-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.flask-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}
+
+.flask-mark-caption {
+  position: absolute;
+  max-width: 90px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.flask-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
 .flask-cork {
   fill: var(--color-fg);
   fill-opacity: 0.6;

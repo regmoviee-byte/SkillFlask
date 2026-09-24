@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import fixture from './fixtures/v1-sample.json';
 import { createDb, db, SCHEMA_VERSION, setDb } from './db';
-import { MIGRATIONS } from './migrations/v2';
+import { MIGRATIONS } from './migrations';
 import { snapshotV1 } from './open';
 import { newId } from '../lib/ids';
 import { localDate } from '../lib/clock';
@@ -17,6 +17,18 @@ const V1_STORES = {
   steps: 'id, skillId',
   completions: 'id, skillId, stepId, date',
   transactions: 'id, skillId, completionId, createdAt',
+};
+
+/** The stores of schema version 2, before the marks table. */
+const V2_STORES = {
+  skills: 'id, status, createdAt',
+  milestones: 'id, skillId',
+  levelThresholds: '[skillId+flaskNumber], skillId',
+  steps: 'id, skillId',
+  completions: 'id, skillId, stepId, date, [skillId+date], [stepId+date], [status+date]',
+  transactions: 'id, skillId, completionId, createdAt, [skillId+createdAt]',
+  settings: 'key',
+  achievementUnlocks: 'id',
 };
 
 type Tables = Record<string, Record<string, unknown>[]>;
@@ -67,9 +79,11 @@ describe('fixture', () => {
 });
 
 describe('Dexie v2 upgrade', () => {
-  it('is the current schema version', () => {
-    expect(SCHEMA_VERSION).toBe(2);
-    expect(createDb(dbName()).verno).toBe(2);
+  it('is followed by version 3, the current schema version', () => {
+    expect(SCHEMA_VERSION).toBe(3);
+    expect(createDb(dbName()).verno).toBe(3);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([2, 3]);
+    expect(MIGRATIONS[3]).toEqual({});
   });
 
   it('upgrades a v1 database with defaults and keeps the journal valid', async () => {
@@ -78,12 +92,13 @@ describe('Dexie v2 upgrade', () => {
 
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(2);
+    expect(upgraded.verno).toBe(3);
     expect(upgraded.tables.map((t) => t.name)).toEqual(
-      expect.arrayContaining(['settings', 'achievementUnlocks', 'skills', 'completions', 'transactions']),
+      expect.arrayContaining(['settings', 'achievementUnlocks', 'marks', 'skills', 'completions', 'transactions']),
     );
     expect(await upgraded.settings.count()).toBe(0);
     expect(await upgraded.achievementUnlocks.count()).toBe(0);
+    expect(await upgraded.marks.count()).toBe(0);
 
     const step = await upgraded.steps.get('step-speaking');
     expect(step).toMatchObject({
@@ -156,5 +171,42 @@ describe('Dexie v2 upgrade', () => {
     await upgraded.open();
     upgraded.close();
     expect(await snapshotV1(name)).toBeNull();
+  });
+});
+
+describe('Dexie v3 upgrade', () => {
+  it('upgrades a v2 database with an empty marks table and leaves every row as it was', async () => {
+    const name = dbName();
+    // A v2 database as the previous release left it: the v1 rows upgraded by the v2 transforms.
+    const v2 = new Dexie(name);
+    v2.version(1).stores(V1_STORES);
+    v2.version(2).stores(V2_STORES);
+    await v2.open();
+    const rows = structuredClone(tables);
+    for (const [table, fn] of Object.entries(MIGRATIONS[2])) for (const row of rows[table]) fn(row as never);
+    await v2.transaction('rw', v2.tables, async () => {
+      for (const [table, list] of Object.entries(rows)) await v2.table(table).bulkAdd(list);
+      await v2.table('settings').add({ key: 'coachTodaySeen', value: true });
+    });
+    expect(v2.verno).toBe(2);
+    const before = await dump(v2);
+    v2.close();
+
+    const upgraded = createDb(name);
+    await upgraded.open();
+    expect(upgraded.verno).toBe(3);
+    const after = await dump(upgraded);
+    expect(after.marks).toEqual([]);
+    delete after.marks;
+    expect(after).toEqual(before);
+    // The new indexes are queryable.
+    expect(await upgraded.marks.where('[skillId+date]').between(['skill-english', ''], ['skill-english', '\uffff']).count()).toBe(0);
+
+    const previous = db;
+    setDb(upgraded);
+    expect(await verifyJournal()).toEqual([]);
+    expect((await getSkillDetails('skill-english'))?.marks).toEqual([]);
+    setDb(previous);
+    upgraded.close();
   });
 });

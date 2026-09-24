@@ -161,6 +161,22 @@ export default function StyleguideScreen() {
               </button>
             </div>
           </div>
+          {/* Marks: five on one flask, two close together, one clamped to the rim by a smaller
+              capacity; the oldest of them has a tick only (four captions at most). */}
+          <div className="card card-padded sg-flask-play">
+            <Flask
+              fill={0.62}
+              capacity={150}
+              marks={[
+                { id: 'm1', label: 'Начало курса', height: 0.08 },
+                { id: 'm2', label: 'Пробный тест', height: 0.3 },
+                { id: 'm3', label: 'Собеседование в новую команду', height: 0.34 },
+                { id: 'm4', label: 'Конкурс', height: 0.6 },
+                { id: 'm5', label: 'Экзамен', height: 1 },
+              ]}
+              onMarkTap={(id) => showToast(`Засечка ${id}`)}
+            />
+          </div>
           <div className="card card-padded sg-rings">
             <Ring value={0.3}>2</Ring>
             <Ring value={0.75}>5</Ring>
@@ -370,6 +386,8 @@ export default function StyleguideScreen() {
         }
         onClose={() => setMilestoneDemo(false)}
         onCompleted={() => showToast('Навык достигнут 🎉')}
+        // The demo skill does not exist: the choices only close the sheet.
+        actions={{ complete: async () => {}, keepGoing: async () => {} }}
       />
       {topCard > 0 && <TopCard key={topCard} content={{ fromFill: 0.8, flask: 3, skillName: 'Английский' }} onDone={() => setTopCard(0)} />}
 

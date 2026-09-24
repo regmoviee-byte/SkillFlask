@@ -1,11 +1,13 @@
-import type { HistoryEvent, TransactionEvent } from '../../domain/events';
+import type { HistoryEvent, MarkEvent, TransactionEvent } from '../../domain/events';
 import { formatDayLabel } from '../../lib/dates';
 import { formatDelta } from '../../lib/format';
 import { copy } from '../copy';
+import { Icon } from './Icon';
 
 // The skill's history as a timeline: day groups with sticky headers, a thin line with a dot
 // per operation, and the moments an operation caused (a flask filled, the milestone) as chips
 // on the line right above it. A cancelled completion stays, struck through (principle 3.8).
+// Marks («засечки») sit at their own date with a pennant on the line and open their sheet.
 
 interface TimelineProps {
   /** Newest first (services/history.ts). */
@@ -15,6 +17,8 @@ interface TimelineProps {
   onMore(): void;
   /** Opens the completion sheet. */
   onOpen(completionId: string): void;
+  /** Opens the mark sheet. */
+  onOpenMark(markId: string): void;
 }
 
 interface DayGroup {
@@ -32,7 +36,7 @@ function groupByDay(events: HistoryEvent[]): DayGroup[] {
   return groups;
 }
 
-export function Timeline({ events, today, hasMore, onMore, onOpen }: TimelineProps) {
+export function Timeline({ events, today, hasMore, onMore, onOpen, onOpenMark }: TimelineProps) {
   return (
     <div className="timeline">
       {groupByDay(events).map((group) => (
@@ -40,7 +44,7 @@ export function Timeline({ events, today, hasMore, onMore, onOpen }: TimelinePro
           <h3 className="timeline-day-head">{formatDayLabel(group.date, today)}</h3>
           <ul className="timeline-list card">
             {group.events.map((event) => (
-              <TimelineItem key={event.id} event={event} onOpen={onOpen} />
+              <TimelineItem key={event.id} event={event} onOpen={onOpen} onOpenMark={onOpenMark} />
             ))}
           </ul>
         </section>
@@ -54,7 +58,7 @@ export function Timeline({ events, today, hasMore, onMore, onOpen }: TimelinePro
   );
 }
 
-function TimelineItem({ event, onOpen }: { event: HistoryEvent; onOpen(completionId: string): void }) {
+function TimelineItem({ event, onOpen, onOpenMark }: { event: HistoryEvent; onOpen(completionId: string): void; onOpenMark(markId: string): void }) {
   const t = copy.history;
   switch (event.type) {
     case 'COMPLETION':
@@ -78,7 +82,30 @@ function TimelineItem({ event, onOpen }: { event: HistoryEvent; onOpen(completio
       return <Separator tone="muted" text={t.skillArchived} />;
     case 'SKILL_RESTORED':
       return <Separator tone="muted" text={t.skillRestored} />;
+    case 'MARK':
+      return <MarkRow event={event} onOpen={onOpenMark} />;
   }
+}
+
+/** A mark: pennant on the line, its title, where it sits and the description on one line. */
+function MarkRow({ event: { mark }, onOpen }: { event: MarkEvent; onOpen(markId: string): void }) {
+  return (
+    <li>
+      <button type="button" className="timeline-row timeline-mark pressable-row" onClick={() => onOpen(mark.id)}>
+        <span className="timeline-mark-icon" aria-hidden="true">
+          <Icon name="pennant" size={16} />
+        </span>
+        <span className="timeline-main">
+          <span className="timeline-name-line">
+            <span className="visually-hidden">{copy.marks.mark}: </span>
+            <span className="timeline-name">{mark.title}</span>
+          </span>
+          <span className="timeline-caption">{copy.marks.historyPosition(mark.flaskNumber, mark.pointsInFlask)}</span>
+          {mark.description && <span className="history-note">{mark.description}</span>}
+        </span>
+      </button>
+    </li>
+  );
 }
 
 function Separator({ tone, text }: { tone: 'accent' | 'positive' | 'gold' | 'muted'; text: string }) {
@@ -116,6 +143,7 @@ function OperationRow({ event, onOpen }: { event: TransactionEvent; onOpen(compl
         <span className="timeline-caption">
           {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
           {event.minutes && ` · ${t.duration(event.minutes.from, event.minutes.to)}`}
+          {event.type === 'CORRECTION' && !event.minutes && delta === 0 && ` · ${t.minutesChanged}`}
           {/* A TIMED completion shows its minutes as they are now (corrections included). */}
           {event.type === 'COMPLETION' && completion?.durationMinutes != null && ` · ${t.minutes(completion.durationMinutes)}`}
         </span>

@@ -134,15 +134,17 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
 }
 
 /**
- * Permanently deletes the skill with its whole history (FR-SK-006, FR-SK-007). A copy made by
- * «Начать заново» is a skill of its own and stays; its `originSkillId` simply points nowhere.
+ * Permanently deletes the skill with its whole history and its marks (FR-SK-006, FR-SK-007,
+ * FR-HS-006). A copy made by «Начать заново» is a skill of its own and stays; its
+ * `originSkillId` simply points nowhere.
  */
 export async function deleteSkill(id: string): Promise<void> {
   await db.transaction(
     'rw',
-    journalTables(),
+    [...journalTables(), db.marks],
     async () => {
       await Promise.all([
+        db.marks.where('skillId').equals(id).delete(),
         db.milestones.where('skillId').equals(id).delete(),
         db.levelThresholds.where('skillId').equals(id).delete(),
         db.steps.where('skillId').equals(id).delete(),

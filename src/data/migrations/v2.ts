@@ -31,7 +31,5 @@ export interface RowMigrations {
   skills?: (row: V1Skill) => void;
 }
 
-/** Row transforms by target schema version; backup import replays them from the file's version up. */
-export const MIGRATIONS: Record<number, RowMigrations> = {
-  2: { steps: upgradeStepV2, completions: upgradeCompletionV2, skills: upgradeSkillV2 },
-};
+/** The row transforms of version 2 (collected by version in ./index.ts). */
+export const V2_MIGRATIONS: RowMigrations = { steps: upgradeStepV2, completions: upgradeCompletionV2, skills: upgradeSkillV2 };

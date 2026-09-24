@@ -2,7 +2,8 @@ import { db } from '../data/db';
 import { addDays, localDate, weekStart } from '../lib/dates';
 import { fromDeci, toDeci } from '../domain/points';
 import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
-import type { LevelThreshold, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
+import { newestMarksFirst } from '../domain/marks';
+import type { LevelThreshold, Mark, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
 
 // Read models for the UI. Everything is derived from the journal on every read (principle 8),
@@ -24,6 +25,8 @@ export interface SkillDetails extends SkillSummary {
   todayCounts: Record<string, number>;
   /** Local date of the latest ACTIVE completion per step id (active and hidden), null without one. */
   lastDoneAt: Record<string, string | null>;
+  /** The skill's marks («Засечки»), newest first. */
+  marks: Mark[];
 }
 
 function configOf(skill: Skill, manual: number[]): CapacityConfig {
@@ -225,16 +228,17 @@ export async function hasActiveSteps(): Promise<boolean> {
 export async function getSkillDetails(id: string, today: string = localDate()): Promise<SkillDetails | null> {
   return db.transaction(
     'r',
-    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions],
+    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.marks],
     async () => {
       const skill = await db.skills.get(id);
       if (!skill) return null;
-      const [milestone, thresholds, steps, completions, transactions] = await Promise.all([
+      const [milestone, thresholds, steps, completions, transactions, marks] = await Promise.all([
         db.milestones.where('skillId').equals(id).first(),
         db.levelThresholds.where('skillId').equals(id).sortBy('flaskNumber'),
         db.steps.where('skillId').equals(id).toArray(),
         db.completions.where('skillId').equals(id).toArray(),
         db.transactions.where('skillId').equals(id).toArray(),
+        db.marks.where('skillId').equals(id).toArray(),
       ]);
       const activeSteps = steps.filter((s) => s.isActive).sort(byCreatedAt);
       const doneToday = activeSteps.length
@@ -264,6 +268,7 @@ export async function getSkillDetails(id: string, today: string = localDate()): 
         hiddenSteps: steps.filter((s) => !s.isActive).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)),
         todayCounts,
         lastDoneAt,
+        marks: newestMarksFirst(marks),
       };
     },
   );

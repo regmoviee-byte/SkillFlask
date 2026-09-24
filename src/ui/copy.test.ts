@@ -103,6 +103,14 @@ describe('copy dictionary', () => {
     expect(copy.stepForm.timedPreview(30, 15)).toBe('30 мин → 15 очков');
   });
 
+  it('describes marks', () => {
+    expect(copy.marks.position(2, 12.5, 21)).toBe('Колба 2, 12,5 из 21 очка');
+    expect(copy.marks.position(1, 30, 100)).toBe('Колба 1, 30 из 100 очков');
+    expect(copy.marks.historyPosition(3, 1)).toBe('Колба 3 · 1 очко');
+    expect(copy.marks.confirmRemove('Пробный тест')).toBe('Удалить засечку «Пробный тест»?');
+    expect(copy.marks.add.length).toBeLessThanOrEqual(BUTTON_TEXT_MAX);
+  });
+
   it('never calls a level rollback a demotion in toasts', () => {
     const toasts = strings.filter(([path]) => path.startsWith('copy.toast') || path.startsWith('copy.completion'));
     expect(toasts.filter(([, text]) => /понижен/i.test(text))).toEqual([]);

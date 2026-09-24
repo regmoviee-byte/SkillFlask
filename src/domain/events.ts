@@ -2,11 +2,12 @@
 // themselves plus the moments they caused — a flask filled or given back, the milestone
 // crossed, the skill created or completed. The journal stays the only source of truth, so
 // editing a capacity or the milestone target re-interprets these events like everything else.
+// Marks («Засечки») are the one stored kind of event: they are merged in by withMarks().
 
 import { localDate } from '../lib/clock';
 import { fromDeci, MAX_MINUTES, timedPoints, toDeci } from './points';
 import type { Progress, TimelineEntry } from './progression';
-import type { Milestone, PointTransaction, Skill, StepCompletion } from './types';
+import type { Mark, Milestone, PointTransaction, Skill, StepCompletion } from './types';
 
 /**
  * The date the milestone was reached, derived from the journal (FR-MS-007): the createdAt
@@ -70,7 +71,13 @@ export interface SkillEvent extends EventBase {
   type: 'SKILL_CREATED' | 'SKILL_COMPLETED' | 'SKILL_ARCHIVED' | 'SKILL_RESTORED';
 }
 
-export type HistoryEvent = TransactionEvent | LevelEvent | MilestoneEvent | SkillEvent;
+/** A mark, listed under its own date; inside the day by when it was written. */
+export interface MarkEvent extends EventBase {
+  type: 'MARK';
+  mark: Mark;
+}
+
+export type HistoryEvent = TransactionEvent | LevelEvent | MilestoneEvent | SkillEvent | MarkEvent;
 
 export const isTransactionEvent = (event: HistoryEvent): event is TransactionEvent =>
   event.type === 'COMPLETION' || event.type === 'CANCELLATION' || event.type === 'CORRECTION' || event.type === 'RESTORE';
@@ -156,6 +163,26 @@ export function eventsFromTimeline(
     merged.push(event);
   }
   while (i < events.length) merged.push(events[i++]!);
+  return merged;
+}
+
+/**
+ * Merges marks into an oldest-first event list by the time they were written (`at`), so that
+ * inside a day newestFirst() orders them with the operations by createdAt. The day they are
+ * listed under is their own `date`, which may be earlier than the day they were written.
+ */
+export function withMarks(events: readonly HistoryEvent[], marks: readonly Mark[]): HistoryEvent[] {
+  if (marks.length === 0) return [...events];
+  const own: MarkEvent[] = [...marks]
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1))
+    .map((mark) => ({ id: `mark:${mark.id}`, type: 'MARK', at: mark.createdAt, date: mark.date, mark }));
+  const merged: HistoryEvent[] = [];
+  let i = 0;
+  for (const event of events) {
+    while (i < own.length && own[i]!.at < event.at) merged.push(own[i++]!);
+    merged.push(event);
+  }
+  while (i < own.length) merged.push(own[i++]!);
   return merged;
 }
 

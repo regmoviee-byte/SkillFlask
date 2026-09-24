@@ -5,8 +5,9 @@
 // Restore always REPLACES the data on the device («копия, а не синхронизация»).
 
 import { db, SCHEMA_VERSION } from './db';
-import { MIGRATIONS } from './migrations/v2';
+import { MIGRATIONS } from './migrations';
 import { isValidLocalDate, nowIso } from '../lib/dates';
+import { MARK_DESCRIPTION_MAX, MARK_TITLE_MAX } from '../domain/marks';
 import { isPoints } from '../domain/points';
 import { ScheduleError, validateSchedule } from '../domain/schedule';
 import type { StepSchedule } from '../domain/types';
@@ -57,7 +58,7 @@ export const DEVICE_SETTINGS = [
 ] as const satisfies readonly SettingKey[];
 
 /** Schema version that introduced a table; tables absent here exist since version 1. */
-const TABLE_SINCE: Record<string, number> = { settings: 2, achievementUnlocks: 2 };
+const TABLE_SINCE: Record<string, number> = { settings: 2, achievementUnlocks: 2, marks: 3 };
 
 const appVersion = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 
@@ -91,6 +92,9 @@ const localDate: Check = isValidLocalDate;
 const points: Check = isPoints;
 /** A journal delta: signed, at most one decimal. */
 const delta: Check = (v) => typeof v === 'number' && isPoints(Math.abs(v));
+/** Trimmed text of 1..max characters (a title). */
+const title = (max: number): Check => (v) => typeof v === 'string' && v.trim() === v && v.length > 0 && v.length <= max;
+const text = (max: number): Check => (v) => typeof v === 'string' && v.length <= max;
 const rate: Check = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 /** The shapes validateSchedule accepts: weekdays 1..7 (at least one), quotas of 1..31. */
 const schedule: Check = (v) => {
@@ -171,6 +175,17 @@ export const ROW_CHECKS: Record<string, Record<string, Check>> = {
   },
   settings: { key: id, value: any },
   achievementUnlocks: { id, unlockedAt: iso, skillId: nullable(id), celebratedAt: nullable(iso), seenAt: nullable(iso) },
+  marks: {
+    id,
+    skillId: id,
+    title: title(MARK_TITLE_MAX),
+    description: text(MARK_DESCRIPTION_MAX),
+    date: localDate,
+    flaskNumber: int(1),
+    pointsInFlask: points,
+    totalPoints: points,
+    ...timestamps,
+  },
 };
 
 /** Foreign keys checked after the shapes: [table, field, referenced table]; null is allowed only where the shape allows it. */
@@ -183,6 +198,7 @@ const REFERENCES: [string, string, string][] = [
   ['transactions', 'skillId', 'skills'],
   ['transactions', 'completionId', 'completions'],
   ['achievementUnlocks', 'skillId', 'skills'],
+  ['marks', 'skillId', 'skills'],
 ];
 
 /**

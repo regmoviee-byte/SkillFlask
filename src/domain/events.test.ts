@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { eventsFromTimeline, milestoneReachedAt, minutesForPoints, newestFirst } from './events';
+import { eventsFromTimeline, milestoneReachedAt, minutesForPoints, newestFirst, withMarks, type HistoryEvent } from './events';
 import { buildTimeline, type CapacityConfig } from './progression';
-import type { PointTransaction, StepCompletion } from './types';
+import type { Mark, PointTransaction, StepCompletion } from './types';
 
 const config: CapacityConfig = { base: 10, increment: 0, manual: [] };
 
@@ -181,5 +181,31 @@ describe('newestFirst', () => {
       'COMPLETION:2026-09-22',
       `SKILL_CREATED:${skill.createdAt.slice(0, 10)}`,
     ]);
+  });
+});
+
+describe('withMarks', () => {
+  const op = (id: string, at: string, date: string): HistoryEvent => ({ id, type: 'SKILL_CREATED', at, date });
+  const mark = (id: string, createdAt: string, date: string): Mark => ({
+    id,
+    skillId: 's',
+    title: id,
+    description: '',
+    date,
+    flaskNumber: 1,
+    pointsInFlask: 0,
+    totalPoints: 0,
+    createdAt,
+    updatedAt: createdAt,
+  });
+
+  it('merges marks by when they were written and lists them at their own date', () => {
+    const events = [op('a', '2026-09-01T10:00:00.000Z', '2026-09-01'), op('b', '2026-09-03T10:00:00.000Z', '2026-09-03')];
+    const marks = [mark('late', '2026-09-03T12:00:00.000Z', '2026-09-03'), mark('backdated', '2026-09-02T09:00:00.000Z', '2026-08-30')];
+    const merged = withMarks(events, marks);
+    expect(merged.map((e) => e.id)).toEqual(['a', 'mark:backdated', 'b', 'mark:late']);
+    // Newest first: the later mark tops its day; the backdated one sits at its own, earlier date.
+    expect(newestFirst(merged).map((e) => e.id)).toEqual(['mark:late', 'b', 'a', 'mark:backdated']);
+    expect(withMarks(events, [])).toEqual(events);
   });
 });

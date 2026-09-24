@@ -5,6 +5,7 @@ import { setClock } from '../lib/clock';
 import { addDays, localDate } from '../lib/dates';
 import { completeStep } from '../services/completions';
 import { createSkill, type SkillInput } from '../services/skills';
+import { createMark } from '../services/marks';
 import { createStep } from '../services/steps';
 
 export interface SeedOptions {
@@ -114,12 +115,18 @@ export async function seedDemoData({ days = 45, seed = 7 }: SeedOptions = {}): P
 
     for (let i = 0; i < days; i++) {
       const date = addDays(start, i);
-      if (random() > 0.6) continue;
-      const count = 1 + Math.floor(random() * 4);
-      for (let k = 0; k < count; k++) {
-        at(date, 8 + Math.floor(random() * 13), Math.floor(random() * 60), k * 5);
-        await completeStep(stepIds[Math.floor(random() * stepIds.length)], { date });
-        completions += 1;
+      if (random() <= 0.6) {
+        const count = 1 + Math.floor(random() * 4);
+        for (let k = 0; k < count; k++) {
+          at(date, 8 + Math.floor(random() * 13), Math.floor(random() * 60), k * 5);
+          await completeStep(stepIds[Math.floor(random() * stepIds.length)], { date });
+          completions += 1;
+        }
+      }
+      // Two marks on the first skill's path (no random draw: the history stays the same).
+      if (i === Math.floor(days / 2) || i === days - 3) {
+        at(date, 21, 0);
+        await createMark(skillIds[0]!, i === days - 3 ? { title: 'Экзамен B2', description: 'Устная часть — 85 из 100' } : { title: 'Пробный тест' });
       }
     }
   } finally {

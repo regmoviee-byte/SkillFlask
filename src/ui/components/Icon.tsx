@@ -1,12 +1,15 @@
 import type { SVGProps } from 'react';
 
 // One stroke icon set, 24px grid, fixed meanings: flask — level/skill, flag — milestone,
-// trophy — completed skill, medal — achievement, sun — today, sliders — settings.
+// pennant — mark («засечка»), trophy — completed skill, medal — achievement, sun — today,
+// sliders — settings, more — a context menu.
 // The four tab icons have filled variants. No emoji anywhere in the chrome.
 
 const STROKE: Record<string, string> = {
   flask: 'M9.5 3h5M10 3v6.5L5.2 18a2 2 0 0 0 1.8 3h10a2 2 0 0 0 1.8-3L14 9.5V3M7.5 14h9',
   flag: 'M5 21V4M5 4h12l-2.5 4 2.5 4H5',
+  pennant: 'M6 21V3M6 4l12 4.5L6 13',
+  more: 'M6 12a1 1 0 1 0-2 0 1 1 0 0 0 2 0zM13 12a1 1 0 1 0-2 0 1 1 0 0 0 2 0zM20 12a1 1 0 1 0-2 0 1 1 0 0 0 2 0z',
   trophy: 'M8 4h8v4a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 12v4M8.5 20h7M10 16h4v4h-4z',
   medal: 'M12 21a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM8.5 12 6 3h4l2 4 2-4h4l-2.5 9',
   sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',

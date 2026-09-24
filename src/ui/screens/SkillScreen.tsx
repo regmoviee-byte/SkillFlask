@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { markHeight, marksForFlask } from '../../domain/marks';
 import { fromDeci, toDeci } from '../../domain/points';
-import type { Progress } from '../../domain/progression';
+import { flaskCapacity, type Progress } from '../../domain/progression';
 import type { Skill } from '../../domain/types';
 import { getSkillHistory, HISTORY_PAGE } from '../../services/history';
 import { restartSkill, restoreSkill } from '../../services/lifecycle';
 import { deleteSkill } from '../../services/skills';
 import { getSkillDetails, type SkillDetails } from '../../services/queries';
 import { setStepActive } from '../../services/steps';
+import { formatDate } from '../../lib/dates';
 import { formatNumber } from '../../lib/format';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
 import { useCelebrationStage } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
+import { ContextSheet, type ContextItem } from '../components/ContextSheet';
 import { EmptyState } from '../components/EmptyState';
-import { Flask, type FlaskHandle } from '../components/Flask';
+import { Flask, type FlaskHandle, type FlaskMark } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { MilestoneRack } from '../components/MilestoneRack';
 import { Screen } from '../components/Screen';
@@ -27,10 +30,12 @@ import { copy } from '../copy';
 import { useCountUp } from '../hooks/useCountUp';
 import { useToday } from '../hooks/useToday';
 import { CompletionSheet } from '../sheets/CompletionSheet';
+import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 
 // Wireframe 2: the flask as the hero with the flask number in big numerals, the milestone
-// rack, the actions with their ✓ and the history as a timeline. What the hero shows can be
-// frozen for a moment by a celebration (useCelebrationStage), so the points fly in first.
+// rack, the marks («Засечки»), the actions with their ✓ and the history as a timeline. What
+// the hero shows can be frozen for a moment by a celebration (useCelebrationStage), so the
+// points fly in first. The header ⋯ opens the skill's menu: edit it, add a mark.
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -38,6 +43,8 @@ export function SkillScreen() {
   const details = useLiveQuery(() => getSkillDetails(skillId, today), [skillId, today]);
   const navigate = useNavigate();
   const t = copy.skill;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [markTarget, setMarkTarget] = useState<MarkSheetTarget | null>(null);
 
   if (details === null) {
     return (
@@ -57,9 +64,18 @@ export function SkillScreen() {
       action={
         skill &&
         active && (
-          <Link to={`/skills/${skill.id}/edit`} className="icon-button" aria-label={t.edit}>
-            <Icon name="edit" size={22} />
-          </Link>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t.menu}
+            aria-haspopup="dialog"
+            onClick={() => {
+              haptics.select();
+              setMenuOpen(true);
+            }}
+          >
+            <Icon name="more" size={24} />
+          </button>
         )
       }
       // With actions on screen the ✓ is the main path; the bottom button only starts the first
@@ -74,13 +90,39 @@ export function SkillScreen() {
       }
     >
       <Skeleton layout="skill" loading={details === undefined}>
-        {details && <SkillContent details={details} today={today} />}
+        {details && <SkillContent details={details} today={today} onMark={setMarkTarget} />}
       </Skeleton>
+      {skill && (
+        <ContextSheet
+          open={menuOpen && active}
+          title={skill.name}
+          onClose={() => setMenuOpen(false)}
+          items={skillMenu(skill.id, navigate, () => setMarkTarget({ kind: 'new' }))}
+        />
+      )}
+      {details && (
+        <MarkSheet
+          target={markTarget}
+          skillId={details.skill.id}
+          marks={details.marks}
+          capacityOf={(n) => flaskCapacity(n, details.config)}
+          editable={active}
+          onClose={() => setMarkTarget(null)}
+        />
+      )}
     </Screen>
   );
 }
 
-function SkillContent({ details, today }: { details: SkillDetails; today: string }) {
+/** The ⋯ menu of an active skill. Items run after the menu has closed (ContextSheet). */
+function skillMenu(skillId: string, navigate: ReturnType<typeof useNavigate>, addMark: () => void): ContextItem[] {
+  return [
+    { icon: 'edit', label: copy.skill.edit, onSelect: () => navigate(`/skills/${skillId}/edit`) },
+    { icon: 'pennant', label: copy.marks.add, onSelect: addMark },
+  ];
+}
+
+function SkillContent({ details, today, onMark }: { details: SkillDetails; today: string; onMark(target: MarkSheetTarget): void }) {
   const { skill } = details;
   const active = skill.status === 'ACTIVE';
   const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
@@ -91,7 +133,9 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
   const history = useLiveQuery(() => getSkillHistory(skill.id, limit), [skill.id, limit, today]);
   const stage = useCelebrationStage(skill.id, details.progress);
   const progress = stage.shown ?? details.progress;
-  const hasOperations = history ? history.operations > 0 : true;
+  // A mark alone is history too: the list shows it rather than the empty state.
+  const hasOperations = history ? history.operations > 0 || details.marks.length > 0 : true;
+  const openMark = (id: string) => onMark({ kind: 'mark', id });
   const lifecycle = useLifecycle(skill);
 
   return (
@@ -100,7 +144,14 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
 
       {skill.status === 'ARCHIVED' && <ArchivedBanner skill={skill} busy={lifecycle.busy} onRestore={lifecycle.restore} onRestart={lifecycle.restart} />}
 
-      <Hero details={details} progress={progress} flaskRef={stage.flaskRef} pill={stage.pill} announcement={stage.announcement} />
+      <Hero
+        details={details}
+        progress={progress}
+        flaskRef={stage.flaskRef}
+        pill={stage.pill}
+        announcement={stage.announcement}
+        onMarkTap={openMark}
+      />
 
       <MilestoneRack
         skill={skill}
@@ -109,6 +160,8 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
         onRestart={skill.status === 'COMPLETED' ? lifecycle.restart : undefined}
         restartBusy={lifecycle.busy}
       />
+
+      <MarksCard details={details} onOpen={openMark} onAdd={() => onMark({ kind: 'new' })} />
 
       <ActionsCard details={details} />
 
@@ -119,7 +172,14 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
             <EmptyState illustration="history" title={t.historyEmptyTitle} text={active ? t.historyEmptyActive : t.historyEmptyInactive} />
           </div>
         ) : (
-          <Timeline events={history.events} today={today} hasMore={history.hasMore} onMore={() => setLimit((n) => n + HISTORY_PAGE)} onOpen={setOpenCompletion} />
+          <Timeline
+            events={history.events}
+            today={today}
+            hasMore={history.hasMore}
+            onMore={() => setLimit((n) => n + HISTORY_PAGE)}
+            onOpen={setOpenCompletion}
+            onOpenMark={openMark}
+          />
         )}
       </section>
 
@@ -139,9 +199,9 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
 }
 
 /**
- * «Продолжить с этого места», «Начать заново» and «Удалить навык» (section 6). Restarting opens the copy's form
- * for a new name or target; the copy replaces this skill in the history, so «Назад» from the
- * copy leads home rather than to the skill it was made from.
+ * «Продолжить с этого места», «Начать заново» and «Удалить навык» (section 6). Restarting
+ * opens the copy's form for a new name or target; the copy replaces this skill in the history,
+ * so «Назад» from the copy leads to the active skills rather than to the skill it was made from.
  */
 function useLifecycle(skill: Skill) {
   const t = copy.lifecycle;
@@ -182,7 +242,10 @@ function useLifecycle(skill: Skill) {
       if (!(await answer)) return;
       const id = await restartSkill(skill.id);
       haptics.success();
-      navigate(`/skills/${id}`, { replace: true });
+      // The entry below may be home filtered to «Достигнутые» or «Архив», where the new
+      // ACTIVE copy is not listed: «Назад» from the copy leads to the plain active list.
+      navigate('/skills', { replace: true });
+      navigate(`/skills/${id}`);
       navigate(`/skills/${id}/edit`);
       showToast(t.restarted);
     });
@@ -230,18 +293,35 @@ interface HeroProps {
   flaskRef: RefObject<FlaskHandle | null>;
   pill: { key: number; flask: number } | null;
   announcement: string;
+  onMarkTap(markId: string): void;
 }
 
-function Hero({ details: { skill, milestone }, progress: p, flaskRef, pill, announcement }: HeroProps) {
+/**
+ * Marks drawn on the hero: the ones of the flask on display (the frozen one during a
+ * celebration, so they leave with it at the overflow beat), at their stored points against
+ * that flask's capacity today. A sealed flask shows none; the list below has them all.
+ */
+function heroMarks(details: SkillDetails, progress: Progress): FlaskMark[] {
+  if (details.skill.status === 'COMPLETED') return [];
+  return marksForFlask(details.marks, progress.currentFlask).map((mark) => ({
+    id: mark.id,
+    label: mark.title,
+    height: markHeight(mark, flaskCapacity(mark.flaskNumber, details.config)),
+  }));
+}
+
+function Hero({ details, progress: p, flaskRef, pill, announcement, onMarkTap }: HeroProps) {
+  const { skill, milestone } = details;
   const t = copy.skill;
   const completed = skill.status === 'COMPLETED';
+  const marks = heroMarks(details, p);
   // Follows the progress on display, so the laurel appears when the flask gets there.
   const laurel = skill.status === 'ACTIVE' && milestone?.reachedAt != null && p.completedFlasks >= milestone.targetFlaskNumber;
   const percent = Math.floor(p.fill * 100);
   const left = fromDeci(toDeci(p.currentCapacity) - toDeci(p.pointsInCurrentFlask));
 
   return (
-    <section className="hero">
+    <section className={`hero${marks.length > 0 ? ' hero--marks' : ''}`}>
       <div className="hero-flask">
         <Flask
           ref={flaskRef}
@@ -251,6 +331,8 @@ function Hero({ details: { skill, milestone }, progress: p, flaskRef, pill, anno
           capacity={completed ? undefined : p.currentCapacity}
           state={completed ? 'complete' : p.totalPoints === 0 ? 'empty' : 'active'}
           label={completed ? t.completedFlaskLabel(p.completedFlasks) : t.flaskLabel(p.currentFlask, p.pointsInCurrentFlask, p.currentCapacity, percent)}
+          marks={marks}
+          onMarkTap={onMarkTap}
         />
         {pill && (
           <span key={pill.key} className="level-pill" aria-hidden="true">
@@ -428,6 +510,56 @@ function ActionsCard({ details: { skill, steps, hiddenSteps, todayCounts } }: { 
           {t.backdate}
         </Link>
       )}
+    </section>
+  );
+}
+
+/**
+ * «Засечки»: every mark of the skill, newest first: the title, «Колба N» under it and the
+ * date. An active skill without marks gets a short invitation instead, once it has an action:
+ * on a brand-new skill the first action is the one thing to do (the ⋯ menu still adds a
+ * mark). A read-only skill without marks shows nothing.
+ */
+function MarksCard({ details: { skill, marks, steps, hiddenSteps }, onOpen, onAdd }: { details: SkillDetails; onOpen(id: string): void; onAdd(): void }) {
+  const t = copy.marks;
+  const active = skill.status === 'ACTIVE';
+  if (marks.length === 0 && (!active || steps.length + hiddenSteps.length === 0)) return null;
+
+  return (
+    <section className="marks">
+      <h2 className="section-title">{t.title}</h2>
+      <div className="card marks-card">
+        {marks.length === 0 ? (
+          <div className="marks-empty">
+            <p className="hint">{t.empty}</p>
+            <button type="button" className="button button-secondary marks-add" onClick={onAdd}>
+              <Icon name="pennant" size={18} />
+              {t.add}
+            </button>
+          </div>
+        ) : (
+          <ul className="list">
+            {marks.map((mark) => (
+              <li key={mark.id}>
+                <button type="button" className="mark-row pressable-row" onClick={() => onOpen(mark.id)}>
+                  <Icon name="pennant" size={20} className="mark-row-icon" />
+                  <span className="mark-row-main">
+                    <span className="mark-row-title">{mark.title}</span>
+                    <span className="mark-row-flask">{t.rowFlask(mark.flaskNumber)}</span>
+                  </span>
+                  <span className="mark-row-date">{formatDate(mark.date)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {active && marks.length > 0 && (
+          <button type="button" className="ghost-row pressable-row" onClick={onAdd}>
+            <Icon name="plus" size={20} />
+            {t.add}
+          </button>
+        )}
+      </div>
     </section>
   );
 }
