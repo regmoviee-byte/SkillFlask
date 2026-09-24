@@ -5,21 +5,23 @@ import { getSkillDetails, type HistoryEntry, type SkillDetails } from '../../ser
 import { completeSkill, continueAfterMilestone } from '../../services/skills';
 import { canCompleteSkill } from '../../domain/milestone';
 import { formatDate } from '../../lib/dates';
-import { FLASKS, formatDelta, formatNumber, formatPoints, plural } from '../../lib/format';
+import { formatDelta, formatNumber } from '../../lib/format';
 import { confirmDialog, haptic } from '../../telegram';
 import { Flask } from '../components/Flask';
 import { Screen } from '../components/Screen';
 import { useToast } from '../components/Toast';
+import { copy } from '../copy';
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
   const details = useLiveQuery(() => getSkillDetails(skillId), [skillId]);
+  const t = copy.skill;
 
-  if (details === undefined) return <Screen title="" back="/skills">{null}</Screen>;
+  if (details === undefined) return <Screen title={copy.common.skill} back="/skills">{null}</Screen>;
   if (details === null) {
     return (
-      <Screen title="Навык" back="/skills">
-        <p className="hint center">Навык не найден</p>
+      <Screen title={copy.common.skill} back="/skills">
+        <p className="hint center">{copy.common.skillNotFound}</p>
       </Screen>
     );
   }
@@ -35,14 +37,14 @@ export function SkillScreen() {
       action={
         active && (
           <Link to={`/skills/${skill.id}/edit`} className="text-button">
-            Изм.
+            {t.edit}
           </Link>
         )
       }
       footer={
         active && (
           <Link to={`/skills/${skill.id}/add`} className="button button-primary button-block">
-            Добавить действие
+            {t.addAction}
           </Link>
         )
       }
@@ -54,24 +56,22 @@ export function SkillScreen() {
       <section className="flask-panel">
         <Flask fill={progress.fill} />
         <div className="flask-info">
-          <span className="hint">Колба</span>
+          <span className="hint">{t.flask}</span>
           <span className="flask-level">{progress.currentFlask}</span>
           <span className="flask-points">
             {formatNumber(progress.pointsInCurrentFlask)} <span className="hint">/ {formatNumber(progress.currentCapacity)}</span>
           </span>
-          <span className="hint">{Math.floor(progress.fill * 100)}% заполнено</span>
-          <span className="hint small">Всего {formatPoints(progress.totalPoints)}</span>
+          <span className="hint">{t.percentFilled(Math.floor(progress.fill * 100))}</span>
+          <span className="hint small">{t.total(progress.totalPoints)}</span>
         </div>
       </section>
 
       <MilestoneCard details={details} />
 
       <section>
-        <h2 className="section-title">История</h2>
+        <h2 className="section-title">{t.history}</h2>
         {details.history.length === 0 ? (
-          <p className="hint card card-padded">
-            {active ? 'Отметьте первое действие — очки начнут заполнять колбу.' : 'Выполнений нет.'}
-          </p>
+          <p className="hint card card-padded">{active ? t.historyEmptyActive : t.historyEmptyInactive}</p>
         ) : (
           <ul className="card list">
             {details.history.map((entry) => (
@@ -87,19 +87,29 @@ export function SkillScreen() {
 function MilestoneCard({ details: { skill, milestone, progress } }: { details: SkillDetails }) {
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
+  const t = copy.milestone;
   if (!milestone) return null;
 
   const done = Math.min(progress.completedFlasks, milestone.targetFlaskNumber);
   const reached = milestone.reachedAt !== null;
 
+  function fail(e: unknown) {
+    haptic('error');
+    showToast(e instanceof Error ? e.message : copy.errors.save);
+  }
+
   async function finish() {
-    const ok = await confirmDialog(`Завершить навык «${skill.name}»? Он станет достигнутым и перейдёт в режим просмотра.`);
+    // Rule: confirmDialog runs synchronously in the click handler, before any await, so the
+    // native dialog keeps its user-gesture context (and Telegram's showConfirm is not queued).
+    const ok = await confirmDialog(t.confirmFinish(skill.name));
     if (!ok) return;
     setBusy(true);
     try {
       await completeSkill(skill.id);
       haptic('success');
-      showToast('Навык достигнут 🎉');
+      showToast(copy.toast.skillCompleted);
+    } catch (e) {
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -109,6 +119,8 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
     setBusy(true);
     try {
       await continueAfterMilestone(skill.id);
+    } catch (e) {
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -118,12 +130,9 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
     return (
       <section className="card card-padded milestone milestone-done">
         <div className="milestone-head">
-          <span className="milestone-name">🏆 {milestone.name}</span>
+          <span className="milestone-name">{milestone.name}</span>
         </div>
-        <p className="hint">
-          Навык достигнут {formatDate(skill.completedAt!)} · {progress.completedFlasks}{' '}
-          {plural(progress.completedFlasks, FLASKS)}
-        </p>
+        <p className="hint">{t.completedAt(skill.completedAt!, progress.completedFlasks)}</p>
       </section>
     );
   }
@@ -131,10 +140,8 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
   return (
     <section className={`card card-padded milestone${reached ? ' milestone-reached' : ''}`}>
       <div className="milestone-head">
-        <span className="milestone-name">{reached ? '🎯 ' : ''}{milestone.name}</span>
-        <span className="hint">
-          {done} из {milestone.targetFlaskNumber} {plural(milestone.targetFlaskNumber, FLASKS)}
-        </span>
+        <span className="milestone-name">{milestone.name}</span>
+        <span className="hint">{t.progress(done, milestone.targetFlaskNumber)}</span>
       </div>
       <div className="bar">
         <div className="bar-fill" style={{ width: `${(done / milestone.targetFlaskNumber) * 100}%` }} />
@@ -142,17 +149,16 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
       {reached && (
         <>
           <p className="milestone-text">
-            Веха достигнута {formatDate(milestone.reachedAt!)}.{' '}
-            {milestone.decision === 'CONTINUE' ? 'Вы продолжаете развитие.' : 'Завершить навык или продолжить развитие?'}
+            {t.reachedAt(milestone.reachedAt!)} {milestone.decision === 'CONTINUE' ? t.continuing : t.decide}
           </p>
           {canCompleteSkill(skill, milestone) && (
             <div className="button-row">
               <button type="button" className="button button-primary" disabled={busy} onClick={finish}>
-                Завершить
+                {t.finish}
               </button>
               {milestone.decision !== 'CONTINUE' && (
                 <button type="button" className="button" disabled={busy} onClick={keepGoing}>
-                  Продолжить
+                  {t.keepGoing}
                 </button>
               )}
             </div>
@@ -165,20 +171,21 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
 
 function HistoryRow({ entry }: { entry: HistoryEntry }) {
   const { transaction, completion, after, levelChange } = entry;
+  const t = copy.history;
   return (
     <li className="history-row">
       <div className="history-main">
-        <span className="history-name">{completion?.stepName ?? 'Корректировка'}</span>
+        <span className="history-name">{completion?.stepName ?? t.correction}</span>
         <span className="hint small">
-          {completion ? formatDate(completion.date) : formatDate(transaction.createdAt)} · Колба {after.currentFlask}:{' '}
-          {formatNumber(after.pointsInCurrentFlask)}/{formatNumber(after.currentCapacity)}
+          {completion ? formatDate(completion.date) : formatDate(transaction.createdAt)} ·{' '}
+          {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
         </span>
         {levelChange > 0 && (
           <span className="badge badge-level">
-            {levelChange === 1 ? `Колба ${after.completedFlasks} заполнена` : `Заполнено колб: ${levelChange}`}
+            {levelChange === 1 ? t.flaskFilledBadge(after.completedFlasks) : t.flasksFilledBadge(levelChange)}
           </span>
         )}
-        {levelChange < 0 && <span className="badge">Уровень понижен</span>}
+        {levelChange < 0 && <span className="badge">{t.flaskRollbackBadge(after.currentFlask)}</span>}
       </div>
       <span className={`history-delta${transaction.delta < 0 ? ' negative' : ''}`}>{formatDelta(transaction.delta)}</span>
     </li>

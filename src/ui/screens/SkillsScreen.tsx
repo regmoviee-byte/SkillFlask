@@ -3,37 +3,40 @@ import { Link } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { listSkillSummaries, type SkillSummary } from '../../services/queries';
 import { formatDate } from '../../lib/dates';
-import { FLASKS, formatNumber, plural } from '../../lib/format';
+import { formatNumber } from '../../lib/format';
 import { Screen } from '../components/Screen';
+import { copy } from '../copy';
 
 type Filter = 'ACTIVE' | 'COMPLETED';
+
+const t = copy.skills;
 
 export function SkillsScreen() {
   const summaries = useLiveQuery(listSkillSummaries);
   const [filter, setFilter] = useState<Filter>('ACTIVE');
 
   const addButton = (
-    <Link to="/skills/new" className="icon-button" aria-label="Новый навык">
+    <Link to="/skills/new" className="icon-button" aria-label={t.newSkill}>
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
         <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       </svg>
     </Link>
   );
 
-  if (!summaries) return <Screen title="Навыки" action={addButton}>{null}</Screen>;
+  if (!summaries) return <Screen title={t.title} action={addButton}>{null}</Screen>;
 
   const completedCount = summaries.filter((s) => s.skill.status === 'COMPLETED').length;
   const shown: Filter = completedCount > 0 ? filter : 'ACTIVE';
   const visible = summaries.filter((s) => s.skill.status === shown);
 
   return (
-    <Screen title="Навыки" action={addButton}>
+    <Screen title={t.title} action={addButton}>
       {summaries.length === 0 ? (
         <div className="empty">
-          <p className="empty-title">Здесь будут ваши навыки</p>
-          <p className="hint">Создайте навык, добавьте к нему действия и заполняйте колбы очками.</p>
+          <p className="empty-title">{t.emptyTitle}</p>
+          <p className="hint">{t.emptyHint}</p>
           <Link to="/skills/new" className="button button-primary">
-            Создать навык
+            {t.create}
           </Link>
         </div>
       ) : (
@@ -50,13 +53,13 @@ export function SkillsScreen() {
                   className={shown === value ? 'active' : ''}
                   onClick={() => setFilter(value)}
                 >
-                  {value === 'ACTIVE' ? 'Активные' : 'Достигнутые'}
+                  {value === 'ACTIVE' ? t.filterActive : t.filterCompleted}
                 </button>
               ))}
             </div>
           )}
           {visible.length === 0 ? (
-            <p className="hint center">{shown === 'ACTIVE' ? 'Нет активных навыков' : 'Пока нет достигнутых навыков'}</p>
+            <p className="hint center">{shown === 'ACTIVE' ? t.noActive : t.noCompleted}</p>
           ) : (
             <ul className="card list">
               {visible.map((summary) => (
@@ -82,21 +85,21 @@ function Overview({ summaries }: { summaries: SkillSummary[] }) {
       <div className="stats">
         <div>
           <span className="stat-value">{active}</span>
-          <span className="hint">в работе</span>
+          <span className="hint">{t.statActive}</span>
         </div>
         <div>
           <span className="stat-value">{formatNumber(flasks)}</span>
-          <span className="hint">колб заполнено</span>
+          <span className="hint">{t.statFlasks}</span>
         </div>
       </div>
       <p className="overview-last">
         {lastReached ? (
           <>
-            Последнее достижение: <b>{lastReached.milestone!.name}</b> · {lastReached.skill.name},{' '}
+            {t.lastReached} <b>{lastReached.milestone!.name}</b> · {lastReached.skill.name},{' '}
             {formatDate(lastReached.milestone!.reachedAt!)}
           </>
         ) : (
-          <span className="hint">Достигнутые вехи появятся здесь</span>
+          <span className="hint">{t.noReached}</span>
         )}
       </p>
     </section>
@@ -109,7 +112,7 @@ function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillS
   return (
     <li>
       <Link to={`/skills/${skill.id}`} className="skill-row">
-        <div className="skill-row-level" aria-label={`Уровень ${progress.currentFlask}`}>
+        <div className="skill-row-level" aria-label={copy.common.flaskNumber(progress.currentFlask)}>
           {completed ? '✓' : progress.currentFlask}
         </div>
         <div className="skill-row-main">
@@ -117,8 +120,8 @@ function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillS
             <span className="skill-row-name">{skill.name}</span>
             <span className="skill-row-points">
               {completed
-                ? `${progress.completedFlasks} ${plural(progress.completedFlasks, FLASKS)}`
-                : `${formatNumber(progress.pointsInCurrentFlask)} / ${formatNumber(progress.currentCapacity)}`}
+                ? copy.common.flasksCount(progress.completedFlasks)
+                : t.pointsOfCapacity(progress.pointsInCurrentFlask, progress.currentCapacity)}
             </span>
           </div>
           {!completed && (
@@ -127,10 +130,14 @@ function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillS
             </div>
           )}
           <div className="hint small">
-            {[labels, milestone && `${milestone.name}: ${Math.min(progress.completedFlasks, milestone.targetFlaskNumber)}/${milestone.targetFlaskNumber}`]
+            {[
+              labels,
+              milestone &&
+                t.milestoneProgress(milestone.name, Math.min(progress.completedFlasks, milestone.targetFlaskNumber), milestone.targetFlaskNumber),
+            ]
               .filter(Boolean)
               .join(' · ')}
-            {milestone?.reachedAt && !completed && <span className="badge">веха!</span>}
+            {milestone?.reachedAt && !completed && <span className="badge">{t.milestoneBadge}</span>}
           </div>
         </div>
       </Link>

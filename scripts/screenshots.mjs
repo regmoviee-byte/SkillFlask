@@ -53,7 +53,7 @@ await shot('skill-empty');
 await page.getByRole('link', { name: 'Добавить действие' }).click();
 await page.getByRole('link', { name: 'Создать новое действие' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Разговорная практика');
-await page.getByLabel('Количество баллов').fill('5');
+await page.getByLabel('Очки за выполнение').fill('5');
 await shot('step-form');
 await page.getByRole('button', { name: 'Создать действие' }).click();
 await page.getByText('Разговорная практика').waitFor();
@@ -79,6 +79,25 @@ await page.getByText(/Навык достигнут/).first().waitFor();
 await page.getByRole('link', { name: 'Навыки' }).click();
 await page.getByRole('tab', { name: 'Достигнутые' }).click();
 await shot('skills-completed');
+
+// A second skill whose single 25-point action fills flasks 1 (10) and 2 (15) at once:
+// the toast must name both filled flasks.
+await page.getByRole('link', { name: 'Навыки' }).click();
+await page.getByRole('link', { name: 'Новый навык' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Тренировки');
+await page.getByLabel('Колб', { exact: true }).fill('5');
+await page.getByLabel('Первая колба').fill('10');
+await page.getByLabel('Прирост за уровень', { exact: true }).fill('5');
+await page.getByRole('button', { name: 'Создать навык' }).click();
+await page.getByRole('link', { name: 'Добавить действие' }).click();
+await page.getByRole('link', { name: 'Создать новое действие' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Длинная тренировка');
+await page.getByLabel('Очки за выполнение').fill('25');
+await page.getByRole('button', { name: 'Создать действие' }).click();
+await page.getByText('Длинная тренировка').waitFor();
+await page.getByRole('button', { name: 'Отметить выполненным' }).click();
+await page.getByText('Заполнено колб: 2, теперь колба 3').waitFor();
+await shot('toast-flasks-filled');
 
 for (const tab of ['Ачивки', 'Список дел', 'Аккаунт']) {
   await page.getByRole('link', { name: tab }).click();

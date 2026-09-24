@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTimeline, computeProgress, flaskCapacity, pointsToFill, totalPoints, type CapacityConfig } from './progression';
+import { buildTimeline, computeProgress, flaskCapacity, foldJournal, nextBalance, pointsToFill, type CapacityConfig } from './progression';
 
 const linear: CapacityConfig = { base: 100, increment: 50, manual: [] };
 const flat100: CapacityConfig = { base: 100, increment: 0, manual: [] };
@@ -19,11 +19,21 @@ describe('flaskCapacity', () => {
   });
 });
 
-describe('totalPoints', () => {
+describe('foldJournal', () => {
   it('sums deltas and never goes below zero', () => {
-    expect(totalPoints([5, 10, -3])).toBe(12);
-    expect(totalPoints([5, -10])).toBe(0);
-    expect(totalPoints([])).toBe(0);
+    expect(foldJournal([5, 10, -3])).toBe(12);
+    expect(foldJournal([5, -10])).toBe(0);
+    expect(foldJournal([])).toBe(0);
+  });
+
+  it('clamps after every step, not only at the end', () => {
+    expect(foldJournal([5, -10, 5])).toBe(5);
+    expect(nextBalance(0, -3)).toBe(0);
+  });
+
+  it('adds tenths exactly', () => {
+    expect(foldJournal(Array.from({ length: 1000 }, () => 0.1))).toBe(100);
+    expect(foldJournal([99.9, 0.1])).toBe(100);
   });
 });
 
@@ -52,6 +62,20 @@ describe('computeProgress', () => {
     const p = computeProgress(100, linear);
     expect(p.completedFlasks).toBe(1);
     expect(p.pointsInCurrentFlask).toBe(0);
+  });
+
+  it('fills a 100 flask exactly with 99.9 + 0.1', () => {
+    const p = computeProgress(foldJournal([99.9, 0.1]), linear);
+    expect(p.completedFlasks).toBe(1);
+    expect(p.pointsInCurrentFlask).toBe(0);
+    expect(p.fill).toBe(0);
+  });
+
+  it('keeps tenths in the current flask', () => {
+    const p = computeProgress(7.3, linear);
+    expect(p.pointsInCurrentFlask).toBe(7.3);
+    expect(p.totalPoints).toBe(7.3);
+    expect(p.fill).toBeCloseTo(0.073);
   });
 
   it('can fill several flasks at once', () => {
@@ -103,9 +127,16 @@ describe('buildTimeline', () => {
     expect(timeline[2].after.pointsInCurrentFlask).toBe(96);
   });
 
+  it('agrees with foldJournal, including the per-step clamp', () => {
+    const deltas = [5, -10, 5];
+    const timeline = buildTimeline(deltas.map((delta) => ({ delta })), linear);
+    expect(timeline.at(-1)!.after.totalPoints).toBe(5);
+    expect(timeline.at(-1)!.after).toEqual(computeProgress(foldJournal(deltas), linear));
+  });
+
   it('matches computeProgress on the final total', () => {
     const deltas = [40, 70, 200, -30, 15];
     const timeline = buildTimeline(deltas.map((delta) => ({ delta })), linear);
-    expect(timeline.at(-1)!.after).toEqual(computeProgress(totalPoints(deltas), linear));
+    expect(timeline.at(-1)!.after).toEqual(computeProgress(foldJournal(deltas), linear));
   });
 });

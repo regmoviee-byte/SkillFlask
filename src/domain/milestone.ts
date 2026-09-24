@@ -9,19 +9,24 @@ export function isMilestoneReached(milestone: Pick<Milestone, 'targetFlaskNumber
 }
 
 /**
- * Brings the stored milestone state in line with actual progress.
- * Records the reach date the first time (FR-MS-007); while the skill is still active,
- * losing progress below the target un-reaches it. Returns null when nothing changes.
+ * Brings the stored milestone state in line with actual progress. `reachedAt` is a cache of
+ * the date derived from the journal (`derivedReachedAt`, FR-MS-007); while the skill is still
+ * active, losing progress below the target un-reaches it (decision 14.3). Returns null when
+ * nothing changes.
  */
 export function reconcileMilestone(
   milestone: Milestone,
   skill: Pick<Skill, 'status'>,
   progress: Progress,
+  derivedReachedAt: string | null,
   now: string,
 ): Partial<Milestone> | null {
   const reached = isMilestoneReached(milestone, progress);
-  if (reached && milestone.reachedAt === null) return { reachedAt: now, updatedAt: now };
-  if (!reached && milestone.reachedAt !== null && skill.status === 'ACTIVE') {
+  if (reached) {
+    const reachedAt = derivedReachedAt ?? now;
+    return milestone.reachedAt === reachedAt ? null : { reachedAt, updatedAt: now };
+  }
+  if (milestone.reachedAt !== null && skill.status === 'ACTIVE') {
     return { reachedAt: null, decision: null, updatedAt: now };
   }
   return null;

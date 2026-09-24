@@ -4,19 +4,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { listSkillSummaries } from '../../services/queries';
 import { createStep, ValidationError } from '../../services/skills';
 import { haptic } from '../../telegram';
-import { Screen, useGoBack } from '../components/Screen';
+import { Screen } from '../components/Screen';
 import { useToast } from '../components/Toast';
-
-// A step created from the "Добавить действие" screen becomes pre-selected when the user returns there.
-let pendingStepSelection: string | null = null;
-
-export function peekPendingStepSelection(): string | null {
-  return pendingStepSelection;
-}
-
-export function clearPendingStepSelection(): void {
-  pendingStepSelection = null;
-}
+import { copy } from '../copy';
 
 export function StepFormScreen() {
   const [params] = useSearchParams();
@@ -28,8 +18,8 @@ export function StepFormScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  const goBack = useGoBack(origin ? `/skills/${origin}/add` : '/skills');
   const { showToast } = useToast();
+  const t = copy.stepForm;
 
   const effectiveSkillId = skillId || skills?.[0]?.skill.id || '';
 
@@ -39,35 +29,37 @@ export function StepFormScreen() {
     setError(null);
     try {
       const id = await createStep({ skillId: effectiveSkillId, name, points: Number(points.trim()) });
-      pendingStepSelection = id;
-      showToast('Действие создано');
-      if (effectiveSkillId === origin) goBack();
-      else navigate(`/skills/${effectiveSkillId}/add`, { replace: true });
+      showToast(t.created);
+      // This screen replaced the "Добавить действие" entry; replace it back with the new step
+      // pre-selected via the query string, so the selection survives reloads and does not
+      // live in module state.
+      navigate(`/skills/${effectiveSkillId}/add?step=${id}`, { replace: true });
     } catch (e) {
       haptic('error');
-      setError(e instanceof ValidationError ? e.message : 'Не удалось сохранить');
+      setError(e instanceof ValidationError ? e.message : copy.errors.save);
       setBusy(false);
     }
   }
 
   return (
     <Screen
-      title="Новое действие"
+      title={t.title}
       back={origin ? `/skills/${origin}/add` : '/skills'}
+      replaceBack={origin !== ''}
       footer={
         <button type="submit" form="step-form" className="button button-primary button-block" disabled={busy || !effectiveSkillId}>
-          Создать действие
+          {t.submit}
         </button>
       }
     >
       <form id="step-form" className="form" onSubmit={submit}>
         <label className="field">
-          <span className="field-label">Название</span>
+          <span className="field-label">{t.name}</span>
           <input
             className="input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Например, разговорная практика"
+            placeholder={t.namePlaceholder}
             maxLength={100}
             autoFocus
             required
@@ -75,7 +67,7 @@ export function StepFormScreen() {
         </label>
 
         <label className="field">
-          <span className="field-label">Навык, к которому относится действие</span>
+          <span className="field-label">{t.skill}</span>
           <select className="input" value={effectiveSkillId} onChange={(e) => setSkillId(e.target.value)} required>
             {skills?.map(({ skill }) => (
               <option key={skill.id} value={skill.id}>
@@ -86,29 +78,29 @@ export function StepFormScreen() {
         </label>
 
         <div className="field">
-          <span className="field-label">Тип</span>
+          <span className="field-label">{t.type}</span>
           <div className="segmented">
             <button type="button" className="active" aria-pressed="true">
-              Выполнено / нет
+              {t.typeBoolean}
             </button>
-            <button type="button" disabled title="Скоро">
-              По времени · скоро
+            <button type="button" disabled title={copy.common.soon}>
+              {t.typeTimedSoon}
             </button>
           </div>
         </div>
 
         <label className="field">
-          <span className="field-label">Повтор</span>
+          <span className="field-label">{t.repeat}</span>
           <select className="input" value="MANUAL" onChange={() => {}}>
-            <option value="MANUAL">Без расписания — отмечаю вручную</option>
-            <option disabled>Каждый день · скоро</option>
-            <option disabled>По дням недели · скоро</option>
-            <option disabled>N раз в неделю · скоро</option>
+            <option value="MANUAL">{t.repeatManual}</option>
+            <option disabled>{t.repeatDailySoon}</option>
+            <option disabled>{t.repeatWeekdaysSoon}</option>
+            <option disabled>{t.repeatTimesPerWeekSoon}</option>
           </select>
         </label>
 
         <label className="field">
-          <span className="field-label">Количество баллов</span>
+          <span className="field-label">{t.points}</span>
           <input
             className="input"
             inputMode="numeric"

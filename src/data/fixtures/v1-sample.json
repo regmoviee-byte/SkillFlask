@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 1,
+  "tables": {
+    "skills": [
+      {
+        "id": "skill-english",
+        "name": "Английский",
+        "description": "Разговорный уровень",
+        "status": "ACTIVE",
+        "startLabel": "B1",
+        "targetLabel": "C1",
+        "capacityBase": 100,
+        "capacityIncrement": 50,
+        "completedAt": null,
+        "archivedAt": null,
+        "createdAt": "2026-08-01T08:00:00.000Z",
+        "updatedAt": "2026-08-01T08:00:00.000Z"
+      },
+      {
+        "id": "skill-workout",
+        "name": "Тренировки",
+        "description": "",
+        "status": "ACTIVE",
+        "startLabel": "",
+        "targetLabel": "",
+        "capacityBase": 20,
+        "capacityIncrement": 0,
+        "completedAt": null,
+        "archivedAt": null,
+        "createdAt": "2026-08-02T08:00:00.000Z",
+        "updatedAt": "2026-08-02T08:00:00.000Z"
+      }
+    ],
+    "milestones": [
+      {
+        "id": "ms-english",
+        "skillId": "skill-english",
+        "name": "Достичь C1",
+        "targetFlaskNumber": 10,
+        "reachedAt": null,
+        "decision": null,
+        "createdAt": "2026-08-01T08:00:00.000Z",
+        "updatedAt": "2026-08-01T08:00:00.000Z"
+      },
+      {
+        "id": "ms-workout",
+        "skillId": "skill-workout",
+        "name": "Главная цель",
+        "targetFlaskNumber": 2,
+        "reachedAt": null,
+        "decision": null,
+        "createdAt": "2026-08-02T08:00:00.000Z",
+        "updatedAt": "2026-08-02T08:00:00.000Z"
+      }
+    ],
+    "levelThresholds": [
+      {
+        "skillId": "skill-english",
+        "flaskNumber": 1,
+        "requiredPoints": 30
+      },
+      {
+        "skillId": "skill-english",
+        "flaskNumber": 2,
+        "requiredPoints": 50
+      }
+    ],
+    "steps": [
+      {
+        "id": "step-speaking",
+        "skillId": "skill-english",
+        "name": "Разговорная практика",
+        "type": "BOOLEAN",
+        "points": 5,
+        "schedule": {
+          "kind": "MANUAL"
+        },
+        "isActive": true,
+        "createdAt": "2026-08-01T09:00:00.000Z",
+        "updatedAt": "2026-08-01T09:00:00.000Z"
+      },
+      {
+        "id": "step-reading",
+        "skillId": "skill-english",
+        "name": "Чтение",
+        "type": "BOOLEAN",
+        "points": 3,
+        "schedule": {
+          "kind": "MANUAL"
+        },
+        "isActive": true,
+        "createdAt": "2026-08-01T10:00:00.000Z",
+        "updatedAt": "2026-08-01T10:00:00.000Z"
+      },
+      {
+        "id": "step-gym",
+        "skillId": "skill-workout",
+        "name": "Зал",
+        "type": "BOOLEAN",
+        "points": 10,
+        "schedule": {
+          "kind": "MANUAL"
+        },
+        "isActive": true,
+        "createdAt": "2026-08-02T09:00:00.000Z",
+        "updatedAt": "2026-08-02T09:00:00.000Z"
+      }
+    ],
+    "completions": [
+      {
+        "id": "c01",
+        "skillId": "skill-english",
+        "stepId": "step-speaking",
+        "stepName": "Разговорная практика",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 5,
+        "durationMinutes": null,
+        "pointsAwarded": 5,
+        "date": "2026-08-03",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-03T18:00:00.000Z",
+        "updatedAt": "2026-08-03T18:00:00.000Z"
+      },
+      {
+        "id": "c02",
+        "skillId": "skill-english",
+        "stepId": "step-reading",
+        "stepName": "Чтение",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 3,
+        "durationMinutes": null,
+        "pointsAwarded": 3,
+        "date": "2026-08-03",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-03T19:00:00.000Z",
+        "updatedAt": "2026-08-03T19:00:00.000Z"
+      },
+      {
+        "id": "c03",
+        "skillId": "skill-english",
+        "stepId": "step-speaking",
+        "stepName": "Разговорная практика",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 5,
+        "durationMinutes": null,
+        "pointsAwarded": 5,
+        "date": "2026-08-04",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-04T18:00:00.000Z",
+        "updatedAt": "2026-08-04T18:00:00.000Z"
+      },
+      {
+        "id": "c04",
+        "skillId": "skill-workout",
+        "stepId": "step-gym",
+        "stepName": "Зал",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 10,
+        "durationMinutes": null,
+        "pointsAwarded": 10,
+        "date": "2026-08-04",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-04T20:00:00.000Z",
+        "updatedAt": "2026-08-04T20:00:00.000Z"
+      },
+      {
+        "id": "c05",
+        "skillId": "skill-english",
+        "stepId": "step-reading",
+        "stepName": "Чтение",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 3,
+        "durationMinutes": null,
+        "pointsAwarded": 3,
+        "date": "2026-08-05",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-05T18:00:00.000Z",
+        "updatedAt": "2026-08-05T18:00:00.000Z"
+      },
+      {
+        "id": "c06",
+        "skillId": "skill-english",
+        "stepId": "step-speaking",
+        "stepName": "Разговорная практика",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 5,
+        "durationMinutes": null,
+        "pointsAwarded": 5,
+        "date": "2026-08-06",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-06T18:00:00.000Z",
+        "updatedAt": "2026-08-06T18:00:00.000Z"
+      },
+      {
+        "id": "c07",
+        "skillId": "skill-workout",
+        "stepId": "step-gym",
+        "stepName": "Зал",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 10,
+        "durationMinutes": null,
+        "pointsAwarded": 10,
+        "date": "2026-08-06",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-06T20:00:00.000Z",
+        "updatedAt": "2026-08-06T20:00:00.000Z"
+      },
+      {
+        "id": "c08",
+        "skillId": "skill-english",
+        "stepId": "step-speaking",
+        "stepName": "Разговорная практика",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 5,
+        "durationMinutes": null,
+        "pointsAwarded": 5,
+        "date": "2026-08-07",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-07T18:00:00.000Z",
+        "updatedAt": "2026-08-07T18:00:00.000Z"
+      },
+      {
+        "id": "c09",
+        "skillId": "skill-english",
+        "stepId": "step-reading",
+        "stepName": "Чтение",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 3,
+        "durationMinutes": null,
+        "pointsAwarded": 3,
+        "date": "2026-08-07",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-07T18:00:00.000Z",
+        "updatedAt": "2026-08-07T18:00:00.000Z"
+      },
+      {
+        "id": "c10",
+        "skillId": "skill-english",
+        "stepId": "step-speaking",
+        "stepName": "Разговорная практика",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 5,
+        "durationMinutes": null,
+        "pointsAwarded": 5,
+        "date": "2026-08-08",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "updatedAt": "2026-08-08T18:00:00.000Z"
+      },
+      {
+        "id": "c11",
+        "skillId": "skill-workout",
+        "stepId": "step-gym",
+        "stepName": "Зал",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 10,
+        "durationMinutes": null,
+        "pointsAwarded": 10,
+        "date": "2026-08-09",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-09T20:00:00.000Z",
+        "updatedAt": "2026-08-09T20:00:00.000Z"
+      },
+      {
+        "id": "c12",
+        "skillId": "skill-english",
+        "stepId": "step-reading",
+        "stepName": "Чтение",
+        "stepType": "BOOLEAN",
+        "pointsSnapshot": 3,
+        "durationMinutes": null,
+        "pointsAwarded": 3,
+        "date": "2026-08-10",
+        "source": "MANUAL",
+        "status": "ACTIVE",
+        "note": null,
+        "createdAt": "2026-08-10T18:00:00.000Z",
+        "updatedAt": "2026-08-10T18:00:00.000Z"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "t01",
+        "skillId": "skill-english",
+        "completionId": "c01",
+        "delta": 5,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-03T18:00:00.000Z"
+      },
+      {
+        "id": "t02",
+        "skillId": "skill-english",
+        "completionId": "c02",
+        "delta": 3,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-03T19:00:00.000Z"
+      },
+      {
+        "id": "t03",
+        "skillId": "skill-english",
+        "completionId": "c03",
+        "delta": 5,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-04T18:00:00.000Z"
+      },
+      {
+        "id": "t04",
+        "skillId": "skill-workout",
+        "completionId": "c04",
+        "delta": 10,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-04T20:00:00.000Z"
+      },
+      {
+        "id": "t05",
+        "skillId": "skill-english",
+        "completionId": "c05",
+        "delta": 3,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-05T18:00:00.000Z"
+      },
+      {
+        "id": "t06",
+        "skillId": "skill-english",
+        "completionId": "c06",
+        "delta": 5,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-06T18:00:00.000Z"
+      },
+      {
+        "id": "t07",
+        "skillId": "skill-workout",
+        "completionId": "c07",
+        "delta": 10,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-06T20:00:00.000Z"
+      },
+      {
+        "id": "t08",
+        "skillId": "skill-english",
+        "completionId": "c08",
+        "delta": 5,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-07T18:00:00.000Z"
+      },
+      {
+        "id": "t09",
+        "skillId": "skill-english",
+        "completionId": "c09",
+        "delta": 3,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-07T18:00:00.000Z"
+      },
+      {
+        "id": "t10",
+        "skillId": "skill-english",
+        "completionId": "c10",
+        "delta": 5,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-08T18:00:00.000Z"
+      },
+      {
+        "id": "t11",
+        "skillId": "skill-workout",
+        "completionId": "c11",
+        "delta": 10,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-09T20:00:00.000Z"
+      },
+      {
+        "id": "t12",
+        "skillId": "skill-english",
+        "completionId": "c12",
+        "delta": 3,
+        "reason": "COMPLETION",
+        "createdAt": "2026-08-10T18:00:00.000Z"
+      }
+    ]
+  }
+}

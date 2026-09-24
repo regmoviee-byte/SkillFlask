@@ -5,10 +5,13 @@ import { getSkillFormData } from '../../services/queries';
 import { createSkill, deleteSkill, updateSkill, ValidationError, type SkillInput } from '../../services/skills';
 import { DEFAULT_MILESTONE_FLASKS } from '../../domain/milestone';
 import { DEFAULT_CAPACITY_BASE, DEFAULT_CAPACITY_INCREMENT, flaskCapacity, pointsToFill } from '../../domain/progression';
-import { FLASKS, formatNumber, formatPoints, plural } from '../../lib/format';
+import { formatNumber } from '../../lib/format';
 import { confirmDialog, haptic } from '../../telegram';
 import { Screen, useGoBack } from '../components/Screen';
 import { useToast } from '../components/Toast';
+import { copy } from '../copy';
+
+const t = copy.skillForm;
 
 interface FormState {
   name: string;
@@ -34,11 +37,6 @@ const emptyForm: FormState = {
   manualCapacities: '',
 };
 
-function defaultMilestoneName(form: FormState): string {
-  const target = form.targetLabel.trim();
-  return target ? `Достичь ${target}` : 'Главная цель';
-}
-
 function parseManual(value: string): number[] | null {
   const parts = value.split(/[\s,;]+/).filter(Boolean);
   const numbers = parts.map(Number);
@@ -47,13 +45,13 @@ function parseManual(value: string): number[] | null {
 
 function toInput(form: FormState): SkillInput {
   const manual = parseManual(form.manualCapacities);
-  if (!manual) throw new ValidationError('Свои ёмкости: целые положительные числа через запятую');
+  if (!manual) throw new ValidationError(t.manualInvalid);
   return {
     name: form.name,
     description: form.description,
     startLabel: form.startLabel,
     targetLabel: form.targetLabel,
-    milestoneName: form.milestoneName.trim() || defaultMilestoneName(form),
+    milestoneName: form.milestoneName.trim() || t.defaultMilestoneName(form.targetLabel.trim()),
     milestoneTarget: Number(form.milestoneTarget || NaN),
     capacityBase: Number(form.capacityBase || NaN),
     capacityIncrement: Number(form.capacityIncrement || NaN),
@@ -66,11 +64,11 @@ export function SkillFormScreen() {
   const editing = skillId !== undefined;
   const existing = useLiveQuery(async () => (skillId ? getSkillFormData(skillId) : null), [skillId]);
 
-  if (editing && existing === undefined) return <Screen title="Навык" back={`/skills/${skillId}`}>{null}</Screen>;
+  if (editing && existing === undefined) return <Screen title={copy.common.skill} back={`/skills/${skillId}`}>{null}</Screen>;
   if (editing && !existing) {
     return (
-      <Screen title="Навык" back="/skills">
-        <p className="hint center">Навык не найден</p>
+      <Screen title={copy.common.skill} back="/skills">
+        <p className="hint center">{copy.common.skillNotFound}</p>
       </Screen>
     );
   }
@@ -101,9 +99,15 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
   const goBack = useGoBack(back);
   const { showToast } = useToast();
 
-  const set = (key: keyof FormState) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });
-  const digits = (key: keyof FormState) => (e: { target: { value: string } }) =>
-    setForm({ ...form, [key]: e.target.value.replace(/\D/g, '') });
+  // Functional updates: two fields changed in the same tick must not overwrite each other.
+  const set = (key: keyof FormState) => (e: { target: { value: string } }) => {
+    const value = e.target.value;
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const digits = (key: keyof FormState) => (e: { target: { value: string } }) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -113,7 +117,7 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
       const input = toInput(form);
       if (skillId) {
         await updateSkill(skillId, input);
-        showToast('Сохранено');
+        showToast(copy.common.saved);
         goBack();
       } else {
         const id = await createSkill(input);
@@ -122,93 +126,102 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
       }
     } catch (e) {
       haptic('error');
-      setError(e instanceof ValidationError ? e.message : 'Не удалось сохранить');
+      setError(e instanceof ValidationError ? e.message : copy.errors.save);
       setBusy(false);
     }
   }
 
   async function remove() {
-    if (!skillId) return;
-    const ok = await confirmDialog('Навык и вся его история будут удалены без возможности восстановления. Удалить?');
+    if (!skillId || busy) return;
+    // Rule: confirmDialog runs synchronously in the click handler, before any await, so the
+    // native dialog keeps its user-gesture context (and Telegram's showConfirm is not queued).
+    const ok = await confirmDialog(t.confirmRemove);
     if (!ok) return;
-    await deleteSkill(skillId);
-    showToast('Навык удалён');
-    navigate('/skills', { replace: true });
+    setBusy(true);
+    try {
+      await deleteSkill(skillId);
+      showToast(t.removed);
+      navigate('/skills', { replace: true });
+    } catch (e) {
+      haptic('error');
+      showToast(e instanceof Error ? e.message : copy.errors.save);
+      setBusy(false);
+    }
   }
 
   return (
     <Screen
-      title={skillId ? 'Настройка навыка' : 'Новый навык'}
+      title={skillId ? t.titleEdit : t.titleNew}
       back={back}
       footer={
         <button type="submit" form="skill-form" className="button button-primary button-block" disabled={busy}>
-          {skillId ? 'Сохранить' : 'Создать навык'}
+          {skillId ? copy.common.save : t.create}
         </button>
       }
     >
       <form id="skill-form" className="form" onSubmit={submit}>
         <label className="field">
-          <span className="field-label">Название</span>
-          <input className="input" value={form.name} onChange={set('name')} placeholder="Например, английский" maxLength={100} required />
+          <span className="field-label">{t.name}</span>
+          <input className="input" value={form.name} onChange={set('name')} placeholder={t.namePlaceholder} maxLength={100} required />
         </label>
         <label className="field">
-          <span className="field-label">Описание</span>
-          <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder="Необязательно" />
+          <span className="field-label">{t.description}</span>
+          <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder={copy.common.optional} />
         </label>
         <div className="field-row">
           <label className="field">
-            <span className="field-label">Сейчас</span>
-            <input className="input" value={form.startLabel} onChange={set('startLabel')} placeholder="B1" maxLength={40} />
+            <span className="field-label">{t.startLabel}</span>
+            <input className="input" value={form.startLabel} onChange={set('startLabel')} placeholder={t.startPlaceholder} maxLength={40} />
           </label>
           <label className="field">
-            <span className="field-label">Цель</span>
-            <input className="input" value={form.targetLabel} onChange={set('targetLabel')} placeholder="C1" maxLength={40} />
+            <span className="field-label">{t.targetLabel}</span>
+            <input className="input" value={form.targetLabel} onChange={set('targetLabel')} placeholder={t.targetPlaceholder} maxLength={40} />
           </label>
         </div>
 
-        <h2 className="section-title">Веха</h2>
+        <h2 className="section-title">{t.milestoneSection}</h2>
         <div className="field-row">
           <label className="field field-grow">
-            <span className="field-label">Название вехи</span>
+            <span className="field-label">{t.milestoneName}</span>
             <input
               className="input"
               value={form.milestoneName}
               onChange={set('milestoneName')}
-              placeholder={defaultMilestoneName(form)}
+              placeholder={t.defaultMilestoneName(form.targetLabel.trim())}
               maxLength={100}
             />
           </label>
           <label className="field field-narrow">
-            <span className="field-label">Колб</span>
+            <span className="field-label">{t.milestoneFlasks}</span>
             <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
           </label>
         </div>
 
-        <h2 className="section-title">Ёмкость колб</h2>
+        <h2 className="section-title">{t.capacitySection}</h2>
         <div className="field-row">
           <label className="field">
-            <span className="field-label">Первая колба</span>
+            <span className="field-label">{t.capacityBase}</span>
             <input className="input" inputMode="numeric" value={form.capacityBase} onChange={digits('capacityBase')} required />
           </label>
           <label className="field">
-            <span className="field-label">Прирост за уровень</span>
+            <span className="field-label">{t.capacityIncrement}</span>
             <input className="input" inputMode="numeric" value={form.capacityIncrement} onChange={digits('capacityIncrement')} required />
           </label>
         </div>
         <div className="field">
           <label className="field">
-            <span className="field-label">Свои значения по колбам</span>
+            <span className="field-label">{t.manualCapacities}</span>
             <input
               className="input"
               inputMode="numeric"
               value={form.manualCapacities}
               onChange={set('manualCapacities')}
-              placeholder="Необязательно, например: 50, 80, 120"
+              placeholder={t.manualPlaceholder}
               aria-describedby="manual-capacities-hint"
             />
           </label>
           <span id="manual-capacities-hint" className="hint small">
-            После последнего значения ёмкость растёт на «прирост за уровень».
+            {t.manualHint}
           </span>
         </div>
         <CapacityPreview form={form} />
@@ -216,8 +229,8 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
         {error && <p className="error">{error}</p>}
 
         {skillId && (
-          <button type="button" className="button button-block button-danger" onClick={remove}>
-            Удалить навык
+          <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
+            {t.remove}
           </button>
         )}
       </form>
@@ -241,9 +254,7 @@ function CapacityPreview({ form }: { form: FormState }) {
     <p className="preview">
       {capacities.join(' · ')}
       <br />
-      <span className="hint">
-        До вехи: {target} {plural(target, FLASKS)}, {formatPoints(pointsToFill(target, config))}
-      </span>
+      <span className="hint">{t.preview(target, pointsToFill(target, config))}</span>
     </p>
   );
 }

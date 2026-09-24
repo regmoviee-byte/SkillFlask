@@ -289,11 +289,15 @@ textarea {
 
 .toast {
   position: fixed;
-  left: 50%;
+  /* Centered by auto margins: with `left: 50%` a shrink-to-fit box could only use half the
+     viewport and wrapped long toasts onto three lines. */
+  left: 16px;
+  right: 16px;
   bottom: calc(var(--tab-height) + var(--safe-bottom) + 84px);
   z-index: 20;
-  transform: translateX(-50%);
+  width: max-content;
   max-width: calc(100% - 32px);
+  margin-inline: auto;
   padding: 10px 16px;
   border-radius: 12px;
   background: rgba(30, 30, 32, 0.92);
@@ -306,7 +310,7 @@ textarea {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 8px);
+    transform: translateY(8px);
   }
 }
 
@@ -736,4 +740,16 @@ textarea.input {
   flex: none;
   color: var(--hint);
   font-size: 14px;
+}
+
+/* Database open state (DbBoundary): centred message before the app renders. */
+.db-boundary {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
 }

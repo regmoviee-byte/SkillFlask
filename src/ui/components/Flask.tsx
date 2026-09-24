@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { copy } from '../copy';
 
 // Tube with a rounded bottom; the liquid rectangle is clipped to the inner shape.
 const TOP = 22;
@@ -17,7 +18,7 @@ export function Flask({ fill }: FlaskProps) {
   const liquidTop = TOP + (1 - ratio) * (BOTTOM - TOP);
 
   return (
-    <svg className="flask" viewBox="0 0 120 220" role="img" aria-label={`Колба заполнена на ${Math.floor(ratio * 100)}%`}>
+    <svg className="flask" viewBox="0 0 120 220" role="img" aria-label={copy.common.flaskFilled(Math.floor(ratio * 100))}>
       <defs>
         <clipPath id={`${id}-clip`}>
           <path d={TUBE} />

@@ -1,12 +1,15 @@
 import { Link } from 'react-router';
 import { Screen } from '../components/Screen';
+import { copy } from '../copy';
+
+const t = copy.placeholders;
 
 export function AchievementsScreen() {
   return (
-    <Screen title="Ачивки">
+    <Screen title={t.achievementsTitle}>
       <div className="empty">
-        <p className="empty-title">🏅 Скоро</p>
-        <p className="hint">Ачивки появятся в следующих версиях. Пока достигнутые вехи видны на главной.</p>
+        <p className="empty-title">{copy.common.soon}</p>
+        <p className="hint">{t.achievementsHint}</p>
       </div>
     </Screen>
   );
@@ -14,14 +17,12 @@ export function AchievementsScreen() {
 
 export function TodoScreen() {
   return (
-    <Screen title="Список дел">
+    <Screen title={t.todoTitle}>
       <div className="empty">
-        <p className="empty-title">📅 Скоро</p>
-        <p className="hint">
-          Здесь будут действия на сегодня по расписанию. Пока выполнения отмечаются вручную на экране навыка.
-        </p>
+        <p className="empty-title">{copy.common.soon}</p>
+        <p className="hint">{t.todoHint}</p>
         <Link to="/skills" className="button button-secondary" replace>
-          К навыкам
+          {t.toSkills}
         </Link>
       </div>
     </Screen>
@@ -30,12 +31,10 @@ export function TodoScreen() {
 
 export function AccountScreen() {
   return (
-    <Screen title="Аккаунт">
+    <Screen title={t.accountTitle}>
       <section className="card card-padded">
-        <p>Skill Flask · версия {__APP_VERSION__}</p>
-        <p className="hint">
-          Данные хранятся только на этом устройстве. Синхронизация между устройствами и резервная копия появятся позже.
-        </p>
+        <p>{t.version(__APP_VERSION__)}</p>
+        <p className="hint">{t.localData}</p>
       </section>
     </Screen>
   );

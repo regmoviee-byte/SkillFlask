@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "seed": "echo 'Demo data: run `npm run dev`, open the app, then in the browser console call __skillFlask.seed()'"
   },
   "dependencies": {
     "dexie": "^4.4.6",
