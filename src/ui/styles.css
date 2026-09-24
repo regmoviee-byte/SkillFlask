@@ -4,6 +4,7 @@
 
 @import './tokens.css';
 @import './motion.css';
+@import './flask.css';
 
 :root {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Roboto, 'Segoe UI', system-ui, sans-serif;
@@ -993,125 +994,366 @@ textarea.input {
 
 .skill-subtitle {
   margin-top: calc(-1 * var(--sp-2));
+  overflow: hidden;
+  color: var(--color-fg-secondary);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.flask-panel {
-  display: flex;
+/* Hero: the flask (140 px) and its numbers. */
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 140px 1fr;
   align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0 var(--sp-4);
+}
+
+.hero-flask {
+  position: relative;
+  display: flex;
   justify-content: center;
-  gap: var(--sp-6);
-  padding: var(--sp-2) 0;
 }
 
-.flask {
-  width: 120px;
-  height: 220px;
-  flex: none;
-}
-
-.flask-glass {
-  fill: var(--color-bg-elevated);
-  fill-opacity: 0.8;
-}
-
-.flask-outline {
-  fill: none;
-  stroke: var(--color-fg);
-  stroke-opacity: 0.55;
-  stroke-width: 3;
-}
-
-.flask-rim {
-  fill: var(--color-bg-elevated);
-  stroke: var(--color-fg);
-  stroke-opacity: 0.55;
-  stroke-width: 3;
-}
-
-.flask-liquid {
-  transition:
-    y var(--dur-slow) var(--ease-spring),
-    height var(--dur-slow) var(--ease-spring);
-}
-
-.flask-surface {
-  fill: rgba(255, 255, 255, 0.55);
-  transition: y var(--dur-slow) var(--ease-spring);
-}
-
-.flask-shine {
-  fill: rgba(255, 255, 255, 0.35);
-}
-
-.flask-mark {
-  stroke: var(--color-fg);
-  stroke-opacity: 0.3;
-  stroke-width: 2;
-}
-
-.flask-info {
+.hero-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 120px;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
 }
 
-.flask-level {
-  font-size: 56px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-section-header);
 }
 
-.flask-points {
-  margin-top: 6px;
-  font-size: 22px;
+.hero-laurel {
+  display: inline-flex;
+  color: var(--color-positive);
+}
+
+.hero-points {
+  margin-top: var(--sp-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-capacity {
+  color: var(--color-fg-secondary);
+}
+
+.hero-total {
+  margin-top: var(--sp-2);
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-secondary);
+  font-size: 14px;
   font-weight: 600;
 }
 
-.milestone {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Under 375 px the numeral is 48 px (tokens.css) and the column may wrap its lines. */
+@media (max-width: 374px) {
+  .hero {
+    gap: var(--sp-3);
+  }
 }
 
-.milestone-head {
+/* The flask number: two stacked spans roll vertically when it changes. */
+.roll {
+  display: inline-grid;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+.roll > span {
+  grid-area: 1 / 1;
+}
+
+.roll.is-up .roll-in {
+  animation: roll-in-up 300ms var(--ease-out);
+}
+
+.roll.is-up .roll-out {
+  animation: roll-out-up 300ms var(--ease-out) forwards;
+}
+
+.roll.is-down .roll-in {
+  animation: roll-in-down 300ms var(--ease-out);
+}
+
+.roll.is-down .roll-out {
+  animation: roll-out-down 300ms var(--ease-out) forwards;
+}
+
+@keyframes roll-in-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes roll-out-up {
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes roll-in-down {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes roll-out-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+html[data-motion='reduced'] .roll .roll-in {
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
+
+html[data-motion='reduced'] .roll .roll-out {
+  display: none;
+}
+
+/* «Колба 3» above the rim after a level-up: springs in, stays 1.6 s, fades. */
+.level-pill {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: var(--r-full);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation:
+    level-pill-in 400ms var(--ease-spring),
+    level-pill-out var(--dur-base) var(--ease-out) 1.6s forwards;
+}
+
+@keyframes level-pill-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.6);
+  }
+}
+
+@keyframes level-pill-out {
+  to {
+    opacity: 0;
+  }
+}
+
+html[data-motion='reduced'] .level-pill {
+  animation:
+    fade-in var(--dur-base) var(--ease-out),
+    level-pill-out var(--dur-base) var(--ease-out) 1.6s forwards;
+}
+
+/* «+5» flying from the ✓ into the flask (hooks/usePointsFly.ts). */
+.points-pill {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--liquid-deep);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* ---------- Milestone rack ---------- */
+
+.rack {
   display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.rack--reached {
+  box-shadow: inset 0 0 0 2px var(--color-positive);
+}
+
+:root[data-theme='dark'] .rack--reached {
+  box-shadow: inset 0 0 0 2px var(--color-positive);
+}
+
+.rack--completed {
+  background: #fbf3dc;
+}
+
+:root[data-theme='dark'] .rack--completed {
+  background: #2c2717;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .rack--completed,
+  :root[data-theme='dark'] .rack--completed {
+    background: color-mix(in srgb, var(--gold-1) 12%, var(--color-bg-elevated));
+  }
+}
+
+.rack--completed .rack-name {
+  color: var(--gold-3);
+}
+
+:root[data-theme='dark'] .rack--completed .rack-name {
+  color: var(--gold-1);
+}
+
+.rack-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
 }
 
-.milestone-name {
+.rack-name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-weight: 600;
 }
 
-.milestone-reached {
-  box-shadow: inset 0 0 0 2px var(--color-positive);
+.rack-laurel {
+  display: inline-flex;
+  color: var(--color-positive);
 }
 
-.milestone-reached .bar-fill,
-.milestone-done .bar-fill {
+.rack-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.rack-bar {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.rack-bar .bar-fill {
+  border-radius: 4px;
+}
+
+.rack--reached .rack-bar .bar-fill {
   background: var(--color-positive);
 }
 
-.milestone-text {
+.rack-text {
   font-size: 15px;
 }
 
-.history-row {
+.mini-flask-rim {
+  fill: var(--color-bg-elevated);
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1.2;
+}
+
+/* ---------- History timeline ---------- */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* Day headers stick under the screen header while their day scrolls by. */
+.timeline-day-head {
+  position: sticky;
+  top: calc(var(--safe-top) + 52px);
+  z-index: 2;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-1) 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.timeline-list {
+  position: relative;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+/* The line runs through every dot of the day. */
+.timeline-list::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 23px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-border);
+}
+
+.timeline-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  width: 100%;
   min-height: var(--row-min-height);
-  padding: 11px var(--card-padding);
+  padding: 8px var(--card-padding) 8px 44px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   content-visibility: auto;
-  contain-intrinsic-size: 0 64px;
+  contain-intrinsic-size: 0 60px;
 }
 
-.history-main {
+button.timeline-row {
+  cursor: pointer;
+}
+
+.timeline-dot {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--liquid-deep);
+  box-shadow: 0 0 0 3px var(--color-bg-elevated);
+}
+
+.timeline-dot.tone-negative {
+  background: var(--color-danger);
+}
+
+.timeline-dot.tone-muted {
+  background: var(--color-fg-tertiary);
+}
+
+.timeline-main {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -1119,40 +1361,94 @@ textarea.input {
   gap: 2px;
 }
 
-.history-name {
+.timeline-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.timeline-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.history-delta {
+.timeline-name-line .badge {
+  flex: none;
+  margin: 0;
+}
+
+.timeline-caption {
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-delta {
   flex: none;
   font-weight: 600;
   color: var(--color-positive);
+  font-variant-numeric: tabular-nums;
 }
 
-.history-delta.negative {
-  color: var(--color-fg-secondary);
-}
-
-/* A history row that opens the completion sheet. */
-button.history-row {
-  width: 100%;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.history-row.cancelled .history-name {
+.timeline-row.is-cancelled .timeline-name {
   color: var(--color-fg-tertiary);
   text-decoration: line-through;
 }
 
-.history-row.cancelled .history-delta {
-  color: var(--color-fg-tertiary);
+.timeline-row.is-cancelled .timeline-delta,
+.timeline-dot.tone-negative ~ .timeline-delta {
+  color: var(--color-fg-secondary);
+}
+
+.timeline-sep {
+  position: relative;
+  display: flex;
+  padding: 4px var(--card-padding) 4px 36px;
+}
+
+.timeline-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-chip.tone-positive {
+  background: rgba(52, 199, 89, 0.14);
+  color: #1f8a3c;
+}
+
+:root[data-theme='dark'] .timeline-chip.tone-positive {
+  color: var(--color-positive);
+}
+
+.timeline-chip.tone-gold {
+  background: rgba(224, 169, 42, 0.16);
+  color: var(--gold-3);
+}
+
+:root[data-theme='dark'] .timeline-chip.tone-gold {
+  color: var(--gold-1);
+}
+
+.timeline-chip.tone-muted {
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-secondary);
+}
+
+.timeline-more {
+  align-self: center;
+  font-size: 15px;
 }
 
 .history-note {
@@ -1163,20 +1459,110 @@ button.history-row {
   color: var(--color-fg-secondary);
 }
 
-.history-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.history-badges .badge {
-  margin: 0;
-}
-
 .badge-muted {
   background: var(--color-bg-sunken);
   color: var(--color-fg-secondary);
+}
+
+/* ---------- Celebrations ---------- */
+
+/* A flask filled away from its flask: an opaque card under the safe area, never a modal. */
+.top-card {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--sp-2));
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: min(528px, calc(100% - 2 * var(--gutter)));
+  height: 72px;
+  padding: 0 var(--card-padding);
+  border-radius: var(--r-l);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  transform: translate(-50%, -120%);
+  opacity: 0;
+  transition:
+    transform var(--dur-slow) var(--ease-spring),
+    opacity var(--dur-base) var(--ease-out);
+}
+
+:root[data-theme='dark'] .top-card {
+  box-shadow:
+    inset 0 0 0 0.5px var(--color-border),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.top-card[data-state='shown'] {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.top-card[data-state='leaving'] {
+  transition-duration: var(--dur-base);
+  transition-timing-function: var(--ease-in);
+}
+
+/* .anim-func already shrinks the transition to a fade; the card just does not slide. */
+html[data-motion='reduced'] .top-card {
+  transform: translate(-50%, 0);
+}
+
+.top-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top-card-caption {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.milestone-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  text-align: center;
+}
+
+.milestone-art {
+  margin-bottom: var(--sp-2);
+}
+
+.milestone-sheet-name {
+  color: var(--color-accent);
+}
+
+.milestone-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.milestone-tiles li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+  border-radius: var(--r-m);
+  background: var(--color-bg-sunken);
+  font-variant-numeric: tabular-nums;
+}
+
+.milestone-later {
+  align-self: center;
+  min-height: 44px;
+  font-size: 15px;
 }
 
 /* ---------- Actions card (skill screen) ---------- */
@@ -1248,18 +1634,24 @@ a.step-row {
 }
 
 .check-button {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--tap-target);
+  min-width: var(--tap-target);
   height: var(--tap-target);
-  padding: 0;
-  /* The main control of the core loop: a ring that reads outdoors (≥ 3:1), not a hairline. */
+  padding: 0 6px;
+  /* The main control of the core loop: a ring that reads outdoors (≥ 3:1), not a hairline.
+     It carries the points («+5»); a long number stretches it into a pill. */
   border: 1.5px solid var(--color-fg-tertiary);
-  border-radius: 50%;
+  border-radius: var(--r-full);
   background: none;
   color: var(--color-fg-secondary);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast), border-color var(--dur-fast), opacity var(--dur-fast);
 }
@@ -1284,6 +1676,16 @@ a.step-row {
 .check-button:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+.check-button.done .check-points {
+  visibility: hidden;
+}
+
+.check-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
 }
 
 @keyframes check-pop {
@@ -1821,11 +2223,34 @@ html[data-motion='reduced'] .toggle::after {
   zoom: 1.3;
 }
 
+.sg-flasks,
+.sg-rings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-around;
+  gap: var(--sp-3);
+}
+
+.sg-flasks .flask--hero {
+  width: 70px;
+  height: 114px;
+}
+
+.sg-flasks .flask-glow {
+  display: none;
+}
+
+.sg-flask-play {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .flask-liquid,
-  .flask-surface,
   .bar-fill,
   .toast,
   .pressable,

@@ -5,6 +5,7 @@ import { setClock } from '../lib/clock';
 import { installFreshDb, tickingClock, todayNoon, withClock } from '../test/harness';
 import { resetStoragePersistRequest } from './completions';
 import { verifyJournal } from './journal';
+import { getSkillHistory } from './history';
 import { getSkillDetails, listSkillSummaries } from './queries';
 import { getSetting } from './settings';
 import {
@@ -69,8 +70,10 @@ describe('E2E-001: full skill cycle', () => {
     d = await details(skillId);
     expect(d.milestone?.reachedAt).not.toBeNull();
     expect(d.skill.status).toBe('ACTIVE'); // not completed automatically (FR-MS-005)
-    expect(d.history).toHaveLength(12);
-    expect(d.history[0].completion?.stepName).toBe('Разговорная практика');
+    const history = (await getSkillHistory(skillId))!;
+    expect(history.operations).toBe(12);
+    const newest = history.events.find((e) => e.type === 'COMPLETION');
+    expect(newest?.type === 'COMPLETION' && newest.completion?.stepName).toBe('Разговорная практика');
 
     // One more completion after the milestone does not report it as reached again.
     expect((await completeStep(stepId)).milestoneReached).toBe(false);

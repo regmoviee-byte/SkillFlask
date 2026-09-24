@@ -42,10 +42,19 @@ const layouts: Record<SkeletonLayout, ReactNode> = {
       <Row />
     </>
   ),
+  // The hero (flask and its numbers), the milestone rack, two actions.
   skill: (
     <>
-      <Block h={220} />
-      <Block h={84} />
+      <div className="skeleton-row">
+        <Block h={228} w={140} r={28} />
+        <div className="skeleton" style={{ flex: 1, gap: 10 }}>
+          <Line w="40%" />
+          <Block h={56} w={64} r={12} />
+          <Line w="70%" />
+          <Line w="55%" />
+        </div>
+      </div>
+      <Block h={96} />
       <Row />
       <Row />
     </>

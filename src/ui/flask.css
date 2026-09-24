@@ -1,0 +1,289 @@
+/* The flask (components/Flask.tsx). Only transform and opacity move; the idle wave is the one
+   decorative loop (.anim-decor), paused by html.paused and removed under reduced motion. */
+
+.flask {
+  position: relative;
+  flex: none;
+}
+
+.flask--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.flask--mini {
+  width: 24px;
+  height: 40px;
+}
+
+.flask-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Static glow behind the glass; its opacity follows the fill (set inline). */
+.flask-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 240px;
+  height: 240px;
+  margin: -120px 0 0 -120px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--color-accent-glow), transparent);
+  filter: blur(20px);
+  pointer-events: none;
+  transition: opacity var(--dur-hero) var(--ease-out);
+}
+
+.flask--complete .flask-glow {
+  background: radial-gradient(closest-side, rgba(224, 169, 42, 0.5), transparent);
+}
+
+.flask-glass {
+  fill: var(--color-bg-elevated);
+}
+
+.flask-outline {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.45;
+  stroke-width: 3;
+}
+
+.flask-rim {
+  fill: var(--color-bg-elevated);
+  stroke: var(--color-fg);
+  stroke-opacity: 0.45;
+  stroke-width: 3;
+}
+
+.flask--mini .flask-outline,
+.flask--mini .flask-rim {
+  stroke-width: 8;
+}
+
+.liquid {
+  transition: transform var(--dur-hero) var(--ease-spring);
+}
+
+/* A scripted choreography (Flask.playLevelUp) owns the transform; transitions would fight it. */
+.flask--scripted .liquid {
+  transition: none;
+}
+
+.flask-stop-top {
+  stop-color: var(--liquid-mid);
+  transition: stop-color 1.2s var(--ease-out);
+}
+
+.flask-stop-bottom {
+  stop-color: var(--liquid-deep);
+  transition: stop-color 1.2s var(--ease-out);
+}
+
+.flask--complete .flask-stop-top {
+  stop-color: var(--gold-1);
+}
+
+.flask--complete .flask-stop-bottom {
+  stop-color: var(--gold-3);
+}
+
+.flask-wave {
+  fill: var(--liquid-light);
+  fill-opacity: 0.7;
+  transition: fill 1.2s var(--ease-out);
+}
+
+.flask-wave.anim-decor {
+  animation: flask-wave 3.2s linear infinite;
+}
+
+.flask--complete .flask-wave {
+  fill: var(--gold-1);
+}
+
+/* A sealed flask barely moves: half the wave amplitude around the surface line. */
+.flask-wave-wrap {
+  transform-origin: 80px 34px;
+  transition: transform 1.2s var(--ease-out);
+}
+
+.flask--complete .flask-wave-wrap {
+  transform: scaleY(0.5);
+}
+
+@keyframes flask-wave {
+  to {
+    transform: translateX(-160px);
+  }
+}
+
+.flask-caustic {
+  fill: #fff;
+  fill-opacity: 0.35;
+  filter: blur(2px);
+}
+
+.flask-highlight {
+  fill: #fff;
+  fill-opacity: 0.35;
+}
+
+.flask-shade {
+  fill: #000;
+  fill-opacity: 0.08;
+}
+
+.flask-tick line {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.flask-tick text {
+  fill: var(--color-fg-tertiary);
+  /* 11px on screen: the hero draws 160 units in 140px. */
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.flask-cork {
+  fill: var(--color-fg);
+  fill-opacity: 0.6;
+}
+
+/* Bubbles exist only while the liquid rises (.liquid--filling) and climb the liquid column. */
+.flask-bubbles circle {
+  fill: #fff;
+  fill-opacity: 0.55;
+  opacity: 0;
+  animation: flask-bubble 900ms var(--ease-out) infinite;
+}
+
+@keyframes flask-bubble {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--liquid-height, 96px)));
+  }
+}
+
+.flask-drops circle {
+  fill: var(--liquid-mid);
+  opacity: 0;
+}
+
+.flask-empty-ring {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+.flask-droplet {
+  fill: var(--liquid-mid);
+  opacity: 0;
+}
+
+.flask-ripple {
+  fill: none;
+  stroke: var(--liquid-deep);
+  stroke-width: 1;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+html[data-motion='reduced'] .liquid,
+html[data-motion='reduced'] .flask-glow {
+  transition: none;
+}
+
+html[data-motion='reduced'] .flask-bubbles {
+  display: none;
+}
+
+/* ---- Ring (components/Ring.tsx) ---- */
+
+.ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--color-accent-soft);
+}
+
+.ring-value {
+  fill: none;
+  stroke: var(--liquid-deep);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms var(--ease-out);
+}
+
+.ring--gold .ring-value {
+  stroke: var(--gold-2);
+}
+
+.ring-label {
+  position: relative;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-motion='reduced'] .ring-value {
+  transition: none;
+}
+
+/* ---- Mini flask of the milestone rack ---- */
+
+.mini-flask {
+  display: block;
+  width: 18px;
+  height: 30px;
+  flex: none;
+}
+
+.mini-flask-glass {
+  fill: var(--color-bg-sunken);
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1.5;
+}
+
+.mini-flask-liquid {
+  fill: var(--liquid-deep);
+}
+
+.mini-flask.is-full .mini-flask-glass {
+  stroke: var(--liquid-deep);
+}
+
+.mini-flask.is-gold .mini-flask-liquid {
+  fill: var(--gold-2);
+}
+
+.mini-flask.is-gold .mini-flask-glass {
+  stroke: var(--gold-3);
+}

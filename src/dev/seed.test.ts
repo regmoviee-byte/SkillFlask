@@ -3,6 +3,8 @@ import { db } from '../data/db';
 import type { PointTransaction, StepCompletion } from '../domain/types';
 import { newId } from '../lib/ids';
 import { verifyJournal } from '../services/journal';
+import { isTransactionEvent } from '../domain/events';
+import { getSkillHistory } from '../services/history';
 import { getSkillDetails, listSkillSummaries } from '../services/queries';
 import { createSkill, createStep } from '../services/skills';
 import { installFreshDb } from '../test/harness';
@@ -25,7 +27,8 @@ describe('seedDemoData', () => {
     const english = await getSkillDetails(summary.skillIds[0]);
     expect(english?.milestone?.targetFlaskNumber).toBe(10);
     // Timestamps are backdated, so history spans the seeded period.
-    const dates = english!.history.map((h) => h.completion!.date);
+    const history = await getSkillHistory(summary.skillIds[0], 1000);
+    const dates = history!.events.filter(isTransactionEvent).map((e) => e.completion!.date);
     expect(new Set(dates).size).toBeGreaterThan(1);
   });
 
@@ -46,7 +49,7 @@ describe('seedDemoData', () => {
 });
 
 describe('read-model performance', () => {
-  it('builds skill details from 5 000 transactions under 200 ms', async () => {
+  it('builds skill details and the history from 5 000 transactions under 200 ms each', async () => {
     const skillId = await createSkill({
       name: 'Нагрузка',
       description: '',
@@ -89,15 +92,24 @@ describe('read-model performance', () => {
       await db.transactions.bulkAdd(transactions);
     });
 
-    // Best of three: fake-indexeddb timing jitters on a loaded CI runner, the read model does not.
-    let best = Infinity;
-    for (let run = 0; run < 3; run++) {
-      const started = performance.now();
-      const details = await getSkillDetails(skillId);
-      best = Math.min(best, performance.now() - started);
-      expect(details?.history).toHaveLength(5000);
-      expect(details?.progress.totalPoints).toBe(25000);
+    // One untimed warm-up (JIT, fake-indexeddb indexes), then the median of three runs: a single
+    // slow outlier on a loaded CI runner does not fail it, a slow read model does.
+    async function median(read: () => Promise<unknown>): Promise<number> {
+      await read();
+      const runs: number[] = [];
+      for (let run = 0; run < 3; run++) {
+        const started = performance.now();
+        await read();
+        runs.push(performance.now() - started);
+      }
+      return runs.sort((a, b) => a - b)[1]!;
     }
-    expect(best).toBeLessThan(200);
+    const details = await getSkillDetails(skillId);
+    expect(details?.progress.totalPoints).toBe(25000);
+    const history = await getSkillHistory(skillId);
+    expect(history?.operations).toBe(5000);
+    expect(history?.events.filter(isTransactionEvent)).toHaveLength(20);
+    expect(await median(() => getSkillDetails(skillId))).toBeLessThan(200);
+    expect(await median(() => getSkillHistory(skillId))).toBeLessThan(200);
   });
 });

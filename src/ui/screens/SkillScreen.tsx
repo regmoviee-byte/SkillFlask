@@ -1,24 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getSkillDetails, type HistoryEntry, type SkillDetails } from '../../services/queries';
-import { completeSkill, continueAfterMilestone } from '../../services/skills';
+import { fromDeci, toDeci } from '../../domain/points';
+import type { Progress } from '../../domain/progression';
+import { getSkillHistory, HISTORY_PAGE } from '../../services/history';
+import { getSkillDetails, type SkillDetails } from '../../services/queries';
 import { setStepActive } from '../../services/steps';
-import { canCompleteSkill } from '../../domain/milestone';
-import { formatDate } from '../../lib/dates';
-import { formatDelta, formatNumber } from '../../lib/format';
-import { dialogs } from '../../platform/dialogs';
+import { formatNumber } from '../../lib/format';
 import { haptics } from '../../platform/haptics';
+import { useCelebrationStage } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
-import { Flask } from '../components/Flask';
+import { EmptyState } from '../components/EmptyState';
+import { Flask, type FlaskHandle } from '../components/Flask';
 import { Icon } from '../components/Icon';
+import { MilestoneRack } from '../components/MilestoneRack';
 import { Screen } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { StepRow } from '../components/StepRow';
+import { Timeline } from '../components/Timeline';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { useCountUp } from '../hooks/useCountUp';
 import { useToday } from '../hooks/useToday';
 import { CompletionSheet } from '../sheets/CompletionSheet';
+
+// Wireframe 2: the flask as the hero with the flask number in big numerals, the milestone
+// rack, the actions with their ✓ and the history as a timeline. What the hero shows can be
+// frozen for a moment by a celebration (useCelebrationStage), so the points fly in first.
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -30,7 +38,7 @@ export function SkillScreen() {
   if (details === null) {
     return (
       <Screen title={copy.common.skill} back="/skills">
-        <p className="hint center">{copy.common.skillNotFound}</p>
+        <EmptyState illustration="skills" title={t.notFoundTitle} text={t.notFoundText} action={{ label: t.toSkills, to: '/skills', replace: true }} />
       </Screen>
     );
   }
@@ -45,8 +53,8 @@ export function SkillScreen() {
       action={
         skill &&
         active && (
-          <Link to={`/skills/${skill.id}/edit`} className="text-button">
-            {t.edit}
+          <Link to={`/skills/${skill.id}/edit`} className="icon-button" aria-label={t.edit}>
+            <Icon name="edit" size={22} />
           </Link>
         )
       }
@@ -62,57 +70,149 @@ export function SkillScreen() {
       }
     >
       <Skeleton layout="skill" loading={details === undefined}>
-        {details && <SkillContent details={details} />}
+        {details && <SkillContent details={details} today={today} />}
       </Skeleton>
     </Screen>
   );
 }
 
-function SkillContent({ details }: { details: SkillDetails }) {
-  const { skill, progress } = details;
+function SkillContent({ details, today }: { details: SkillDetails; today: string }) {
+  const { skill } = details;
   const active = skill.status === 'ACTIVE';
   const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
   const t = copy.skill;
   const [openCompletion, setOpenCompletion] = useState<string | null>(null);
+  const [limit, setLimit] = useState(HISTORY_PAGE);
+  // `today` re-keys the query so «Сегодня / Вчера» move on at midnight.
+  const history = useLiveQuery(() => getSkillHistory(skill.id, limit), [skill.id, limit, today]);
+  const stage = useCelebrationStage(skill.id, details.progress);
+  const progress = stage.shown ?? details.progress;
+  const hasOperations = history ? history.operations > 0 : true;
 
   return (
     <>
-      {(labels || skill.description) && (
-        <p className="hint center skill-subtitle">{[labels, skill.description].filter(Boolean).join(' · ')}</p>
-      )}
+      {(labels || skill.description) && <p className="t-caption skill-subtitle">{[labels, skill.description].filter(Boolean).join(' · ')}</p>}
 
-      <section className="flask-panel">
-        <Flask fill={progress.fill} />
-        <div className="flask-info">
-          <span className="hint t-label">{t.flask}</span>
-          <span className="flask-level">{progress.currentFlask}</span>
-          <span className="flask-points">
-            {formatNumber(progress.pointsInCurrentFlask)} <span className="hint">/ {formatNumber(progress.currentCapacity)}</span>
-          </span>
-          <span className="hint">{t.percentFilled(Math.floor(progress.fill * 100))}</span>
-          <span className="hint small">{t.total(progress.totalPoints)}</span>
-        </div>
-      </section>
+      <Hero details={details} progress={progress} flaskRef={stage.flaskRef} pill={stage.pill} announcement={stage.announcement} />
+
+      <MilestoneRack skill={skill} milestone={details.milestone} progress={progress} />
 
       <ActionsCard details={details} />
 
-      <MilestoneCard details={details} />
-
-      <section>
+      <section className="history">
         <h2 className="section-title">{t.history}</h2>
-        {details.history.length === 0 ? (
-          <p className="hint card card-padded">{active ? t.historyEmptyActive : t.historyEmptyInactive}</p>
+        {!history ? null : !hasOperations ? (
+          <div className="card">
+            <EmptyState illustration="history" title={t.historyEmptyTitle} text={active ? t.historyEmptyActive : t.historyEmptyInactive} />
+          </div>
         ) : (
-          <ul className="card list">
-            {details.history.map((entry) => (
-              <HistoryRow key={entry.transaction.id} entry={entry} onOpen={setOpenCompletion} />
-            ))}
-          </ul>
+          <Timeline events={history.events} today={today} hasMore={history.hasMore} onMore={() => setLimit((n) => n + HISTORY_PAGE)} onOpen={setOpenCompletion} />
         )}
       </section>
 
       <CompletionSheet completionId={openCompletion} onClose={() => setOpenCompletion(null)} />
     </>
+  );
+}
+
+interface HeroProps {
+  details: SkillDetails;
+  progress: Progress;
+  flaskRef: RefObject<FlaskHandle | null>;
+  pill: { key: number; flask: number } | null;
+  announcement: string;
+}
+
+function Hero({ details: { skill, milestone }, progress: p, flaskRef, pill, announcement }: HeroProps) {
+  const t = copy.skill;
+  const completed = skill.status === 'COMPLETED';
+  const laurel = skill.status === 'ACTIVE' && milestone?.reachedAt != null;
+  const percent = Math.floor(p.fill * 100);
+  const left = fromDeci(toDeci(p.currentCapacity) - toDeci(p.pointsInCurrentFlask));
+
+  return (
+    <section className="hero">
+      <div className="hero-flask">
+        <Flask
+          ref={flaskRef}
+          size="hero"
+          fill={p.fill}
+          // A sealed flask has no current capacity to measure against.
+          capacity={completed ? undefined : p.currentCapacity}
+          state={completed ? 'complete' : p.totalPoints === 0 ? 'empty' : 'active'}
+          label={completed ? t.completedFlaskLabel(p.completedFlasks) : t.flaskLabel(p.currentFlask, p.pointsInCurrentFlask, p.currentCapacity, percent)}
+        />
+        {pill && (
+          <span key={pill.key} className="level-pill" aria-hidden="true">
+            {t.levelPill(pill.flask)}
+          </span>
+        )}
+      </div>
+      <div className="hero-info">
+        <span className="hero-eyebrow t-label">
+          {completed ? t.reached : t.flask}
+          {laurel && (
+            <span className="hero-laurel" role="img" aria-label={t.milestoneReachedIcon}>
+              <Icon name="laurel" size={16} />
+            </span>
+          )}
+        </span>
+        <RollNumber value={completed ? p.completedFlasks : p.currentFlask} />
+        {completed ? (
+          <p className="hero-points t-title-m">{t.flasksDone(p.completedFlasks)}</p>
+        ) : (
+          <>
+            <p className="hero-points t-title-m">
+              {/* A new flask starts its count from its own remainder, not from the old flask's points. */}
+              <CountUp key={p.currentFlask} value={p.pointsInCurrentFlask} /> <span className="hero-capacity">/ {formatNumber(p.currentCapacity)}</span>
+            </p>
+            <p className="t-caption hint">{t.toNext(percent, left, p.currentFlask + 1)}</p>
+          </>
+        )}
+        <span className="hero-total">{t.total(p.totalPoints)}</span>
+      </div>
+      <span className="visually-hidden" aria-live="polite">
+        {announcement}
+      </span>
+    </section>
+  );
+}
+
+function CountUp({ value }: { value: number }) {
+  const shown = useCountUp(value);
+  // Whole points count in whole steps; tenths only when the value has them.
+  return <>{formatNumber(Number.isInteger(value) ? Math.round(shown) : Math.round(shown * 10) / 10)}</>;
+}
+
+const ROLL_MS = 300;
+
+/** The flask number: rolls vertically (300 ms) when it changes; a crossfade under reduced motion. */
+function RollNumber({ value }: { value: number }) {
+  const [roll, setRoll] = useState<{ current: number; previous: number | null; up: boolean; key: number }>({
+    current: value,
+    previous: null,
+    up: true,
+    key: 0,
+  });
+  if (roll.current !== value) setRoll({ current: value, previous: roll.current, up: value > roll.current, key: roll.key + 1 });
+
+  useEffect(() => {
+    if (roll.previous === null) return;
+    const timer = window.setTimeout(() => setRoll((r) => ({ ...r, previous: null })), ROLL_MS + 50);
+    return () => window.clearTimeout(timer);
+  }, [roll.key, roll.previous]);
+
+  return (
+    <span className={`roll t-display-xl${roll.up ? ' is-up' : ' is-down'}`}>
+      {roll.previous !== null && (
+        <span key={`out-${roll.key}`} className="roll-out" aria-hidden="true">
+          {roll.previous}
+        </span>
+      )}
+      <span key={`in-${roll.key}`} className={roll.key > 0 ? 'roll-in' : undefined}>
+        {roll.current}
+      </span>
+    </span>
   );
 }
 
@@ -219,148 +319,5 @@ function ActionsCard({ details: { skill, steps, hiddenSteps, todayCounts } }: { 
         </Link>
       )}
     </section>
-  );
-}
-
-function MilestoneCard({ details: { skill, milestone, progress } }: { details: SkillDetails }) {
-  const { showToast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const t = copy.milestone;
-  if (!milestone) return null;
-
-  const done = Math.min(progress.completedFlasks, milestone.targetFlaskNumber);
-  const reached = milestone.reachedAt !== null;
-  const percent = Math.round((done / milestone.targetFlaskNumber) * 100);
-
-  function fail(e: unknown) {
-    haptics.error();
-    showToast(e instanceof Error ? e.message : copy.errors.save);
-  }
-
-  async function finish() {
-    // Rule: dialogs.confirm runs synchronously in the click handler, before any await, so the
-    // native dialog keeps its user-gesture context (and Telegram's showConfirm is not queued).
-    const ok = await dialogs.confirm(t.confirmFinish(skill.name), { okLabel: t.finish });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await completeSkill(skill.id);
-      haptics.milestone();
-      showToast(copy.toast.skillCompleted);
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function keepGoing() {
-    setBusy(true);
-    try {
-      await continueAfterMilestone(skill.id);
-      haptics.tap();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (skill.status === 'COMPLETED') {
-    return (
-      <section className="card card-padded milestone milestone-done">
-        <div className="milestone-head">
-          <span className="milestone-name">
-            <Icon name="trophy" size={20} />
-            {milestone.name}
-          </span>
-        </div>
-        <p className="hint">{t.completedAt(skill.completedAt!, progress.completedFlasks)}</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className={`card card-padded milestone${reached ? ' milestone-reached' : ''}`}>
-      <div className="milestone-head">
-        <span className="milestone-name">
-          <Icon name="flag" size={20} />
-          {milestone.name}
-        </span>
-        <span className="hint">{t.progress(done, milestone.targetFlaskNumber)}</span>
-      </div>
-      <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={t.progress(done, milestone.targetFlaskNumber)}>
-        <div className="bar-fill" style={{ width: `${percent}%` }} />
-      </div>
-      {reached && (
-        <>
-          <p className="milestone-text">
-            {t.reachedAt(milestone.reachedAt!)} {milestone.decision === 'CONTINUE' ? t.continuing : t.decide}
-          </p>
-          {canCompleteSkill(skill, milestone) && (
-            <div className="button-row">
-              <button type="button" className="button button-primary" disabled={busy} onClick={finish}>
-                {t.finish}
-              </button>
-              {milestone.decision !== 'CONTINUE' && (
-                <button type="button" className="button" disabled={busy} onClick={keepGoing}>
-                  {t.keepGoing}
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-function HistoryRow({ entry, onOpen }: { entry: HistoryEntry; onOpen(completionId: string): void }) {
-  const { transaction, completion, after, levelChange } = entry;
-  const t = copy.history;
-  const isCompletion = transaction.reason === 'COMPLETION';
-  const cancelled = isCompletion && completion?.status === 'CANCELLED';
-  const name = !completion
-    ? t.correction
-    : transaction.reason === 'CANCELLATION'
-      ? t.cancellationOf(completion.stepName)
-      : transaction.reason === 'RESTORE'
-        ? t.restoreOf(completion.stepName)
-        : transaction.reason === 'CORRECTION'
-          ? t.correctionOf(completion.stepName)
-          : completion.stepName;
-  // The completion row carries the day it was done; later rows the day they were written.
-  const date = isCompletion && completion ? completion.date : transaction.createdAt;
-
-  const content = (
-    <>
-      <span className="history-main">
-        <span className="history-name">{name}</span>
-        <span className="hint small">
-          {formatDate(date)} · {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
-        </span>
-        {isCompletion && completion?.note && <span className="history-note">{completion.note}</span>}
-        {(cancelled || levelChange !== 0) && (
-          <span className="history-badges">
-            {cancelled && <span className="badge badge-muted">{t.cancelledBadge}</span>}
-            {levelChange > 0 && (
-              <span className="badge">{levelChange === 1 ? t.flaskFilledBadge(after.completedFlasks) : t.flasksFilledBadge(levelChange)}</span>
-            )}
-            {levelChange < 0 && <span className="badge badge-muted">{t.flaskRollbackBadge(after.currentFlask)}</span>}
-          </span>
-        )}
-      </span>
-      <span className={`history-delta${transaction.delta < 0 ? ' negative' : ''}`}>{formatDelta(transaction.delta)}</span>
-    </>
-  );
-
-  const className = `history-row${cancelled ? ' cancelled' : ''}`;
-  if (!completion) return <li className={className}>{content}</li>;
-  return (
-    <li>
-      <button type="button" className={`${className} pressable-row`} onClick={() => onOpen(completion.id)}>
-        {content}
-      </button>
-    </li>
   );
 }

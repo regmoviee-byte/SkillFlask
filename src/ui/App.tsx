@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router';
 import { flushCloudBackup } from '../services/backupSync';
 import { getSetting } from '../services/settings';
 import { useAppLifecycle } from '../platform/telegram';
+import { CelebrationProvider } from './celebrations/CelebrationProvider';
 import { DialogHost } from './components/DialogHost';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isTabRoute, TabBar, TabBarContext } from './components/TabBar';
@@ -43,38 +44,41 @@ function Shell() {
   return (
     <TabBarContext.Provider value={hasTabBar}>
       <ToastProvider routeKey={location.pathname}>
-        <div className="app">
-          <ErrorBoundary>
-            <Routes>
-              <Route path="/" element={<Navigate to="/skills" replace />} />
-              <Route path="/today" element={<TodayScreen />} />
-              <Route path="/skills" element={<SkillsScreen />} />
-              <Route path="/skills/new" element={<SkillFormScreen />} />
-              <Route path="/skills/:skillId" element={<SkillScreen />} />
-              <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
-              <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
-              <Route path="/steps/new" element={<StepFormScreen />} />
-              <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
-              <Route path="/achievements" element={<AchievementsScreen />} />
-              <Route path="/settings" element={<SettingsScreen />} />
-              <Route path="/todo" element={<Navigate to="/today" replace />} />
-              <Route path="/account" element={<Navigate to="/settings" replace />} />
-              {StyleguideScreen && (
-                <Route
-                  path="/styleguide"
-                  element={
-                    <Suspense fallback={null}>
-                      <StyleguideScreen />
-                    </Suspense>
-                  }
-                />
-              )}
-              <Route path="*" element={<Navigate to="/skills" replace />} />
-            </Routes>
-          </ErrorBoundary>
-          {hasTabBar && <TabBar />}
-        </div>
-        <DialogHost />
+        {/* Reward moments (flask level-up, TopCard, milestone sheet) toast through the provider above. */}
+        <CelebrationProvider>
+          <div className="app">
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={<Navigate to="/skills" replace />} />
+                <Route path="/today" element={<TodayScreen />} />
+                <Route path="/skills" element={<SkillsScreen />} />
+                <Route path="/skills/new" element={<SkillFormScreen />} />
+                <Route path="/skills/:skillId" element={<SkillScreen />} />
+                <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
+                <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
+                <Route path="/steps/new" element={<StepFormScreen />} />
+                <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
+                <Route path="/achievements" element={<AchievementsScreen />} />
+                <Route path="/settings" element={<SettingsScreen />} />
+                <Route path="/todo" element={<Navigate to="/today" replace />} />
+                <Route path="/account" element={<Navigate to="/settings" replace />} />
+                {StyleguideScreen && (
+                  <Route
+                    path="/styleguide"
+                    element={
+                      <Suspense fallback={null}>
+                        <StyleguideScreen />
+                      </Suspense>
+                    }
+                  />
+                )}
+                <Route path="*" element={<Navigate to="/skills" replace />} />
+              </Routes>
+            </ErrorBoundary>
+            {hasTabBar && <TabBar />}
+          </div>
+          <DialogHost />
+        </CelebrationProvider>
       </ToastProvider>
     </TabBarContext.Provider>
   );

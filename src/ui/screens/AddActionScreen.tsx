@@ -5,6 +5,7 @@ import { getSkillDetails } from '../../services/queries';
 import { completeStep } from '../../services/completions';
 import { localDate } from '../../lib/dates';
 import { haptics } from '../../platform/haptics';
+import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { announceCompletion, errorMessage } from '../completionFeedback';
 import { EmptyState } from '../components/EmptyState';
 import { Screen, useGoBack } from '../components/Screen';
@@ -24,6 +25,7 @@ export function AddActionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { showToast } = useToast();
+  const { celebrateResult } = useCelebrations();
   const navigate = useNavigate();
   const goBack = useGoBack(`/skills/${skillId}`);
   const back = `/skills/${skillId}`;
@@ -45,8 +47,10 @@ export function AddActionScreen() {
     setError(null);
     try {
       const result = await completeStep(selectedStep.id, { date });
-      // The toast carries «Отменить» and outlives the navigation back to the skill.
+      // The toast carries «Отменить» and outlives the navigation back to the skill; a filled
+      // flask is told by the TopCard (the flask itself is not on this screen).
       announceCompletion(result, selectedStep.name, showToast);
+      void celebrateResult(result, { skillId, flaskRef: null, afterNavigation: true });
       goBack();
     } catch (e) {
       haptics.error();

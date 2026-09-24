@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { setClock } from '../lib/clock';
 import { newId } from '../lib/ids';
+import { nowIso } from '../lib/dates';
 import { installFreshDb, tickingClock, todayNoon } from '../test/harness';
 import type { StepCompletion } from '../domain/types';
 import {
@@ -15,6 +16,7 @@ import {
 } from './completions';
 import { registerAfterCommitHook, registerInTransactionHook } from './afterWrite';
 import { DoubleSubmitError } from './core';
+import { getSkillHistory } from './history';
 import { getSkillDetails } from './queries';
 import { completeSkill, createSkill, ValidationError, type SkillInput } from './skills';
 import { createStep } from './steps';
@@ -72,14 +74,19 @@ describe('E2E-002: cancelling a completion rolls the flask back', () => {
 
     const d = await details(skillId);
     expect(d.progress).toMatchObject({ currentFlask: 1, pointsInCurrentFlask: 96 });
-    // Newest first: the CANCELLATION row, then the original completion (kept, now CANCELLED).
-    expect(d.history.map((h) => [h.transaction.reason, h.transaction.delta])).toEqual([
+    // Newest first: the CANCELLATION row with its «Возврат к колбе 1», then the original
+    // completion (kept, now CANCELLED) with the flask it filled.
+    const history = (await getSkillHistory(skillId))!;
+    expect(history.events.map((e) => [e.type, 'delta' in e ? e.delta : null])).toEqual([
+      ['LEVEL_DOWN', null],
       ['CANCELLATION', -5],
+      ['LEVEL_UP', null],
       ['COMPLETION', 5],
       ['COMPLETION', 96],
+      ['SKILL_CREATED', null],
     ]);
-    expect(d.history[0].levelChange).toBe(-1);
-    expect(d.history[1].completion?.status).toBe('CANCELLED');
+    const second = history.events[3];
+    expect(second?.type === 'COMPLETION' && second.completion?.status).toBe('CANCELLED');
   });
 
   it('rejects a second cancel and a missing completion', async () => {
@@ -149,7 +156,9 @@ describe('correctDuration', () => {
     const skillId = await createSkill(skillInput);
     const stepId = await createStep({ skillId, name: 'Чтение', points: 1 });
     await db.steps.update(stepId, { type: 'TIMED', pointsPerMinute: 0.5, defaultMinutes: 30 });
-    const now = new Date().toISOString();
+    // The injectable clock, like the service: the real time would sort after the corrections
+    // written by the ticking clock (it starts at local noon) whenever the test runs after noon.
+    const now = nowIso();
     const completion: StepCompletion = {
       id: newId(),
       skillId,

@@ -51,15 +51,17 @@ describe('copy dictionary', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('limits emoji and exclamation marks to the two celebration toasts', () => {
+  it('limits emoji and exclamation marks to the skill-completed toast', () => {
     const loud = new Set(strings.filter(([, text]) => /[!\u{1F300}-\u{1FAFF}]/u.test(text)).map(([path]) => path.replace(/\(.*$/, '')));
-    expect([...loud].sort()).toEqual(['copy.toast.milestoneReached', 'copy.toast.skillCompleted']);
+    expect([...loud].sort()).toEqual(['copy.toast.skillCompleted']);
   });
 
-  it('names the filled flask and the carried remainder', () => {
-    expect(copy.toast.flaskFilled(1, 1)).toBe('Колба 1 заполнена · остаток 1 очко');
-    expect(copy.toast.flaskFilled(2, 5, 2)).toBe('Заполнено колб: 2 · остаток 5 очков');
-    expect(copy.toast.flaskFilled(2, 0)).toBe('Колба 2 заполнена');
+  it('names the filled flasks and the way back in the history', () => {
+    expect(copy.history.flaskFilled(2)).toBe('Колба 2 заполнена');
+    expect(copy.history.flaskFilled(3, 2)).toBe('Колбы 2–3 заполнены');
+    expect(copy.history.flaskRollback(1)).toBe('Возврат к колбе 1');
+    expect(copy.skill.toNext(42, 58, 4)).toBe('42% · ещё 58 до колбы 4');
+    expect(copy.skill.flaskLabel(3, 42, 100, 42)).toBe('Колба 3: 42 из 100, 42%');
   });
 
   it('describes a completion toast and its undo', () => {

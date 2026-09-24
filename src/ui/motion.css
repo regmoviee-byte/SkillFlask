@@ -29,6 +29,11 @@ html[data-motion='reduced'] .anim-decor {
   animation: none !important;
 }
 
+/* The page is hidden (components/Flask.tsx toggles html.paused on visibilitychange). */
+html.paused .anim-decor {
+  animation-play-state: paused;
+}
+
 html[data-motion='reduced'] .anim-func {
   transition-property: opacity;
   transition-duration: var(--dur-fast);

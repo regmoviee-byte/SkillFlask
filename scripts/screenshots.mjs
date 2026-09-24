@@ -137,18 +137,47 @@ await shot('toast-undo');
 await page.getByRole('button', { name: 'Отменить', exact: true }).click();
 await page.getByText('Отменено · Колба 1: 0/10').waitFor();
 await shot('toast-undone');
+// 9 × 5 = 45 = 10 + 15 + 20: flask 1 fills on the 2nd tap, flask 2 on the 5th, and the 9th
+// reaches the milestone of three flasks. A fill plays on the flask itself: no overlay, a pill.
 for (let i = 0; i < 9; i++) {
   await tapCheck();
+  if (i === 1) {
+    await page.locator('.level-pill', { hasText: 'Колба 2' }).waitFor();
+    if (await page.locator('.sheet').count()) errors.push('a flask fill opened a sheet');
+    await shot('skill-levelup');
+  }
   if (i === 2) await shot('skill-progress');
 }
+// The milestone is a sheet with «Решу позже»; the decision stays on the rack.
+const milestoneSheet = page.locator('.milestone-sheet');
+await milestoneSheet.getByText('Веха достигнута', { exact: true }).waitFor();
+await milestoneSheet.getByText('Достичь C1').waitFor();
+await shot('milestone-sheet');
+await milestoneSheet.getByRole('button', { name: 'Решу позже' }).click();
+await milestoneSheet.waitFor({ state: 'detached' });
 await page.getByRole('button', { name: 'Завершить', exact: true }).waitFor();
 await shot('skill-milestone');
+// A 360 px phone: the flask number drops to 48 px and nothing scrolls sideways.
+await page.setViewportSize({ width: 360, height: 780 });
+await page.waitForTimeout(200);
+const narrow = await page.evaluate(() => ({
+  numeral: getComputedStyle(document.querySelector('.roll')).fontSize,
+  overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+}));
+if (narrow.numeral !== '48px') errors.push(`the flask number is ${narrow.numeral} at 360 px, expected 48px`);
+if (narrow.overflow > 0) errors.push(`the skill screen scrolls sideways by ${narrow.overflow}px at 360 px`);
+await shot('skill-360');
+await page.setViewportSize(contextOptions.viewport);
 
-// History: the cancelled completion stays, struck through; a row opens the completion sheet.
+// History: grouped by day with separators; the cancelled completion stays, struck through;
+// a row opens the completion sheet.
 await page.waitForTimeout(6000); // let the toast time out
 await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await page.getByText('Веха «Достичь C1» достигнута').waitFor();
+await page.getByText('Колба 2 заполнена').waitFor();
+if (!(await page.locator('.timeline-row.is-cancelled').count())) errors.push('the cancelled completion is not struck through in the timeline');
 await shot('history');
-await page.locator('button.history-row').first().click();
+await page.locator('button.timeline-row').first().click();
 const sheet = page.locator('.completion-sheet');
 await sheet.waitFor();
 await sheet.getByLabel('Заметка').fill('Говорили про путешествия, 20 минут без пауз.');
@@ -158,7 +187,7 @@ await page.getByText('Заметка сохранена').waitFor();
 await sheet.waitFor({ state: 'detached' });
 await page.getByText('Говорили про путешествия', { exact: false }).first().waitFor();
 // Cancel from the sheet, through the confirmation, then restore it.
-await page.locator('button.history-row').first().click();
+await page.locator('button.timeline-row').first().click();
 await sheet.getByRole('button', { name: 'Отменить выполнение' }).click();
 const confirmSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Оставить' }) });
 await confirmSheet.waitFor();
@@ -166,12 +195,15 @@ await shot('completion-confirm-cancel');
 await confirmSheet.getByRole('button', { name: 'Отменить', exact: true }).click();
 await page.getByText(/^Отменено · Колба/).waitFor();
 await sheet.waitFor({ state: 'detached' });
-await page.locator('button.history-row.cancelled').first().click();
+await page.locator('button.timeline-row.is-cancelled').first().click();
 await sheet.getByRole('button', { name: 'Вернуть' }).click();
 await page.getByText('Возвращено').waitFor();
 await sheet.waitFor({ state: 'detached' });
+// That completion reached the milestone: «Вернуть» reaches it again, and the sheet says so again.
+await milestoneSheet.getByRole('button', { name: 'Решу позже' }).click();
+await milestoneSheet.waitFor({ state: 'detached' });
 // A typed note survives dismissing the sheet without «Сохранить».
-await page.locator('button.history-row').first().click();
+await page.locator('button.timeline-row').first().click();
 await sheet.getByLabel('Заметка').fill('Короткая заметка без кнопки');
 await page.keyboard.press('Escape');
 await page.getByText('Заметка сохранена').waitFor();
@@ -204,7 +236,16 @@ await dialog.waitFor();
 await shot('confirm-sheet');
 await dialog.getByRole('button', { name: 'Завершить' }).click();
 await page.getByText(/Навык достигнут/).first().waitFor();
+// The flask turns gold and gets its cork.
+await page.locator('.flask--complete .flask-cork').waitFor();
+// The confirmation sheet restores the scroll position when it unmounts; scroll up after it.
+await dialog.waitFor({ state: 'detached' });
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.waitForTimeout(1300);
 await shot('skill-completed');
+await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await shot('history-completed');
+await page.evaluate(() => window.scrollTo(0, 0));
 
 await page.reload();
 await page.getByText(/Навык достигнут/).first().waitFor();
@@ -228,17 +269,26 @@ await settled();
 await shot('step-form-chip');
 await page.getByRole('button', { name: 'Создать действие' }).click();
 await check.click();
-await page.getByRole('status').getByText('Заполнено колб: 2').waitFor();
-await shot('toast-flasks-filled');
+// Two flasks at once: compressed drain/refill cycles, then the pill names the flask now filling.
+await page.locator('.level-pill', { hasText: 'Колба 3' }).waitFor();
+await page.getByRole('status').getByText('+25 · Тренировка').waitFor();
+await shot('levelup-two-flasks');
 
-// «Задним числом»: the full-screen form for another date.
+// «Задним числом»: the full-screen form for another date. A fill recorded there is told by
+// the TopCard on the way back (the flask is not on that screen).
+await idleCheck.waitFor();
 await page.getByRole('link', { name: 'Задним числом' }).click();
 await page.getByRole('button', { name: 'Отметить выполненным' }).waitFor();
+await page.getByText('Тренировка', { exact: true }).click();
 await shot('backdate');
-await page.getByRole('button', { name: 'Назад' }).click();
+await page.getByRole('button', { name: 'Отметить выполненным' }).click();
+await page.locator('.top-card', { hasText: 'Колба заполнена' }).waitFor();
+await page.waitForTimeout(500);
+await shot('topcard');
+await page.locator('.top-card').waitFor({ state: 'detached' });
 
 // Edit form: the delete confirmation is a danger sheet; cancel it.
-await page.getByRole('link', { name: 'Изм.' }).click();
+await page.getByRole('link', { name: 'Изменить навык' }).click();
 await page.getByRole('button', { name: 'Удалить навык' }).click();
 await dialog.waitFor();
 await shot('confirm-delete-sheet');
@@ -328,6 +378,23 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
   await shot('styleguide-sheet');
   await page.locator('.sheet-scrim').click({ position: { x: 20, y: 20 } });
   await page.getByRole('dialog').waitFor({ state: 'detached' });
+  // The flask: states, the level-up choreography mid-flight, rings, the milestone sheet, the TopCard.
+  await page.getByRole('button', { name: 'Play level-up', exact: true }).scrollIntoViewIfNeeded();
+  await shot('styleguide-flask');
+  await page.getByRole('button', { name: 'Play level-up', exact: true }).click();
+  await page.waitForTimeout(900); // rise done, overflow burst on screen
+  await page.screenshot({ path: `${outDir}/${String(++n).padStart(2, '0')}-styleguide-levelup-overflow.png` });
+  await page.waitForTimeout(3000);
+  await page.getByRole('button', { name: 'Лист вехи' }).click();
+  await page.locator('.milestone-sheet').waitFor();
+  await shot('styleguide-milestone-sheet');
+  await page.locator('.milestone-sheet').getByRole('button', { name: 'Решу позже' }).click();
+  await page.locator('.milestone-sheet').waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'TopCard' }).click();
+  await page.locator('.top-card').waitFor();
+  await shot('styleguide-topcard');
+  await page.locator('.top-card').click();
+  await page.locator('.top-card').waitFor({ state: 'detached' });
   await page.getByRole('button', { name: 'Контекстный лист' }).click();
   await page.getByRole('dialog').waitFor();
   await shot('styleguide-context-sheet');

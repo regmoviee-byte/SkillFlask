@@ -4,6 +4,7 @@ import { setClock } from '../lib/clock';
 import { installFreshDb, tickingClock, todayNoon } from '../test/harness';
 import { localDate } from '../lib/dates';
 import { cancelCompletion, completeStep } from './completions';
+import { getSkillHistory } from './history';
 import { getSkillDetails } from './queries';
 import { completeSkill, createSkill, ValidationError, type SkillInput } from './skills';
 import { createStep, getStep, setStepActive, updateStep } from './steps';
@@ -69,7 +70,7 @@ describe('setStepActive', () => {
     let d = await details(skillId);
     expect(d.steps.map((s) => s.name)).toEqual(['Разговор']);
     expect(d.hiddenSteps.map((s) => s.name)).toEqual(['Чтение']);
-    expect(d.history).toHaveLength(1);
+    expect((await getSkillHistory(skillId))?.operations).toBe(1);
     expect(d.progress.totalPoints).toBe(7);
     expect(d.lastDoneAt[reading]).not.toBeNull();
     // A hidden step cannot be completed.

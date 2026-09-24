@@ -56,7 +56,8 @@ describe('restore offer on start', () => {
     await seedCloudCopy();
     app();
     expect(await screen.findByText(/^Найдена резервная копия от .+: 1 навык, 0 выполнений\. Восстановить\?$/)).toBeTruthy();
-    expect(fake.calls.some((call) => call.startsWith('MainButton.setParams') && call.includes('Восстановить'))).toBe(true);
+    // The native button is configured in an effect that may land after the text is on screen.
+    await waitFor(() => expect(fake.calls.some((call) => call.startsWith('MainButton.setParams') && call.includes('Восстановить'))).toBe(true));
 
     fireEvent.click(screen.getByRole('button', { name: 'Начать с чистого листа' }));
     expect(await screen.findByText('приложение')).toBeTruthy();

@@ -1,6 +1,7 @@
 // What the user feels and reads after a completion: haptics, one toast with «Отменить» for
 // 6 s, and the undo itself (a CANCELLATION row, never a delete). Shared by the step row, the
-// «Задним числом» screen and, in package 6, the Today tab.
+// «Задним числом» screen and, in package 6, the Today tab. A filled flask or a reached
+// milestone is celebrated on top of this by celebrations/CelebrationProvider.tsx.
 
 import { BackupError } from '../data/backup';
 import { cancelCompletion, type MutationResult } from '../services/completions';
@@ -15,12 +16,14 @@ import { copy } from './copy';
 // can never cancel a different completion.
 let pendingUndo: string | null = null;
 
+/** «+5 · Чтение» — the same for every completion; the flask, pill and sheet tell the rest. */
 export function completionMessage(result: MutationResult, stepName: string): string {
-  if (result.milestoneReached) return copy.toast.milestoneReached(result.pointsAwarded);
-  if (result.levelChange > 0) {
-    return copy.toast.flaskFilled(result.after.completedFlasks, result.after.pointsInCurrentFlask, result.levelChange);
-  }
   return copy.completion.added(result.pointsAwarded, stepName);
+}
+
+/** A write whose feedback belongs to a celebration (level-up or milestone haptics), not the plain success tap. */
+export function isCelebrated(result: MutationResult): boolean {
+  return result.levelChange > 0 || result.milestoneReached;
 }
 
 /** User-facing text of a failed mutation: validation and backup messages as is, anything else generic. */
@@ -32,10 +35,8 @@ export function errorMessage(error: unknown): string {
 
 /** Haptics and the toast for a fresh completion, with «Отменить». */
 export function announceCompletion(result: MutationResult, stepName: string, showToast: ShowToast): void {
-  // Package 5 moves the level-up and milestone moments to the flask animation and sheet.
-  if (result.milestoneReached) haptics.milestone();
-  else if (result.levelChange > 0) haptics.levelUp(result.levelChange);
-  else haptics.success();
+  // A level-up vibrates at the flask's overflow beat, a milestone when its sheet opens.
+  if (!isCelebrated(result)) haptics.success();
   const completionId = result.completionId;
   pendingUndo = completionId;
   showToast(completionMessage(result, stepName), {

@@ -1,7 +1,7 @@
 import { db } from '../data/db';
 import { addDays, localDate } from '../lib/dates';
-import { buildTimeline, compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress, type TimelineEntry } from '../domain/progression';
-import type { Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
+import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
+import type { Milestone, Skill, StepDefinition } from '../domain/types';
 
 // Read models for the UI. Everything is derived from the journal on every read (principle 8),
 // inside a read transaction so a mutation in flight never produces a half-updated view.
@@ -10,10 +10,6 @@ export interface SkillSummary {
   skill: Skill;
   milestone: Milestone | undefined;
   progress: Progress;
-}
-
-export interface HistoryEntry extends TimelineEntry<PointTransaction> {
-  completion: StepCompletion | undefined;
 }
 
 export interface SkillDetails extends SkillSummary {
@@ -26,8 +22,6 @@ export interface SkillDetails extends SkillSummary {
   todayCounts: Record<string, number>;
   /** Local date of the latest ACTIVE completion per step id (active and hidden), null without one. */
   lastDoneAt: Record<string, string | null>;
-  /** Newest first. */
-  history: HistoryEntry[];
 }
 
 function configOf(skill: Skill, manual: number[]): CapacityConfig {
@@ -97,23 +91,17 @@ export async function getSkillDetails(id: string, today: string = localDate()): 
       }
 
       const config = configOf(skill, thresholds.map((t) => t.requiredPoints));
-      const completionById = new Map(completions.map((c) => [c.id, c]));
-      const timeline = buildTimeline(transactions.sort(compareJournalOrder), config);
+      // The history list has its own read model (services/history.ts).
+      const total = foldJournal(transactions.sort(compareJournalOrder).map((t) => t.delta));
       return {
         skill,
         milestone,
         config,
-        progress: timeline.at(-1)?.after ?? computeProgress(0, config),
+        progress: computeProgress(total, config),
         steps: activeSteps,
         hiddenSteps: steps.filter((s) => !s.isActive).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)),
         todayCounts,
         lastDoneAt,
-        history: timeline
-          .map((entry) => ({
-            ...entry,
-            completion: entry.transaction.completionId ? completionById.get(entry.transaction.completionId) : undefined,
-          }))
-          .reverse(),
       };
     },
   );
@@ -152,5 +140,14 @@ export async function getDataOverview(today: string = localDate()): Promise<Data
       db.completions.where('[status+date]').between(['ACTIVE', from], ['ACTIVE', today], true, true).toArray(),
     ]);
     return { skills, steps, completions, activeDays14: new Set(recent.map((c) => c.date)).size };
+  });
+}
+
+/** The skill and its milestone as stored right now: what a celebration needs after a write. */
+export async function getSkillWithMilestone(id: string): Promise<{ skill: Skill; milestone: Milestone | undefined } | null> {
+  return db.transaction('r', [db.skills, db.milestones], async () => {
+    const skill = await db.skills.get(id);
+    if (!skill) return null;
+    return { skill, milestone: await db.milestones.where('skillId').equals(id).first() };
   });
 }

@@ -8,6 +8,7 @@ import { newId } from '../lib/ids';
 import { localDate } from '../lib/clock';
 import { verifyJournal } from '../services/journal';
 import { getSkillDetails } from '../services/queries';
+import { compareJournalOrder } from '../domain/progression';
 
 const V1_STORES = {
   skills: 'id, status, createdAt',
@@ -105,8 +106,9 @@ describe('Dexie v2 upgrade', () => {
     const details = await getSkillDetails('skill-english');
     // 5+3+5+3+5+5+3+5+3 = 37 points: flask 1 (30) full, 7 in flask 2 (50).
     expect(details?.progress).toMatchObject({ completedFlasks: 1, pointsInCurrentFlask: 7, currentCapacity: 50 });
-    // Newest first; t08 and t09 share a timestamp and replay in id order.
-    expect(details?.history.map((h) => h.transaction.id).slice(0, 4)).toEqual(['t12', 't10', 't09', 't08']);
+    // Journal order, newest first; t08 and t09 share a timestamp and replay in id order.
+    const journal = (await upgraded.transactions.where('skillId').equals('skill-english').toArray()).sort(compareJournalOrder).reverse();
+    expect(journal.map((t) => t.id).slice(0, 4)).toEqual(['t12', 't10', 't09', 't08']);
     setDb(previous);
     upgraded.close();
   });

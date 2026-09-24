@@ -10,14 +10,16 @@ import {
 } from '../../services/completions';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
-import { errorMessage, forgetUndo } from '../completionFeedback';
+import { useCelebrations } from '../celebrations/CelebrationProvider';
+import { errorMessage, forgetUndo, isCelebrated } from '../completionFeedback';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
 // «Выполнение»: opened from a history row. The note is editable for every completion (it is
 // not progress, decision 14.8); cancel and restore only while the skill is active (14.9).
-// A typed note is never thrown away: swipe, scrim, Back, cancel and restore all save it.
+// A typed note is never thrown away: swipe, scrim, Back, cancel and restore all save it — the
+// sheet says so under the field. «Вернуть» that refills a flask is celebrated like a completion.
 
 /** The counter appears once the note gets close to the limit. */
 const COUNTER_FROM = 400;
@@ -42,6 +44,7 @@ export function CompletionSheet({ completionId, onClose }: { completionId: strin
 function CompletionSheetView({ open, details, onClose }: { open: boolean; details: CompletionDetails | null; onClose(): void }) {
   const t = copy.completionSheet;
   const { showToast } = useToast();
+  const celebrations = useCelebrations();
   const closeRef = useRef<() => void>(() => {});
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,8 +135,16 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
 
   const restore = () =>
     run(async () => {
-      await restoreCompletion(completion.id);
-      haptics.success();
+      // Hold the flask behind the sheet so a refilled flask plays its level-up, not a jump.
+      const release = celebrations.hold(skill.id);
+      try {
+        const result = await restoreCompletion(completion.id);
+        if (!isCelebrated(result)) haptics.success();
+        void celebrations.celebrateResult(result, { skillId: skill.id }).finally(release);
+      } catch (error) {
+        release();
+        throw error;
+      }
       return copy.completion.restored;
     });
 
@@ -180,10 +191,12 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
           placeholder={t.notePlaceholder}
           onChange={(e) => setNote(e.target.value)}
         />
-        {value.length > COUNTER_FROM && (
+        {value.length > COUNTER_FROM ? (
           <span className="hint small note-counter" aria-live="polite">
             {t.noteCounter(value.length, NOTE_MAX_LENGTH)}
           </span>
+        ) : (
+          <span className="field-hint hint small">{t.noteAutosave}</span>
         )}
       </label>
     </Sheet>

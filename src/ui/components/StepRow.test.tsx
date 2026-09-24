@@ -10,6 +10,10 @@ import { BUSY_TAIL_MS, StepRow } from './StepRow';
 import { ToastProvider } from './Toast';
 
 vi.mock('../../services/completions', () => ({ completeStep: vi.fn(), cancelCompletion: vi.fn() }));
+const celebrations = vi.hoisted(() => ({ hold: vi.fn(), release: vi.fn(), celebrateResult: vi.fn() }));
+vi.mock('../celebrations/CelebrationProvider', () => ({
+  useCelebrations: () => ({ hold: celebrations.hold, celebrateResult: celebrations.celebrateResult }),
+}));
 
 const progress = (flask: number, points: number, capacity: number): Progress => ({
   totalPoints: points,
@@ -65,13 +69,45 @@ const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resol
 beforeEach(() => {
   vi.mocked(completeStep).mockReset();
   vi.mocked(cancelCompletion).mockReset();
+  celebrations.release.mockReset();
+  celebrations.hold.mockReset().mockImplementation(() => celebrations.release);
+  celebrations.celebrateResult.mockReset().mockResolvedValue(undefined);
 });
 afterEach(cleanup);
 
 describe('StepRow', () => {
-  it('shows the points and today’s count', () => {
+  it('shows the points on the ✓ and today’s count under the name', () => {
     renderRow();
-    expect(screen.getByText('+5 · сегодня ×2')).toBeTruthy();
+    expect(screen.getByText('сегодня ×2')).toBeTruthy();
+    expect(check().textContent).toBe('+5');
+  });
+
+  it('holds the flask before the write and hands the result to the celebrations', async () => {
+    const order: string[] = [];
+    celebrations.hold.mockImplementation(() => {
+      order.push('hold');
+      return celebrations.release;
+    });
+    vi.mocked(completeStep).mockImplementation(async () => {
+      order.push('write');
+      return result('c1');
+    });
+    renderRow();
+    fireEvent.click(check());
+    await wait(0);
+    expect(order).toEqual(['hold', 'write']);
+    expect(celebrations.hold).toHaveBeenCalledWith('skill-1');
+    expect(celebrations.celebrateResult).toHaveBeenCalledWith(result('c1'), expect.objectContaining({ skillId: 'skill-1', points: 5, source: check() }));
+    expect(celebrations.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the flask when the write fails', async () => {
+    vi.mocked(completeStep).mockRejectedValue(new ValidationError('Навык не активен'));
+    renderRow();
+    fireEvent.click(check());
+    expect(await screen.findByText('Навык не активен')).toBeTruthy();
+    expect(celebrations.release).toHaveBeenCalledTimes(1);
+    expect(celebrations.celebrateResult).not.toHaveBeenCalled();
   });
 
   it('ignores a second tap while busy and for 600 ms after the write', async () => {

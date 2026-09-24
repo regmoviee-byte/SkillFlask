@@ -7,11 +7,12 @@
 // 4. Quotas are progress towards a goal («1 из 3 на неделе»); «осталось» only about today's plan.
 // 5. Comparisons only when they favour the user.
 // 6. A level rollback is «Возврат к колбе N» in toasts and history.
-// 7. Exclamation marks and emoji only in «Навык достигнут 🎉» and «Веха достигнута! 🎯».
+// 7. Exclamation marks and emoji only in the «Навык достигнут 🎉» toast (the milestone has
+//    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
 import { formatDate, formatDateTime } from '../lib/dates';
-import { FLASKS, FLASKS_OF, formatNumber, formatPoints, plural } from '../lib/format';
+import { FLASKS, FLASKS_OF, formatNumber, formatPoints, plural, POINTS } from '../lib/format';
 
 const COMPLETIONS: [string, string, string] = ['выполнение', 'выполнения', 'выполнений'];
 const SKILLS: [string, string, string] = ['навык', 'навыка', 'навыков'];
@@ -64,13 +65,29 @@ export const copy = Object.freeze({
     pointsOfCapacity: (points: number, capacity: number) => `${formatNumber(points)} / ${formatNumber(capacity)}`,
   },
   skill: {
-    edit: 'Изм.',
+    edit: 'Изменить навык',
     flask: 'Колба',
-    percentFilled: (percent: number) => `${percent}% заполнено`,
+    reached: 'Достигнут',
+    milestoneReachedIcon: 'Веха достигнута',
+    /** The hero flask's accessible name (FR-XP-007). */
+    flaskLabel: (flask: number, points: number, capacity: number, percent: number) =>
+      `Колба ${flask}: ${formatNumber(points)} из ${formatNumber(capacity)}, ${percent}%`,
+    completedFlaskLabel: (flasks: number) => `Навык достигнут: ${flasks} ${plural(flasks, FLASKS)}`,
+    /** «42% · ещё 58 до колбы 4» */
+    toNext: (percent: number, left: number, next: number) => `${percent}% · ещё ${formatNumber(left)} до колбы ${next}`,
     total: (points: number) => `Всего ${formatPoints(points)}`,
+    flasksDone: (n: number) => `${formatNumber(n)} ${plural(n, FLASKS)}`,
+    /** aria-live announcement when a flask fills on screen. */
+    flaskFilledLive: (flask: number) => `Колба ${flask} заполнена`,
+    levelPill: (flask: number) => `Колба ${flask}`,
+    notFoundTitle: 'Навык не найден',
+    notFoundText: 'Возможно, он удалён.',
+    toSkills: 'К навыкам',
     history: 'История',
+    historyEmptyTitle: 'Здесь появится история',
     historyEmptyActive: 'Отметьте первое действие — очки начнут заполнять колбу.',
     historyEmptyInactive: 'Выполнений нет.',
+    showMore: 'Показать ещё',
     actions: 'Действия',
     actionsEdit: 'Изменить',
     actionsDone: 'Готово',
@@ -92,6 +109,9 @@ export const copy = Object.freeze({
   },
   stepRow: {
     meta: (points: number, today: number) => (today > 0 ? `+${formatNumber(points)} · сегодня ×${today}` : `+${formatNumber(points)}`),
+    /** The points sit on the ✓ itself; the line under the name only counts today's completions. */
+    today: (today: number) => `сегодня ×${today}`,
+    points: (points: number) => `+${formatNumber(points)}`,
     check: (name: string, points: number) => `Отметить: ${name}, +${formatPoints(points)}`,
   },
   completion: {
@@ -109,6 +129,7 @@ export const copy = Object.freeze({
     noteCounter: (length: number, max: number) => `${length} / ${max}`,
     saveNote: 'Сохранить',
     noteSaved: 'Заметка сохранена',
+    noteAutosave: 'Сохраняется автоматически',
     cancel: 'Отменить выполнение',
     confirmCancelOk: 'Отменить',
     keep: 'Оставить',
@@ -123,17 +144,24 @@ export const copy = Object.freeze({
     correctionOf: (stepName: string) => `Коррекция: ${stepName}`,
     cancelledBadge: 'Отменено',
     flaskState,
-    flaskFilledBadge: (flask: number) => `Колба ${flask} заполнена`,
-    flasksFilledBadge: (n: number) => `Заполнено колб: ${n}`,
-    flaskRollbackBadge: (flask: number) => `Возврат к колбе ${flask}`,
+    /** LEVEL_UP separator; `levels` > 1 when one operation filled several flasks. */
+    flaskFilled: (flask: number, levels = 1) => (levels > 1 ? `Колбы ${flask - levels + 1}–${flask} заполнены` : `Колба ${flask} заполнена`),
+    flaskRollback: (flask: number) => `Возврат к колбе ${flask}`,
+    milestoneReached: (name: string) => `Веха «${name}» достигнута`,
+    milestoneAgain: (name: string) => `Веха «${name}» снова впереди`,
+    skillCreated: 'Навык создан',
+    skillCompleted: 'Навык достигнут',
+    skillArchived: 'Навык в архиве',
+    skillRestored: 'Навык снова активен',
+    duration: (from: number, to: number) => `Длительность: ${from} → ${to} мин`,
   },
   milestone: {
-    completedAt: (date: string, flasks: number) =>
-      `Навык достигнут ${formatDate(date)} · ${flasks} ${plural(flasks, FLASKS)}`,
+    completedAt: (date: string, flasks: number, points: number) =>
+      `Навык достигнут ${formatDate(date)} · ${flasks} ${plural(flasks, FLASKS)} · ${formatPoints(points)}`,
     progress: (done: number, target: number) => `${done} из ${target} ${plural(target, FLASKS_OF)}`,
     reachedAt: (date: string) => `Веха достигнута ${formatDate(date)}.`,
     continuing: 'Вы продолжаете развитие.',
-    decide: 'Завершить навык или продолжить развитие?',
+    decide: 'Завершить навык или продолжить развитие? Решать сейчас не обязательно.',
     finish: 'Завершить',
     keepGoing: 'Продолжить',
     confirmFinish: (skillName: string) => `Завершить навык «${skillName}»? Он станет достигнутым и перейдёт в режим просмотра.`,
@@ -337,12 +365,20 @@ export const copy = Object.freeze({
   },
   toast: {
     skillCompleted: 'Навык достигнут 🎉',
-    milestoneReached: (points: number) => `+${formatNumber(points)} · Веха достигнута! 🎯`,
-    /** A completion filled flasks; `lastFilled` is the number of the last full flask. */
-    flaskFilled: (lastFilled: number, remainder: number, filled = 1) => {
-      const head = filled > 1 ? `Заполнено колб: ${filled}` : `Колба ${lastFilled} заполнена`;
-      return remainder > 0 ? `${head} · остаток ${formatPoints(remainder)}` : head;
-    },
+  },
+  celebration: {
+    /** TopCard: a flask filled while the skill's own flask is not on screen. */
+    topTitle: 'Колба заполнена',
+    topText: (skillName: string, flask: number) => `${skillName} · колба ${flask}`,
+    milestoneTitle: 'Веха достигнута',
+    milestoneLabel: (name: string) => `Веха достигнута: ${name}`,
+    tileFlasks: (n: number) => plural(n, FLASKS),
+    tilePoints: (n: number) => plural(n, POINTS),
+    tileDays: (n: number) => plural(n, DAYS),
+    finishSkill: 'Завершить навык',
+    keepGoing: 'Продолжить развитие',
+    later: 'Решу позже',
+    continued: 'Продолжаем — уровни без ограничений',
   },
   errors: {
     save: 'Не сохранилось. Данные на месте — попробуйте ещё раз',

@@ -1,8 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
 import { applyTheme } from '../../platform/theme';
+import { MilestoneSheet } from '../celebrations/MilestoneSheet';
+import { TopCard } from '../celebrations/TopCard';
 import { ContextSheet } from '../components/ContextSheet';
+import { Flask, type FlaskHandle } from '../components/Flask';
+import { Ring } from '../components/Ring';
 import { EmptyState } from '../components/EmptyState';
 import { ICON_NAMES, Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
@@ -61,6 +65,17 @@ export default function StyleguideScreen() {
   const [skeletonLoading, setSkeletonLoading] = useState(true);
   const shown = useCountUp(count);
   const [zoom, setZoom] = useState(false);
+  const flask = useRef<FlaskHandle>(null);
+  const [demoFill, setDemoFill] = useState(0.8);
+  const [milestoneDemo, setMilestoneDemo] = useState(false);
+  const [topCard, setTopCard] = useState(0);
+
+  async function playLevelUp(levels: number) {
+    const from = demoFill;
+    const to = 0.25;
+    await flask.current?.playLevelUp({ fromFill: from, toFill: to, levels, onOverflow: () => haptics.levelUp(levels) });
+    setDemoFill(to);
+  }
 
   function toggleTheme() {
     const root = document.documentElement;
@@ -118,6 +133,46 @@ export default function StyleguideScreen() {
                 {cls === 't-display-xl' || cls === 't-display-l' ? '1234' : `${cls} — Колба 3 · 42 / 100`}
               </p>
             ))}
+          </div>
+        </Section>
+
+        <Section title="Колба">
+          <div className="card card-padded sg-flasks">
+            <Flask fill={0} capacity={100} state="empty" />
+            <Flask fill={0.4} capacity={150} />
+            <Flask fill={1} capacity={200} />
+            <Flask fill={1} state="complete" />
+          </div>
+          <div className="card card-padded sg-flask-play">
+            <Flask ref={flask} fill={demoFill} capacity={100} />
+            <div className="form">
+              <button type="button" className="button" onClick={() => void playLevelUp(1)}>
+                Play level-up
+              </button>
+              <button type="button" className="button" onClick={() => void playLevelUp(3)}>
+                Play level-up ×3
+              </button>
+              <button type="button" className="button" onClick={() => setDemoFill((f) => (f >= 0.9 ? 0.1 : Math.round((f + 0.2) * 10) / 10))}>
+                Налить
+              </button>
+            </div>
+          </div>
+          <div className="card card-padded sg-rings">
+            <Ring value={0.3}>2</Ring>
+            <Ring value={0.75}>5</Ring>
+            <Ring value={1} tone="gold">
+              9
+            </Ring>
+            <Flask size="mini" fill={0.6} />
+            <Flask size="mini" fill={1} state="complete" />
+          </div>
+          <div className="button-row">
+            <button type="button" className="button" onClick={() => setMilestoneDemo(true)}>
+              Лист вехи
+            </button>
+            <button type="button" className="button" onClick={() => setTopCard((k) => k + 1)}>
+              TopCard
+            </button>
           </div>
         </Section>
 
@@ -298,6 +353,17 @@ export default function StyleguideScreen() {
           </p>
         ))}
       </Sheet>
+
+      <MilestoneSheet
+        event={
+          milestoneDemo
+            ? { kind: 'milestone', skillId: 'demo', skillName: 'Английский', milestoneName: 'Достичь C1', flasks: 10, totalPoints: 3250, days: 84, levelUp: null }
+            : null
+        }
+        onClose={() => setMilestoneDemo(false)}
+        onCompleted={() => showToast('Навык достигнут 🎉')}
+      />
+      {topCard > 0 && <TopCard key={topCard} content={{ fromFill: 0.8, flask: 3, skillName: 'Английский' }} onDone={() => setTopCard(0)} />}
 
       <ContextSheet
         open={sheet === 'context'}
