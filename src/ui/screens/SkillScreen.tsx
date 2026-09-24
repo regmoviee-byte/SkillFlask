@@ -17,11 +17,13 @@ import { Skeleton } from '../components/Skeleton';
 import { StepRow } from '../components/StepRow';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { useToday } from '../hooks/useToday';
 import { CompletionSheet } from '../sheets/CompletionSheet';
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
-  const details = useLiveQuery(() => getSkillDetails(skillId), [skillId]);
+  const today = useToday();
+  const details = useLiveQuery(() => getSkillDetails(skillId, today), [skillId, today]);
   const navigate = useNavigate();
   const t = copy.skill;
 

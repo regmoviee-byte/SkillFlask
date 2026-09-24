@@ -1,15 +1,35 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { openDb, openMessages, type OpenResult } from '../data/open';
+import type { CloudMeta } from '../platform/cloud';
+import { logError } from '../platform/errorLog';
+import { findRestoreOffer, initCloudBackup } from '../services/backupSync';
 import { copy } from './copy';
+import { RestoreOfferScreen } from './screens/RestoreOfferScreen';
 
-type State = { status: 'opening'; slow: boolean } | { status: 'ok' } | { status: 'error'; message: string };
+type State =
+  | { status: 'opening'; slow: boolean }
+  | { status: 'offer'; meta: CloudMeta }
+  | { status: 'ok' }
+  | { status: 'error'; message: string };
 
 const SLOW_OPEN_MS = 300;
+
+/** Starts the cloud backup and looks for a copy to offer on an empty start; never fails the open. */
+async function afterOpen(): Promise<CloudMeta | null> {
+  try {
+    await initCloudBackup();
+    return await findRestoreOffer();
+  } catch (error) {
+    logError(error, 'cloud backup start');
+    return null;
+  }
+}
 
 /**
  * Opens the database before the app renders and turns open failures (newer schema on disk,
  * quota, private mode, an upgrade from another tab) into a readable message with a reload
- * button instead of a blank screen.
+ * button instead of a blank screen. On an empty database inside Telegram it first offers the
+ * cloud copy (RestoreOfferScreen).
  */
 export function DbBoundary({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: 'opening', slow: false });
@@ -20,9 +40,14 @@ export function DbBoundary({ children }: { children: ReactNode }) {
       setState((prev) => (prev.status === 'opening' ? { status: 'opening', slow: true } : prev));
     }, SLOW_OPEN_MS);
     openDb((message) => setState({ status: 'error', message }))
-      .then((result: OpenResult) => {
+      .then(async (result: OpenResult) => {
         if (cancelled) return;
-        setState(result.ok ? { status: 'ok' } : { status: 'error', message: result.message });
+        if (!result.ok) {
+          setState({ status: 'error', message: result.message });
+          return;
+        }
+        const offer = await afterOpen();
+        if (!cancelled) setState(offer ? { status: 'offer', meta: offer } : { status: 'ok' });
       })
       .catch((e: unknown) => {
         // openDb classifies db.open() failures itself; anything else must still end in the
@@ -37,6 +62,7 @@ export function DbBoundary({ children }: { children: ReactNode }) {
   }, []);
 
   if (state.status === 'ok') return children;
+  if (state.status === 'offer') return <RestoreOfferScreen meta={state.meta} onDone={() => setState({ status: 'ok' })} />;
   if (state.status === 'opening') {
     return <div className="db-boundary">{state.slow && <p className="hint">{copy.db.opening}</p>}</div>;
   }

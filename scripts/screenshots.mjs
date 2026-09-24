@@ -5,8 +5,13 @@
 // (`npm run preview` after `npm run build`, or `npm run dev`; the /styleguide capture needs the
 // dev server, the route does not exist in production builds).
 // Uses the Chromium that Playwright ships; PLAYWRIGHT_CHROMIUM overrides the executable path.
+// The last part runs the app inside a fake Telegram (Bot API 7.10 with CloudStorage kept in
+// localStorage and the native buttons drawn as a bar) to walk the cloud backup and the
+// restore offer; the backup file downloaded in the browser part seeds its cloud.
 
-import { mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
 
 const outDir = process.argv[2] ?? 'screenshots';
@@ -17,18 +22,21 @@ const dark = Boolean(process.env.DARK) || tgTheme === 'purple';
 mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({ executablePath });
-const context = await browser.newContext({
+const contextOptions = {
   viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
   isMobile: true,
   hasTouch: true,
   locale: 'ru-RU',
   colorScheme: dark ? 'dark' : 'light',
-});
+  acceptDownloads: true,
+};
+const context = await browser.newContext(contextOptions);
 
-if (tgTheme === 'purple') {
-  // What telegram-web-app.js sets on <html> for a purple user theme on a phone with a notch.
-  await context.addInitScript(() => {
+/** TG_THEME=purple: what telegram-web-app.js sets on <html> for a purple user theme on a phone with a notch. */
+async function applyTheme(ctx) {
+  if (tgTheme !== 'purple') return;
+  await ctx.addInitScript(() => {
     const vars = {
       '--tg-theme-button-color': '#8774e1',
       '--tg-theme-button-text-color': '#ffffff',
@@ -52,15 +60,21 @@ if (tgTheme === 'purple') {
   });
 }
 
-const page = await context.newPage();
 const errors = [];
 // The styleguide's ErrorBoundary demo throws on purpose; React reports it to the console.
 const expected = (text) => text.includes('ERR_FAILED') || text.includes('ErrorBoundary demo');
-page.on('console', (m) => m.type() === 'error' && !expected(m.text()) && errors.push(m.text()));
-page.on('pageerror', (e) => !expected(String(e)) && errors.push(String(e)));
-page.on('dialog', (d) => d.accept());
-// The Telegram script is not reachable offline; the app must work without it.
-await page.route('https://telegram.org/**', (r) => r.abort());
+async function openPage(ctx) {
+  const p = await ctx.newPage();
+  p.on('console', (m) => m.type() === 'error' && !expected(m.text()) && errors.push(m.text()));
+  p.on('pageerror', (e) => !expected(String(e)) && errors.push(String(e)));
+  p.on('dialog', (d) => d.accept());
+  // The Telegram script is not reachable offline; the app must work without it.
+  await p.route('https://telegram.org/**', (r) => r.abort());
+  return p;
+}
+await applyTheme(context);
+
+let page = await openPage(context);
 
 let n = 0;
 const shot = async (name) => {
@@ -252,6 +266,53 @@ await page.goto(`${baseUrl}#/skills/nope/edit`);
 await page.getByText('Навык не найден').waitFor();
 if (await page.getByRole('navigation', { name: 'Разделы' }).count()) errors.push('tab bar rendered on a nested route');
 
+// Settings in the browser: no cloud, the file reminder, a download → wipe → import round trip.
+await page.goto(`${baseUrl}#/settings`);
+await page.getByText('Резервной копии ещё нет — скачайте файл').waitFor();
+await page.getByText('Активных дней за 14 дней: 1').waitFor();
+await shot('settings');
+const motionSwitch = page.getByRole('switch', { name: /Меньше анимации/ });
+await motionSwitch.click();
+if ((await page.evaluate(() => document.documentElement.dataset.motion)) !== 'reduced') errors.push('«Меньше анимации» did not set data-motion');
+await motionSwitch.click();
+if (await page.evaluate(() => document.documentElement.dataset.motion)) errors.push('«Меньше анимации» off left data-motion set');
+const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Скачать файл' }).click()]);
+if (!/^skill-flask-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename())) errors.push(`unexpected backup name ${download.suggestedFilename()}`);
+const backupPath = `${outDir}/backup.json`;
+await download.saveAs(backupPath);
+await page.getByText('Файл сохранён').waitFor();
+await page.getByText('Резервной копии ещё нет', { exact: false }).waitFor({ state: 'detached' });
+await page.getByRole('button', { name: 'Ошибки (0)' }).click();
+await page.getByText('Журнал ошибок пуст').waitFor();
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+await shot('settings-bottom');
+
+await page.getByRole('button', { name: 'Удалить все данные' }).click();
+const wipeSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Удалить всё' }) });
+await wipeSheet.waitFor();
+await shot('settings-confirm-wipe');
+await wipeSheet.getByRole('button', { name: 'Удалить всё' }).click();
+await page.getByText('Здесь будут ваши навыки').waitFor();
+
+await tab('Настройки').click();
+await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+const importSheet = page.locator('.import-sheet');
+await importSheet.waitFor();
+await importSheet.getByLabel('Или вставьте текст копии').fill('{"hello": "world"}');
+await importSheet.getByRole('button', { name: 'Проверить текст' }).click();
+await importSheet.getByText('Это не резервная копия Skill Flask').waitFor();
+await shot('import-error');
+await importSheet.locator('input[type="file"]').setInputFiles(backupPath);
+await importSheet.getByText(/^Навыков: 2 · выполнений: \d+/).waitFor();
+if (await importSheet.getByLabel('Или вставьте текст копии').inputValue()) errors.push('the pasted text stayed next to the chosen file');
+await shot('import-preview');
+await importSheet.getByRole('button', { name: 'Заменить данные' }).click();
+const replaceSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) });
+await replaceSheet.getByRole('button', { name: 'Заменить', exact: true }).click();
+await page.getByText('Импортировано').waitFor();
+await page.getByText('Тренировки').waitFor();
+await shot('import-done');
+
 // Styleguide (dev server only): every component state on one page.
 await page.goto(`${baseUrl}#/styleguide`);
 await page.waitForTimeout(600);
@@ -286,6 +347,233 @@ if (await page.locator('[data-screen="styleguide"]').count()) {
 } else {
   console.log('styleguide: skipped (DEV-only route; run against `npm run dev` to capture it)');
 }
+
+// ---- Inside a fake Telegram: restore offer, cloud status, background flush ----
+
+/** The cloud layout of src/platform/cloud.ts, built independently here as a cross-check. */
+function cloudStoreFor(json) {
+  const payload = gzipSync(Buffer.from(json, 'utf8')).toString('base64');
+  const file = JSON.parse(json);
+  const store = {};
+  const n = Math.ceil(payload.length / 4000);
+  for (let i = 0; i < n; i++) store[`sf_a_${String(i).padStart(3, '0')}`] = payload.slice(i * 4000, (i + 1) * 4000);
+  store.sf_meta = JSON.stringify({
+    v: 1,
+    at: file.exportedAt,
+    n,
+    len: payload.length,
+    h: createHash('sha256').update(payload).digest('hex').slice(0, 16),
+    enc: 'gz',
+    slot: 'a',
+    schemaVersion: file.schemaVersion,
+    skills: file.tables.skills.length,
+    completions: file.tables.completions.filter((c) => c.status === 'ACTIVE').length,
+  });
+  return store;
+}
+
+const tgContext = await browser.newContext(contextOptions);
+await applyTheme(tgContext);
+await tgContext.addInitScript(
+  ({ seed, scheme }) => {
+    const KEY = '__fake_cloud';
+    if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(seed));
+    const load = () => JSON.parse(localStorage.getItem(KEY) || '{}');
+    const store = (next) => localStorage.setItem(KEY, JSON.stringify(next));
+    const later = (fn) => setTimeout(fn, 5);
+    const bar = { main: null, secondary: null, back: null };
+    function render() {
+      if (!document.body) return;
+      let el = document.getElementById('tg-bar');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'tg-bar';
+        el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;gap:8px;padding:8px 16px 12px;background:rgba(127,127,127,.18);font:600 16px system-ui';
+        document.body.append(el);
+        const back = document.createElement('button');
+        back.id = 'tg-back';
+        back.textContent = '‹ Назад';
+        back.style.cssText = 'position:fixed;top:8px;left:8px;z-index:1000;padding:6px 12px;border:0;border-radius:16px;background:rgba(127,127,127,.25);font:600 14px system-ui;color:inherit';
+        back.onclick = () => bar.back.handlers.forEach((cb) => cb());
+        document.body.append(back);
+      }
+      el.replaceChildren();
+      for (const [id, b, bg] of [['tg-secondary', bar.secondary, 'transparent'], ['tg-main', bar.main, '#2481cc']]) {
+        if (!b.isVisible) continue;
+        const button = document.createElement('button');
+        button.id = id;
+        button.textContent = b.isProgressVisible ? '…' : b.text;
+        button.disabled = !b.isActive;
+        button.style.cssText = `height:48px;border:0;border-radius:12px;background:${bg};color:${id === 'tg-main' ? '#fff' : '#2481cc'};font:inherit;opacity:${b.isActive ? 1 : 0.5}`;
+        button.onclick = () => b.isActive && b.handlers.forEach((cb) => cb());
+        el.append(button);
+      }
+      el.style.display = el.childElementCount ? 'flex' : 'none';
+      document.getElementById('tg-back').style.display = bar.back.isVisible ? '' : 'none';
+    }
+    const bottomButton = () => {
+      const b = { text: '', isVisible: false, isActive: true, isProgressVisible: false, handlers: new Set() };
+      Object.assign(b, {
+        setText: (text) => ((b.text = text), render()),
+        setParams: (p) => {
+          if ('text' in p) b.text = p.text;
+          if ('is_visible' in p) b.isVisible = p.is_visible;
+          if ('is_active' in p) b.isActive = p.is_active;
+          render();
+        },
+        onClick: (cb) => b.handlers.add(cb),
+        offClick: (cb) => b.handlers.delete(cb),
+        show: () => ((b.isVisible = true), render()),
+        hide: () => ((b.isVisible = false), render()),
+        enable: () => ((b.isActive = true), render()),
+        disable: () => ((b.isActive = false), render()),
+        showProgress: () => ((b.isProgressVisible = true), render()),
+        hideProgress: () => ((b.isProgressVisible = false), render()),
+      });
+      return b;
+    };
+    bar.main = bottomButton();
+    bar.secondary = bottomButton();
+    bar.back = { isVisible: false, handlers: new Set() };
+    Object.assign(bar.back, {
+      show: () => ((bar.back.isVisible = true), render()),
+      hide: () => ((bar.back.isVisible = false), render()),
+      onClick: (cb) => bar.back.handlers.add(cb),
+      offClick: (cb) => bar.back.handlers.delete(cb),
+    });
+    document.addEventListener('DOMContentLoaded', render);
+    const popups = [];
+    const noop = () => {};
+    window.__tgFake = { popups };
+    window.Telegram = {
+      WebApp: {
+        version: '7.10',
+        platform: 'android',
+        colorScheme: scheme,
+        themeParams: {},
+        isExpanded: true,
+        viewportHeight: window.innerHeight,
+        viewportStableHeight: window.innerHeight,
+        isClosingConfirmationEnabled: false,
+        ready: noop,
+        expand: noop,
+        close: noop,
+        isVersionAtLeast: () => true,
+        onEvent: noop,
+        offEvent: noop,
+        setHeaderColor: noop,
+        setBackgroundColor: noop,
+        setBottomBarColor: noop,
+        enableClosingConfirmation: noop,
+        disableClosingConfirmation: noop,
+        enableVerticalSwipes: noop,
+        disableVerticalSwipes: noop,
+        showAlert: (message, cb) => later(() => cb?.()),
+        showConfirm: (message, cb) => {
+          popups.push(message);
+          later(() => cb?.(true));
+        },
+        // Answers like a user who confirms: the destructive or «ok» button.
+        showPopup: (params, cb) => {
+          popups.push(params.message);
+          const button = params.buttons?.find((b) => b.type === 'destructive' || b.id === 'ok') ?? params.buttons?.[0];
+          later(() => cb?.(button?.id));
+        },
+        BackButton: bar.back,
+        SettingsButton: { isVisible: false, show: noop, hide: noop, onClick: noop, offClick: noop },
+        MainButton: bar.main,
+        SecondaryButton: bar.secondary,
+        HapticFeedback: { impactOccurred: noop, notificationOccurred: noop, selectionChanged: noop },
+        CloudStorage: {
+          setItem: (key, value, cb) => later(() => (store({ ...load(), [key]: value }), cb?.(null, true))),
+          getItem: (key, cb) => later(() => cb(null, load()[key] ?? '')),
+          getItems: (keys, cb) => later(() => cb(null, Object.fromEntries(keys.map((key) => [key, load()[key] ?? ''])))),
+          removeItem: (key, cb) => later(() => {
+            const next = load();
+            delete next[key];
+            store(next);
+            cb?.(null, true);
+          }),
+          removeItems: (keys, cb) => later(() => {
+            const next = load();
+            for (const key of keys) delete next[key];
+            store(next);
+            cb?.(null, true);
+          }),
+          getKeys: (cb) => later(() => cb(null, Object.keys(load()))),
+        },
+      },
+    };
+  },
+  { seed: cloudStoreFor(readFileSync(backupPath, 'utf8')), scheme: dark ? 'dark' : 'light' },
+);
+page = await openPage(tgContext);
+const cloudKeys = () => page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('__fake_cloud') || '{}')).sort());
+const cloudMeta = () => page.evaluate(() => JSON.parse(JSON.parse(localStorage.getItem('__fake_cloud') || '{}').sf_meta || 'null'));
+const setHidden = (hidden) =>
+  page.evaluate((h) => {
+    Object.defineProperty(document, 'visibilityState', { value: h ? 'hidden' : 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+
+// Empty database + a copy in the cloud: the offer, never a silent restore.
+await page.goto(baseUrl);
+await page.getByText(/^Найдена резервная копия от .+: 2 навыка, \d+ выполнени/).waitFor();
+await shot('tg-restore-offer');
+await page.locator('#tg-main', { hasText: 'Восстановить' }).click();
+await page.getByText('Тренировки').waitFor();
+await shot('tg-restored');
+
+await tab('Настройки').click();
+await page.getByText(/^Сохранено сегодня в \d\d:\d\d · \d+ КБ$/).waitFor();
+await page.getByText(/^Копия: .+ · 2 навыка/).waitFor();
+await shot('tg-settings');
+
+// A completion makes the copy stale; going to the background saves it at once.
+await tab('Навыки').click();
+await page.getByText('Тренировки').click();
+await page.locator('.check-button').first().click();
+await page.getByRole('button', { name: 'Отменить', exact: true }).waitFor();
+await page.locator('#tg-back').click();
+await tab('Настройки').click();
+await page.getByText('Есть несохранённые изменения').waitFor();
+await shot('tg-settings-dirty');
+await setHidden(true);
+await page.getByText(/^Сохранено сегодня в/).waitFor();
+await setHidden(false);
+const flushed = await cloudMeta();
+if (flushed?.slot !== 'b') errors.push(`the background flush did not write the other slot: ${JSON.stringify(flushed)}`);
+if ((await cloudKeys()).some((key) => key.startsWith('sf_a_'))) errors.push('the previous cloud slot was not removed');
+await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+await page.getByText('Копия сохранена в облаке').waitFor();
+await shot('tg-settings-saved');
+
+// Another phone replaced the copy: the automatic save waits, «Сохранить сейчас» asks first.
+await page.evaluate(() => {
+  const cloud = JSON.parse(localStorage.getItem('__fake_cloud'));
+  const meta = JSON.parse(cloud.sf_meta);
+  cloud.sf_meta = JSON.stringify({ ...meta, h: 'ffffffffffffffff', at: new Date(Date.now() - 86_400_000).toISOString(), skills: 3, completions: 40 });
+  localStorage.setItem('__fake_cloud', JSON.stringify(cloud));
+});
+await tab('Навыки').click();
+await tab('Настройки').click();
+await page.getByText(/^В облаке другая копия \(сохранена вчера в \d\d:\d\d\) — восстановите её/).waitFor();
+await page.getByText(/^Копия: вчера в .+ · 3 навыка, 40 выполнений$/).waitFor();
+await shot('tg-settings-conflict');
+await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+await page.getByText(/^Сохранено сегодня в/).waitFor();
+if (!(await page.evaluate(() => window.__tgFake.popups.some((m) => m.includes('сохранена не с этого устройства'))))) {
+  errors.push('«Сохранить сейчас» replaced a foreign cloud copy without asking');
+}
+if ((await cloudMeta())?.h === 'ffffffffffffffff') errors.push('the foreign cloud copy was not replaced after the confirmation');
+
+// «Удалить все данные» with the copy: both native popups are confirmed; nothing is offered after a reload.
+await page.getByRole('button', { name: 'Удалить все данные' }).click();
+await page.getByText('Здесь будут ваши навыки').waitFor();
+if ((await cloudKeys()).length) errors.push(`cloud keys left after deleting everything: ${await cloudKeys()}`);
+await page.reload();
+await page.getByText('Здесь будут ваши навыки').waitFor();
+await tgContext.close();
 
 await browser.close();
 if (errors.length) {

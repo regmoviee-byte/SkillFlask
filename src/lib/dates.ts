@@ -76,6 +76,14 @@ export function formatDateTime(iso: string): string {
   return `${formatDate(iso)}, ${timeFormat.format(date)}`;
 }
 
+/** «сегодня в 14:02» / «вчера в 09:15» / «24 сентября в 14:02», in the device time zone. */
+export function formatDateTimeRelative(iso: string, today: string = localDate()): string {
+  const date = new Date(iso);
+  const day = localDate(date);
+  const label = day === today ? 'сегодня' : day === addDays(today, -1) ? 'вчера' : formatDate(iso);
+  return `${label} в ${timeFormat.format(date)}`;
+}
+
 /** «Сегодня» / «Вчера» / formatted date, relative to the local calendar. */
 export function formatDayLabel(date: string, today: string = localDate()): string {
   if (date === today) return 'Сегодня';

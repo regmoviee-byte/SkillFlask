@@ -1,5 +1,5 @@
 import { db } from '../data/db';
-import { localDate } from '../lib/dates';
+import { addDays, localDate } from '../lib/dates';
 import { buildTimeline, compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress, type TimelineEntry } from '../domain/progression';
 import type { Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 
@@ -62,7 +62,11 @@ export async function listSkillSummaries(): Promise<SkillSummary[]> {
   });
 }
 
-export async function getSkillDetails(id: string): Promise<SkillDetails | null> {
+/**
+ * `today` is the local date the view is for: screens pass it from useToday() and list it in
+ * the live query's deps, so a screen left open across midnight re-reads «сегодня ×N».
+ */
+export async function getSkillDetails(id: string, today: string = localDate()): Promise<SkillDetails | null> {
   return db.transaction(
     'r',
     [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions],
@@ -77,7 +81,6 @@ export async function getSkillDetails(id: string): Promise<SkillDetails | null> 
         db.transactions.where('skillId').equals(id).toArray(),
       ]);
       const activeSteps = steps.filter((s) => s.isActive).sort(byCreatedAt);
-      const today = localDate();
       const doneToday = activeSteps.length
         ? await db.completions
             .where('[stepId+date]')
@@ -125,5 +128,29 @@ export async function getSkillFormData(id: string): Promise<{ skill: Skill; mile
       db.levelThresholds.where('skillId').equals(id).sortBy('flaskNumber'),
     ]);
     return { skill, milestone, manual: thresholds.map((t) => t.requiredPoints) };
+  });
+}
+
+export interface DataOverview {
+  skills: number;
+  /** Active steps (hidden ones are not counted). */
+  steps: number;
+  /** ACTIVE completions. */
+  completions: number;
+  /** Distinct dates with an ACTIVE completion in the 14 days ending `today` (the MVP criterion). */
+  activeDays14: number;
+}
+
+/** Counts for the «Данные» and «О приложении» settings groups. */
+export async function getDataOverview(today: string = localDate()): Promise<DataOverview> {
+  return db.transaction('r', [db.skills, db.steps, db.completions], async () => {
+    const from = addDays(today, -13);
+    const [skills, steps, completions, recent] = await Promise.all([
+      db.skills.count(),
+      db.steps.filter((s) => s.isActive).count(),
+      db.completions.where('[status+date]').between(['ACTIVE', ''], ['ACTIVE', '\uffff']).count(),
+      db.completions.where('[status+date]').between(['ACTIVE', from], ['ACTIVE', today], true, true).toArray(),
+    ]);
+    return { skills, steps, completions, activeDays14: new Set(recent.map((c) => c.date)).size };
   });
 }

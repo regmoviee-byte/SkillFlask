@@ -9,6 +9,8 @@ export type FakeButton = 'BackButton' | 'MainButton' | 'SecondaryButton' | 'Sett
 export interface FakeTelegram {
   tg: TelegramWebApp;
   calls: string[];
+  /** CloudStorage contents (Bot API ≥ 6.9); tests may seed or tamper with it directly. */
+  cloud: FakeCloud;
   emit(event: string, ...args: unknown[]): void;
   /** Presses a native button: runs every handler registered through its onClick. */
   click(button: FakeButton): void;
@@ -17,8 +19,87 @@ export interface FakeTelegram {
 
 type Listener = (...args: unknown[]) => void;
 
+export interface FakeCloud {
+  store: Map<string, string>;
+  /** setItem / removeItems in call order, e.g. 'set sf_meta', 'remove sf_a_003'. */
+  log: string[];
+  /** Makes the next matching call fail with this error string (then clears itself). */
+  failNext: { method: string; error: string } | null;
+}
+
+const CLOUD_KEY = /^[A-Za-z0-9_-]{1,128}$/;
+const CLOUD_VALUE_MAX = 4096;
+const CLOUD_KEYS_MAX = 1024;
+
+/**
+ * CloudStorage with the documented limits: keys [A-Za-z0-9_-]{1,128}, values ≤ 4 096
+ * characters, ≤ 1 024 keys; a missing key reads as ''. Callbacks run asynchronously (in a
+ * microtask, so fake timers do not stall them), `(error, result)` like the SDK.
+ */
+export function fakeCloudStorage(cloud: FakeCloud) {
+  const reply = <T>(method: string, cb: ((error: string | null, result?: T) => void) | undefined, run: () => T) => {
+    queueMicrotask(() => {
+      if (cloud.failNext?.method === method) {
+        const { error } = cloud.failNext;
+        cloud.failNext = null;
+        cb?.(error);
+        return;
+      }
+      let result: T;
+      try {
+        result = run();
+      } catch (error) {
+        cb?.((error as Error).message);
+        return;
+      }
+      cb?.(null, result);
+    });
+  };
+  const checkKey = (key: string) => {
+    if (!CLOUD_KEY.test(key)) throw new Error('KEY_INVALID');
+  };
+  return {
+    setItem: (key: string, value: string, cb?: (error: string | null, ok?: boolean) => void) =>
+      reply('setItem', cb, () => {
+        checkKey(key);
+        if (value.length > CLOUD_VALUE_MAX) throw new Error('VALUE_INVALID');
+        if (!cloud.store.has(key) && cloud.store.size >= CLOUD_KEYS_MAX) throw new Error('STORAGE_KEYS_LIMIT');
+        cloud.store.set(key, value);
+        cloud.log.push(`set ${key}`);
+        return true;
+      }),
+    getItem: (key: string, cb: (error: string | null, value?: string) => void) =>
+      reply('getItem', cb, () => {
+        checkKey(key);
+        return cloud.store.get(key) ?? '';
+      }),
+    getItems: (keys: string[], cb: (error: string | null, values?: Record<string, string>) => void) =>
+      reply('getItems', cb, () => {
+        keys.forEach(checkKey);
+        return Object.fromEntries(keys.map((key) => [key, cloud.store.get(key) ?? '']));
+      }),
+    removeItem: (key: string, cb?: (error: string | null, ok?: boolean) => void) =>
+      reply('removeItem', cb, () => {
+        cloud.store.delete(key);
+        cloud.log.push(`remove ${key}`);
+        return true;
+      }),
+    removeItems: (keys: string[], cb?: (error: string | null, ok?: boolean) => void) =>
+      reply('removeItems', cb, () => {
+        keys.forEach(checkKey);
+        for (const key of keys) {
+          cloud.store.delete(key);
+          cloud.log.push(`remove ${key}`);
+        }
+        return true;
+      }),
+    getKeys: (cb: (error: string | null, keys?: string[]) => void) => reply('getKeys', cb, () => [...cloud.store.keys()]),
+  };
+}
+
 export function installFakeTelegram(version: string, overrides: Partial<TelegramWebApp> = {}): FakeTelegram {
   const calls: string[] = [];
+  const cloud: FakeCloud = { store: new Map(), log: [], failNext: null };
   const listeners = new Map<string, Set<Listener>>();
   const handlers = new Map<string, Set<Listener>>();
   const record =
@@ -95,7 +176,8 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
     HapticFeedback: at('6.1')
       ? { impactOccurred: record('haptic.impact'), notificationOccurred: record('haptic.notification'), selectionChanged: record('haptic.selection') }
       : undefined,
-    CloudStorage: {},
+    // The object exists on every client; its methods only from 6.9 (they throw below it).
+    CloudStorage: at('6.9') ? fakeCloudStorage(cloud) : {},
     ...(at('6.1') ? { setHeaderColor: record('setHeaderColor'), setBackgroundColor: record('setBackgroundColor') } : {}),
     ...(at('6.2')
       ? {
@@ -121,6 +203,7 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
   return {
     tg,
     calls,
+    cloud,
     emit: (event, ...args) => listeners.get(event)?.forEach((cb) => cb(...args)),
     click: (name) => handlers.get(name)?.forEach((cb) => cb()),
     uninstall: () => {

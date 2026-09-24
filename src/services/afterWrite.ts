@@ -1,6 +1,8 @@
-// Hooks that follow every data mutation. Empty for now: package 7 registers the achievement
-// sync (runs inside the mutation's transaction, so unlocks commit or roll back with the
-// journal), package 4 the cloud backup scheduler (runs after the commit, never blocks it).
+// Hooks that follow every data mutation: package 7 registers the achievement sync (runs
+// inside the mutation's transaction, so unlocks commit or roll back with the journal), the
+// cloud backup scheduler (services/backupSync.ts) runs after the commit and never blocks it.
+// A backup import or a full wipe replaces every table at once and runs the import hooks
+// inside its transaction instead (package 7: re-derive unlocks without celebrating them).
 
 import type { AchievementState } from '../domain/types';
 import { logError } from '../platform/errorLog';
@@ -16,8 +18,16 @@ export type InTransactionHook = (context: WriteContext) => Promise<AchievementSt
 /** Runs after the commit; failures are swallowed so a scheduled backup never fails a write. */
 export type AfterCommitHook = () => void | Promise<void>;
 
+export interface ImportContext {
+  now: string;
+}
+
+/** Runs inside the transaction of a backup import or a wipe (it covers every table); a throw rolls it back. */
+export type AfterImportHook = (context: ImportContext) => Promise<void>;
+
 const inTransactionHooks: InTransactionHook[] = [];
 const afterCommitHooks: AfterCommitHook[] = [];
+const afterImportHooks: AfterImportHook[] = [];
 
 function register<T>(list: T[], hook: T): () => void {
   list.push(hook);
@@ -29,6 +39,7 @@ function register<T>(list: T[], hook: T): () => void {
 
 export const registerInTransactionHook = (hook: InTransactionHook) => register(inTransactionHooks, hook);
 export const registerAfterCommitHook = (hook: AfterCommitHook) => register(afterCommitHooks, hook);
+export const registerAfterImportHook = (hook: AfterImportHook) => register(afterImportHooks, hook);
 
 /** Called by journal mutations right before their transaction ends. */
 export async function syncInTransaction(context: WriteContext): Promise<AchievementState[]> {
@@ -47,4 +58,9 @@ export async function afterWrite(): Promise<void> {
       logError(error, 'afterWrite');
     }
   }
+}
+
+/** Called by importBackup and wipeAllData right before their transaction ends. */
+export async function runAfterImport(context: ImportContext): Promise<void> {
+  for (const hook of afterImportHooks) await hook(context);
 }

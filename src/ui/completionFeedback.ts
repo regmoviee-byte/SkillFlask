@@ -2,6 +2,7 @@
 // 6 s, and the undo itself (a CANCELLATION row, never a delete). Shared by the step row, the
 // «Задним числом» screen and, in package 6, the Today tab.
 
+import { BackupError } from '../data/backup';
 import { cancelCompletion, type MutationResult } from '../services/completions';
 import { ValidationError } from '../services/core';
 import { haptics } from '../platform/haptics';
@@ -22,9 +23,9 @@ export function completionMessage(result: MutationResult, stepName: string): str
   return copy.completion.added(result.pointsAwarded, stepName);
 }
 
-/** User-facing text of a failed mutation: validation messages as is, anything else generic. */
+/** User-facing text of a failed mutation: validation and backup messages as is, anything else generic. */
 export function errorMessage(error: unknown): string {
-  if (error instanceof ValidationError) return error.message;
+  if (error instanceof ValidationError || error instanceof BackupError) return error.message;
   logError(error, 'mutation');
   return copy.errors.save;
 }

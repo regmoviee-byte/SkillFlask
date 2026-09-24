@@ -20,15 +20,3 @@ export function TodayScreen() {
     </Screen>
   );
 }
-
-/** «Настройки»: real content arrives in package 4. */
-export function SettingsScreen() {
-  return (
-    <Screen title={t.settingsTitle} largeTitle>
-      <section className="card card-padded">
-        <p>{t.version(__APP_VERSION__)}</p>
-        <p className="hint">{t.localData}</p>
-      </section>
-    </Screen>
-  );
-}

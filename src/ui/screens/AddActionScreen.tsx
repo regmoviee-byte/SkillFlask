@@ -11,11 +11,13 @@ import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { useToday } from '../hooks/useToday';
 
 export function AddActionScreen() {
   const { skillId = '' } = useParams();
   const [params] = useSearchParams();
-  const details = useLiveQuery(() => getSkillDetails(skillId), [skillId]);
+  const today = useToday();
+  const details = useLiveQuery(() => getSkillDetails(skillId, today), [skillId, today]);
   // A step just created from this screen arrives pre-selected via ?step=.
   const [selected, setSelected] = useState<string | null>(() => params.get('step'));
   const [date, setDate] = useState(localDate);

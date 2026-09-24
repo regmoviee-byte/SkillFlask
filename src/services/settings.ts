@@ -4,6 +4,8 @@ import { newId } from '../lib/ids';
 export type SettingKey =
   | 'storagePersistRequested'
   | 'lastCloudBackupAt'
+  | 'lastCloudBackupBytes'
+  | 'cloudBackupHash'
   | 'lastFileBackupAt'
   | 'cloudBackupEnabled'
   | 'restoreOfferShown'

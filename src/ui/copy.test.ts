@@ -10,9 +10,12 @@ function collect(value: unknown, path: string, out: [string, string][]): void {
     // Not every sample fits every signature (a date formatter rejects a name); each function
     // must still produce at least one string.
     let produced = 0;
-    for (const sample of [[7, 3, 12], ['2026-09-24', 2, 5], ['Английский', 1, 3], ['', 0]]) {
+    const fn = value as (...a: unknown[]) => unknown;
+    for (const base of [[7, 3, 12], ['2026-09-24', 2, 5], ['Английский', 1, 3], ['', 0]]) {
+      // Padded to the function's arity with the sample's first value, so no argument is undefined.
+      const sample = [...base, ...Array<unknown>(Math.max(0, fn.length - base.length)).fill(base[0])];
       try {
-        const result = (value as (...a: unknown[]) => unknown)(...sample);
+        const result = fn(...sample);
         if (typeof result === 'string') {
           out.push([`${path}(${sample.join(',')})`, result]);
           produced += 1;

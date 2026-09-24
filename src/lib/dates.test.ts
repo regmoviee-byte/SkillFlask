@@ -4,6 +4,7 @@ import {
   addDays,
   diffDays,
   formatDateTime,
+  formatDateTimeRelative,
   formatDayLabel,
   isoWeekday,
   isValidLocalDate,
@@ -73,6 +74,13 @@ describe('formatting', () => {
     expect(formatDayLabel('2026-09-24', '2026-09-24')).toBe('Сегодня');
     expect(formatDayLabel('2026-09-23', '2026-09-24')).toBe('Вчера');
     expect(formatDayLabel('2026-09-01', '2026-09-24')).toMatch(/1 сентября/);
+  });
+
+  it('says when something happened relative to today', () => {
+    const at = (day: number) => new Date(2026, 8, day, 14, 2).toISOString();
+    expect(formatDateTimeRelative(at(24), '2026-09-24')).toBe('сегодня в 14:02');
+    expect(formatDateTimeRelative(at(23), '2026-09-24')).toBe('вчера в 14:02');
+    expect(formatDateTimeRelative(at(3), '2026-09-24')).toMatch(/^3 сентября( 2026 г\.)? в 14:02$/);
   });
 });
 

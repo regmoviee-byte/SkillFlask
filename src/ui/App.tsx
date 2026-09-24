@@ -1,13 +1,16 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router';
+import { flushCloudBackup } from '../services/backupSync';
 import { getSetting } from '../services/settings';
+import { useAppLifecycle } from '../platform/telegram';
 import { DialogHost } from './components/DialogHost';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isTabRoute, TabBar, TabBarContext } from './components/TabBar';
 import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
-import { AchievementsScreen, SettingsScreen, TodayScreen } from './screens/PlaceholderScreens';
+import { AchievementsScreen, TodayScreen } from './screens/PlaceholderScreens';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
 import { SkillsScreen } from './screens/SkillsScreen';
@@ -33,6 +36,9 @@ function Shell() {
     // The «Уменьшить движение» setting (package 4) is applied on top of prefers-reduced-motion.
     getSetting<MotionPreference>('motion', 'system').then(setMotionPreference, () => {});
   }, []);
+  // Leaving the app (Telegram `deactivated`, or the page hidden) saves pending changes to the
+  // cloud at once instead of after the 30 s debounce.
+  useAppLifecycle(undefined, () => void flushCloudBackup());
 
   return (
     <TabBarContext.Provider value={hasTabBar}>

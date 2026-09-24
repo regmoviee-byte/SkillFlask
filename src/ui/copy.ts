@@ -10,10 +10,15 @@
 // 7. Exclamation marks and emoji only in «Навык достигнут 🎉» and «Веха достигнута! 🎯».
 // copy.test.ts walks this object and rejects forbidden words.
 
-import { formatDate } from '../lib/dates';
+import { formatDate, formatDateTime } from '../lib/dates';
 import { FLASKS, FLASKS_OF, formatNumber, formatPoints, plural } from '../lib/format';
 
 const COMPLETIONS: [string, string, string] = ['выполнение', 'выполнения', 'выполнений'];
+const SKILLS: [string, string, string] = ['навык', 'навыка', 'навыков'];
+const ACTIONS: [string, string, string] = ['действие', 'действия', 'действий'];
+const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
+
+const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)} ${plural(n, forms)}`;
 
 /** «Колба 2: 45/150» — the flask state after an operation, as in the history. */
 const flaskState = (flask: number, points: number, capacity: number) =>
@@ -204,9 +209,119 @@ export const copy = Object.freeze({
     todayTitle: 'Сегодня',
     todayHint: 'Здесь появятся действия на сегодня. Пока отмечайте выполнения на экране навыка.',
     toSkills: 'К навыкам',
-    settingsTitle: 'Настройки',
+  },
+  settings: {
+    title: 'Настройки',
+    groupData: 'Данные',
+    groupAppearance: 'Оформление',
+    groupAbout: 'О приложении',
+    groupDanger: 'Опасная зона',
+    cloud: 'Облако Telegram',
+    /** `when` is «сегодня в 14:02» / «24 сентября в 14:02». */
+    cloudSaved: (when: string, kb: number) => `Сохранено ${when} · ${formatNumber(kb)} КБ`,
+    cloudDirty: 'Есть несохранённые изменения',
+    cloudSaving: (done: number, total: number) => `Сохранение ${done}/${total}`,
+    cloudSavingStart: 'Сохранение…',
+    cloudNoCopy: 'Копии в облаке пока нет',
+    cloudOff: 'Выключено',
+    cloudError: (message: string) => `Не сохранилось: ${message}`,
+    cloudUpdateTelegram: 'Недоступно: обновите Telegram',
+    cloudOutside: 'Доступно при запуске из Telegram',
+    cloudToggle: 'Хранить копию в облаке Telegram',
+    cloudSaveNow: 'Сохранить сейчас',
+    cloudSavedToast: 'Копия сохранена в облаке',
+    cloudRestore: 'Восстановить из облака…',
+    cloudRemote: (when: string, skills: number, completions: number) =>
+      `Копия: ${when} · ${count(skills, SKILLS)}, ${count(completions, COMPLETIONS)}`,
+    cloudRemoteNone: 'В облаке нет копии',
+    cloudRemoteLoading: 'Проверяем облако…',
+    cloudRemoteError: 'Не удалось проверить облако — нажмите, чтобы повторить',
+    /** The cloud holds a copy this device did not write; the automatic save waits. `when` as in cloudSaved. */
+    cloudConflict: (when: string | null) =>
+      `В облаке другая копия${when ? ` (сохранена ${when})` : ''} — восстановите её или нажмите «Сохранить сейчас»`,
+    confirmCloudOverwrite: (when: string | null) =>
+      `Копия в облаке${when ? ` от ${when}` : ''} сохранена не с этого устройства. Заменить её данными с этого устройства?`,
+    cloudOverwriteOk: 'Заменить копию',
+    confirmCloudRestore: (when: string) => `Текущие данные на устройстве будут заменены копией из облака от ${when}. Продолжить?`,
+    replaceOk: 'Заменить',
+    cloudRestored: 'Восстановлено из облака',
+    cloudDelete: 'Удалить копию из облака',
+    confirmCloudDelete: 'Копия в облаке Telegram будет удалена, автоматическое сохранение выключится. Данные на устройстве останутся.',
+    cloudDeleteOk: 'Удалить копию',
+    cloudDeleted: 'Копия в облаке удалена',
+    cloudHint:
+      'Копия хранится в вашем аккаунте Telegram и доступна только этому боту. Это копия, а не синхронизация: при восстановлении данные на устройстве заменяются.',
+    fileDownload: 'Скачать файл',
+    fileImport: 'Загрузить из файла…',
+    fileHint: 'Файл JSON со всеми навыками и историей. Его можно загрузить на другом устройстве или в браузере.',
+    fileSaved: 'Файл сохранён',
+    fileShared: 'Копия сохранена',
+    fileCopied: (kb: number) => `Копия скопирована как текст (${formatNumber(kb)} КБ). Вставьте её в «Избранное» Telegram`,
+    onDevice: 'На устройстве',
+    counts: (skills: number, steps: number, completions: number) =>
+      `${count(skills, SKILLS)} · ${count(steps, ACTIONS)} · ${count(completions, COMPLETIONS)}`,
+    storagePersisted: 'Хранилище защищено от автоочистки',
+    storageNotPersisted: 'Браузер может очистить данные — скачайте копию',
+    reminder: (days: number) => `Последняя копия ${count(days, DAYS)} назад — скачайте файл`,
+    reminderNever: 'Резервной копии ещё нет — скачайте файл',
+    reduceMotion: 'Меньше анимации',
+    reduceMotionHint: 'Системная настройка «Уменьшить движение» тоже учитывается',
+    haptics: 'Виброотклик',
     version: (version: string) => `Skill Flask · версия ${version}`,
-    localData: 'Данные хранятся только на этом устройстве. Синхронизация между устройствами и резервная копия появятся позже.',
+    reload: 'Обновить приложение',
+    reloadHint: 'Если что-то выглядит устаревшим',
+    activeDays: (n: number) => `Активных дней за 14 дней: ${n}`,
+    errors: (n: number) => `Ошибки (${n})`,
+    errorsEmpty: 'Журнал ошибок пуст',
+    errorsClear: 'Очистить',
+    errorsCleared: 'Журнал ошибок очищен',
+    deleteAll: 'Удалить все данные',
+    confirmDeleteAll: 'Все навыки, действия и история на этом устройстве будут удалены. Удалить?',
+    deleteAllOk: 'Удалить всё',
+    confirmDeleteCloud: 'Удалить и копию в облаке Telegram? Если оставить её, данные можно будет восстановить из облака.',
+    deleteCloudOk: 'Удалить и копию',
+    keepCloud: 'Оставить копию',
+    deletedAll: 'Все данные удалены',
+  },
+  backupImport: {
+    title: 'Загрузить из файла',
+    chooseFile: 'Выбрать файл',
+    pasteLabel: 'Или вставьте текст копии',
+    pastePlaceholder: '{"format":"skill-flask-backup",…}',
+    check: 'Проверить текст',
+    reading: 'Читаем копию…',
+    previewTitle: 'Резервная копия',
+    preview: (skills: number, completions: number, lastDate: string | null, exportedAt: string) =>
+      [
+        `Навыков: ${formatNumber(skills)}`,
+        `выполнений: ${formatNumber(completions)}`,
+        lastDate ? `последняя запись ${formatDate(lastDate)}` : null,
+        `создано ${formatDateTime(exportedAt)}`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    replace: 'Заменить данные',
+    replaceHint: 'Данные на устройстве будут заменены этой копией.',
+    confirm: (exportedAt: string) => `Текущие данные на устройстве будут заменены копией от ${formatDateTime(exportedAt)}. Продолжить?`,
+    confirmOk: 'Заменить',
+    imported: 'Импортировано',
+  },
+  backupText: {
+    title: 'Копия как текст',
+    hint: 'Скопируйте текст целиком и сохраните его, например, в «Избранное» Telegram. Загрузить его можно через «Загрузить из файла…».',
+    selectAll: 'Выделить всё',
+    field: 'Текст резервной копии',
+  },
+  restoreOffer: {
+    title: 'Резервная копия в облаке',
+    text: (at: string, skills: number, completions: number) =>
+      `Найдена резервная копия от ${formatDateTime(at)}: ${count(skills, SKILLS)}, ${count(completions, COMPLETIONS)}. Восстановить?`,
+    restore: 'Восстановить',
+    fresh: 'Начать с чистого листа',
+    freshConfirm: 'Копия в облаке заменится новыми данными после первого изменения. Начать с чистого листа?',
+    freshOk: 'Начать заново',
+    freshCancel: 'Назад',
+    restoring: 'Восстанавливаем…',
   },
   sheet: {
     cancel: 'Отмена',
@@ -218,6 +333,7 @@ export const copy = Object.freeze({
     title: 'Что-то пошло не так',
     text: 'Данные на устройстве не пострадали.',
     reload: 'Перезагрузить',
+    saveCopy: 'Сохранить копию данных',
   },
   toast: {
     skillCompleted: 'Навык достигнут 🎉',
