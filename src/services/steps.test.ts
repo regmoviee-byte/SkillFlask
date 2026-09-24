@@ -55,7 +55,7 @@ describe('updateStep', () => {
     await expect(updateStep('nope', { name: 'Чтение', points: 5 })).rejects.toThrow('Действие не найдено');
     await completeStep(stepId);
     await completeSkill(skillId);
-    await expect(updateStep(stepId, { name: 'Чтение', points: 5 })).rejects.toThrow('Навык завершён — история доступна только для чтения');
+    await expect(updateStep(stepId, { name: 'Чтение', points: 5 })).rejects.toThrow('Навык не активен');
   });
 });
 

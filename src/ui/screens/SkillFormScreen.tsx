@@ -2,7 +2,9 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillFormData } from '../../services/queries';
+import { archiveSkill } from '../../services/lifecycle';
 import { createSkill, deleteSkill, updateSkill, ValidationError, type SkillInput } from '../../services/skills';
+import type { SkillStatus } from '../../domain/types';
 import { DEFAULT_MILESTONE_FLASKS } from '../../domain/milestone';
 import { DEFAULT_CAPACITY_BASE, DEFAULT_CAPACITY_INCREMENT, flaskCapacity, pointsToFill } from '../../domain/progression';
 import { formatNumber } from '../../lib/format';
@@ -110,10 +112,18 @@ export function SkillFormScreen() {
   // Capacities re-interpret the whole journal; they stay fixed once a skill left the active state.
   const capacityLocked = existing ? existing.skill.status !== 'ACTIVE' : false;
 
-  return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} capacityLocked={capacityLocked} />;
+  return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} capacityLocked={capacityLocked} status={existing?.skill.status} />;
 }
 
-function SkillForm({ skillId, initial, capacityLocked }: { skillId: string | undefined; initial: FormState | undefined; capacityLocked: boolean }) {
+interface SkillFormProps {
+  skillId: string | undefined;
+  initial: FormState | undefined;
+  capacityLocked: boolean;
+  /** Status of the edited skill; «Архивировать навык» is offered only for an active one. */
+  status: SkillStatus | undefined;
+}
+
+function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps) {
   // The form is the loaded values plus the user's edits, so it can mount (and keep its
   // skeleton mounted) before the values arrive; nothing can be typed while they are hidden.
   const [edits, setEdits] = useState<Partial<FormState>>({});
@@ -175,6 +185,33 @@ function SkillForm({ skillId, initial, capacityLocked }: { skillId: string | und
     } catch (e) {
       haptics.error();
       showToast(e instanceof Error ? e.message : copy.errors.save);
+      setBusy(false);
+    }
+  }
+
+  // A fast double tap must not queue two confirmations: the ref flips before the first await.
+  const confirming = useRef(false);
+
+  async function archive() {
+    if (!skillId || busy || !initial || confirming.current) return;
+    const l = copy.lifecycle;
+    // Typed but unsaved edits are saved with the archiving rather than dropped silently.
+    const pending = dirty;
+    confirming.current = true;
+    const ok = await dialogs.confirm(l.confirmArchive(form.name.trim() || initial.name), { okLabel: l.archiveOk });
+    confirming.current = false;
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (pending) await updateSkill(skillId, toInput(form));
+      await archiveSkill(skillId);
+      haptics.success();
+      showToast(l.archived);
+      navigate('/skills', { replace: true });
+    } catch (e) {
+      haptics.error();
+      setError(e instanceof ValidationError ? e.message : copy.errors.save);
       setBusy(false);
     }
   }
@@ -273,6 +310,12 @@ function SkillForm({ skillId, initial, capacityLocked }: { skillId: string | und
 
           {skillId && (
             <div className="danger-zone">
+              {status === 'ACTIVE' && (
+                <button type="button" className="button button-block" disabled={busy} onClick={archive}>
+                  <Icon name="archive" size={20} />
+                  {copy.lifecycle.archive}
+                </button>
+              )}
               <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
                 {t.remove}
               </button>

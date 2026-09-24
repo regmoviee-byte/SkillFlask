@@ -10,12 +10,14 @@ import { isTabRoute, TabBar, TabBarContext } from './components/TabBar';
 import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
-import { AchievementsScreen, TodayScreen } from './screens/PlaceholderScreens';
+import { AchievementsScreen } from './screens/PlaceholderScreens';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
 import { SkillsScreen } from './screens/SkillsScreen';
 import { StepFormScreen } from './screens/StepFormScreen';
+import { TodayScreen } from './screens/TodayScreen';
+import { StartRedirect } from './StartRedirect';
 
 // The styleguide exists only in development builds; the dead branch keeps it out of the bundle.
 const StyleguideScreen = import.meta.env.DEV ? lazy(() => import('./screens/StyleguideScreen')) : null;
@@ -49,7 +51,8 @@ function Shell() {
           <div className="app">
             <ErrorBoundary>
               <Routes>
-                <Route path="/" element={<Navigate to="/skills" replace />} />
+                {/* «Сегодня» is the entry once there is an action to tap, the skills before that. */}
+                <Route path="/" element={<StartRedirect />} />
                 <Route path="/today" element={<TodayScreen />} />
                 <Route path="/skills" element={<SkillsScreen />} />
                 <Route path="/skills/new" element={<SkillFormScreen />} />
@@ -72,7 +75,9 @@ function Shell() {
                     }
                   />
                 )}
-                <Route path="*" element={<Navigate to="/skills" replace />} />
+                {/* Unknown paths decide like `/`. Telegram launches the app with its own hash
+                    (`#tgWebAppData=…&tgWebAppVersion=…`), which lands here, not on `/`. */}
+                <Route path="*" element={<StartRedirect />} />
               </Routes>
             </ErrorBoundary>
             {hasTabBar && <TabBar />}

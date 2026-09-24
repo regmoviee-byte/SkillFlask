@@ -911,83 +911,514 @@ textarea.input {
   background: var(--color-accent-soft);
 }
 
-/* ---------- Skills list ---------- */
+/* ---------- Bento tiles (home, «Сегодня») ---------- */
 
-.overview {
+.screen-date {
+  margin-top: calc(-1 * var(--sp-3));
+  padding: 0 var(--sp-1);
+  color: var(--color-fg-secondary);
+}
+
+.screen-date::first-letter {
+  text-transform: uppercase;
+}
+
+.bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tile {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--card-padding);
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: 14px var(--sp-4) var(--sp-4);
+  border-radius: var(--r-m);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  text-decoration: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
-.stats {
-  display: flex;
-  gap: var(--sp-6);
+:root[data-theme='dark'] .tile {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
 }
 
-.stats > div {
+.tile-label {
+  color: var(--color-section-header);
+}
+
+.tile-value {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  container-type: inline-size;
 }
 
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.1;
+/* The number shrinks to fit the tile instead of being cut: --tile-em is the width of the final
+   string in em (TileNumber estimates it), so «+1 250» still fits a tile at 320 px. Without
+   container units the size stays 40 px and the ellipsis is the fallback. */
+.tile-value .tile-number {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(20px, calc(100cqi / var(--tile-em, 1)), 40px);
 }
 
-.overview-last {
-  font-size: 14px;
+.tile-number.is-zero {
+  color: var(--color-fg-tertiary);
 }
 
-.skill-row {
+.tile-caption {
+  color: var(--color-fg-secondary);
+}
+
+.tile--today .week-strip {
+  margin-top: auto;
+  padding-top: var(--sp-2);
+}
+
+.tile--flasks {
+  position: relative;
+}
+
+/* Up to five sealed flasks, right-aligned along the bottom edge of the tile. */
+.tile-flasks {
   display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: var(--sp-2);
+}
+
+.tile--wide {
+  grid-column: span 2;
+  flex-direction: row;
   align-items: center;
   gap: var(--sp-3);
-  min-height: var(--row-min-height);
-  padding: var(--sp-3) var(--card-padding);
-  color: inherit;
+  min-height: 64px;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
 }
 
-.skill-row-level {
+.tile-icon {
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-s);
-  background: var(--color-accent-soft);
   color: var(--color-accent);
-  font-weight: 700;
-  font-size: 17px;
 }
 
-.skill-row-main {
+.tile-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.tile-chevron {
+  flex: none;
+  color: var(--color-fg-tertiary);
+}
+
+/* ---------- Week strip ---------- */
+
+/* Seven dots, Monday first. A day without activity is the same neutral dot as a day ahead:
+   never red, never crossed out. */
+.week-strip {
+  display: flex;
+  justify-content: space-between;
+  max-width: 168px;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 18px;
+}
+
+.week-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-bg-sunken);
+}
+
+.week-day.is-active .week-dot {
+  background: var(--liquid-deep);
+}
+
+/* On a dark surface the deep tone of a dark Telegram accent sinks into the tile. */
+:root[data-theme='dark'] .week-day.is-active .week-dot {
+  background: var(--liquid-mid);
+}
+
+.week-day.is-today .week-dot {
+  box-shadow: 0 0 0 2px var(--color-bg-elevated), 0 0 0 4px var(--color-accent);
+}
+
+.week-initial {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--color-fg-tertiary);
+}
+
+.week-day.is-today .week-initial {
+  color: var(--color-accent);
+}
+
+/* ---------- Home: filter chips and skill cards ---------- */
+
+.filter-chips {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chips .chip {
+  flex: none;
+}
+
+.filter-chips .chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.skill-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--card-padding) 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.skill-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.skill-card-title {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
-.skill-row-top {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-
-.skill-row-name {
-  font-weight: 600;
+.skill-card-labels {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.skill-row-points {
+/* Two lines for a long name: the value on the right leaves little width on a 320 px phone. */
+.skill-card-name {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: break-word;
+}
+
+.skill-card-labels,
+.skill-card-count {
+  color: var(--color-fg-secondary);
+}
+
+.skill-card-value {
+  flex: none;
+  max-width: 45%;
+  color: var(--color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.skill-card.is-active .skill-card-value {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+.liquid-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-bg-sunken);
+  overflow: hidden;
+}
+
+.liquid-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--liquid-mid), var(--liquid-deep));
+  transition: width 600ms var(--ease-out);
+}
+
+html[data-motion='reduced'] .liquid-bar-fill {
+  transition: none;
+}
+
+.skill-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--sp-3);
+  min-height: 20px;
+}
+
+.milestone-dots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.milestone-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-bg-sunken);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.milestone-dot.is-done {
+  background: var(--liquid-deep);
+  box-shadow: none;
+}
+
+.skill-card.is-completed .milestone-dot.is-done {
+  background: var(--gold-2);
+}
+
+.skill-card.is-archived .milestone-dot.is-done {
+  background: var(--color-fg-tertiary);
+}
+
+.laurel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.laurel-chip svg {
+  color: var(--color-positive);
+}
+
+.skill-card-today {
+  margin-left: auto;
+  color: var(--color-positive-text);
+  font-weight: 600;
+}
+
+.dashed-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 56px;
+  border: 1.5px dashed var(--color-fg-tertiary);
+  border-radius: var(--r-m);
+  color: var(--color-link);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---------- «Сегодня» ---------- */
+
+.today-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.today-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-target);
+}
+
+.today-group-skill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap-target);
+  padding-left: var(--sp-1);
+  color: inherit;
+  text-decoration: none;
+}
+
+.today-group-skill .ring-label {
+  font-size: 13px;
+}
+
+/* A long name takes two lines before it is cut. */
+.today-group-name {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: break-word;
+}
+
+.today-group-points {
   flex: none;
   color: var(--color-fg-secondary);
+}
+
+.today-backdate {
+  flex: none;
+  margin-right: calc(-1 * var(--sp-2));
+}
+
+.done-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--row-min-height);
+  padding: 6px var(--card-padding);
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.done-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.done-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.done-row-meta {
   font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.done-row-count {
+  flex: none;
+  color: var(--color-fg-secondary);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.done-row-points {
+  flex: none;
+  font-weight: 600;
+  color: var(--color-positive-text);
+}
+
+.done-row.is-cancelled .done-row-name,
+.done-row.is-cancelled .done-row-points {
+  text-decoration: line-through;
+  color: var(--color-fg-tertiary);
+}
+
+/* The one coach hint: a soft accent bubble whose caret points down at the button on the right. */
+.coach-chip {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 6px;
+  padding: 10px var(--sp-3);
+  border: 0;
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.coach-chip::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -6px;
+  border: 6px solid transparent;
+  border-bottom: 0;
+  border-top-color: var(--color-accent-soft);
+}
+
+.coach-chip-icon {
+  flex: none;
+  color: var(--color-accent);
+}
+
+.coach-chip-text {
+  flex: 1;
+}
+
+.coach-chip-close {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-fg-tertiary);
+}
+
+/* ---------- Skill lifecycle ---------- */
+
+.archived-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.archived-banner-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 600;
+}
+
+.archived-banner-title svg {
+  color: var(--color-fg-secondary);
+}
+
+.button-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.rack-restart {
+  background: var(--color-bg-elevated);
 }
 
 /* ---------- Skill screen ---------- */

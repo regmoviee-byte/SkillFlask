@@ -1,23 +1,44 @@
-import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { listSkillSummaries, type SkillSummary } from '../../services/queries';
-import { formatDate } from '../../lib/dates';
-import { formatNumber } from '../../lib/format';
+import type { SkillStatus } from '../../domain/types';
+import { getHomeView, type HomeView } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
 import { EmptyState } from '../components/EmptyState';
+import { Flask } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
+import { SkillCard } from '../components/SkillCard';
 import { Skeleton } from '../components/Skeleton';
+import { Tile, TileNumber, TodayTile } from '../components/Tile';
 import { copy } from '../copy';
+import { useToday } from '../hooks/useToday';
 
-type Filter = 'ACTIVE' | 'COMPLETED';
+// Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
+// dots, the flasks filled so far, the last milestone — then the skill cards. Facts only:
+// no charts, no targets, nothing about days without activity.
 
-const t = copy.skills;
+const t = copy.home;
+
+const SEGMENTS: { status: SkillStatus; param: string; label: string }[] = [
+  { status: 'ACTIVE', param: 'active', label: t.filterActive },
+  { status: 'COMPLETED', param: 'completed', label: t.filterCompleted },
+  { status: 'ARCHIVED', param: 'archived', label: t.filterArchived },
+];
+
+/** Filled flasks drawn in the «Заполнено» tile, at most. */
+const TILE_FLASKS = 5;
 
 export function SkillsScreen() {
-  const summaries = useLiveQuery(listSkillSummaries);
-  const [filter, setFilter] = useState<Filter>('ACTIVE');
+  const today = useToday();
+  const home = useLiveQuery(() => getHomeView(today), [today]);
+  // The segment lives in the URL (`#/skills?filter=archived`), so «Назад» from a card opened
+  // in «Архив» returns to «Архив»; switching replaces the entry instead of adding one.
+  const [params, setParams] = useSearchParams();
+  const filter = SEGMENTS.find((segment) => segment.param === params.get('filter'))?.status ?? 'ACTIVE';
+  const setFilter = (next: SkillStatus) => {
+    const param = SEGMENTS.find((segment) => segment.status === next)!.param;
+    setParams(next === 'ACTIVE' ? {} : { filter: param }, { replace: true });
+  };
 
   const addButton = (
     <Link to="/skills/new" className="icon-button" aria-label={t.newSkill}>
@@ -27,126 +48,103 @@ export function SkillsScreen() {
 
   return (
     <Screen title={t.title} largeTitle action={addButton}>
-      <Skeleton layout="home" loading={summaries === undefined}>
-        {summaries && <SkillsContent summaries={summaries} filter={filter} onFilter={setFilter} />}
+      <Skeleton layout="home" loading={home === undefined}>
+        {home && <HomeContent home={home} today={today} filter={filter} onFilter={setFilter} />}
       </Skeleton>
     </Screen>
   );
 }
 
-function SkillsContent({ summaries, filter, onFilter }: { summaries: SkillSummary[]; filter: Filter; onFilter(next: Filter): void }) {
-  const completedCount = summaries.filter((s) => s.skill.status === 'COMPLETED').length;
-  const shown: Filter = completedCount > 0 ? filter : 'ACTIVE';
-  const visible = summaries.filter((s) => s.skill.status === shown);
+interface HomeContentProps {
+  home: HomeView;
+  today: string;
+  filter: SkillStatus;
+  onFilter(next: SkillStatus): void;
+}
 
-  if (summaries.length === 0) {
-    return <EmptyState illustration="skills" title={t.emptyTitle} text={t.emptyHint} action={{ label: t.create, to: '/skills/new' }} />;
+function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
+  if (home.summaries.length === 0) {
+    return (
+      <EmptyState
+        illustration="skills"
+        title={t.emptyTitle}
+        text={t.emptyText}
+        action={{ label: t.create, to: '/skills/new' }}
+        secondary={
+          <Link to="/skills/new?template=english" className="text-button">
+            {t.example}
+          </Link>
+        }
+      />
+    );
   }
+
+  const counts = { ACTIVE: 0, COMPLETED: 0, ARCHIVED: 0 };
+  for (const s of home.summaries) counts[s.skill.status] += 1;
+  // A segment exists only while it has skills; a filter left empty falls back to the first one.
+  const segments = SEGMENTS.filter((segment) => counts[segment.status] > 0);
+  const shown = counts[filter] > 0 ? filter : (segments[0]?.status ?? 'ACTIVE');
+  const visible = home.summaries.filter((s) => s.skill.status === shown);
+  const showChips = counts.COMPLETED + counts.ARCHIVED > 0;
+  // «Новый навык» closes the active list; with no active skill left it closes whatever is shown.
+  const showNewCard = shown === 'ACTIVE' || counts.ACTIVE === 0;
 
   return (
     <>
-      <Overview summaries={summaries} />
-      {completedCount > 0 && (
-        <div className="segmented" role="tablist">
-          {(['ACTIVE', 'COMPLETED'] as const).map((value) => (
+      <div className="bento">
+        <TodayTile points={home.todayPoints} week={home.weekActivity} today={today} to="/today" />
+        <Tile label={t.tileFlasks} className="tile--flasks">
+          <TileNumber value={home.totalFlasks} caption={t.flasksCaption(home.totalFlasks)} />
+          {home.totalFlasks > 0 && (
+            <span className="tile-flasks" aria-hidden="true">
+              {Array.from({ length: Math.min(TILE_FLASKS, home.totalFlasks) }, (_, i) => (
+                <Flask key={i} size="mini" fill={1} state="complete" />
+              ))}
+            </span>
+          )}
+        </Tile>
+        <Link to="/achievements" className="tile tile--wide pressable">
+          <Icon name="flag" size={22} className="tile-icon" />
+          <span className={`tile-text${home.lastMilestone ? '' : ' hint'}`}>
+            {home.lastMilestone ? t.lastMilestone(home.lastMilestone.name, home.lastMilestone.skillName, home.lastMilestone.reachedAt) : t.noMilestone}
+          </span>
+          <Icon name="chevron-right" size={20} className="tile-chevron" />
+        </Link>
+      </div>
+
+      {showChips && (
+        <div className="filter-chips" role="group" aria-label={t.filterLabel}>
+          {segments.map((segment) => (
             <button
-              key={value}
+              key={segment.status}
               type="button"
-              role="tab"
-              aria-selected={shown === value}
-              className={shown === value ? 'active' : ''}
+              className="chip"
+              aria-pressed={shown === segment.status}
               onClick={() => {
+                if (shown === segment.status) return;
                 haptics.select();
-                onFilter(value);
+                onFilter(segment.status);
               }}
             >
-              {value === 'ACTIVE' ? t.filterActive : t.filterCompleted}
+              {segment.label}
             </button>
           ))}
         </div>
       )}
-      {visible.length === 0 ? (
-        <p className="hint center">{shown === 'ACTIVE' ? t.noActive : t.noCompleted}</p>
-      ) : (
-        <ul className="card list">
-          {visible.map((summary) => (
-            <SkillRow key={summary.skill.id} summary={summary} />
-          ))}
-        </ul>
-      )}
-    </>
-  );
-}
 
-function Overview({ summaries }: { summaries: SkillSummary[] }) {
-  const active = summaries.filter((s) => s.skill.status === 'ACTIVE').length;
-  const flasks = summaries.reduce((sum, s) => sum + s.progress.completedFlasks, 0);
-  const lastReached = summaries
-    .filter((s) => s.milestone?.reachedAt)
-    .sort((a, b) => (a.milestone!.reachedAt! < b.milestone!.reachedAt! ? 1 : -1))[0];
-
-  return (
-    <section className="card overview">
-      <div className="stats">
-        <div>
-          <span className="stat-value">{active}</span>
-          <span className="hint">{t.statActive}</span>
-        </div>
-        <div>
-          <span className="stat-value">{formatNumber(flasks)}</span>
-          <span className="hint">{t.statFlasks}</span>
-        </div>
-      </div>
-      <p className="overview-last">
-        {lastReached ? (
-          <>
-            {t.lastReached} <b>{lastReached.milestone!.name}</b> · {lastReached.skill.name},{' '}
-            {formatDate(lastReached.milestone!.reachedAt!)}
-          </>
-        ) : (
-          <span className="hint">{t.noReached}</span>
+      <ul className="skill-cards">
+        {visible.map((summary) => (
+          <SkillCard key={summary.skill.id} summary={summary} />
+        ))}
+        {showNewCard && (
+          <li>
+            <Link to="/skills/new" className="dashed-card pressable">
+              <Icon name="plus" size={20} />
+              {t.newSkill}
+            </Link>
+          </li>
         )}
-      </p>
-    </section>
-  );
-}
-
-function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillSummary }) {
-  const completed = skill.status === 'COMPLETED';
-  const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
-  const percent = Math.round(progress.fill * 100);
-  return (
-    <li>
-      <Link to={`/skills/${skill.id}`} className="skill-row pressable pressable-row">
-        <div className="skill-row-level" aria-label={completed ? copy.common.flasksCount(progress.completedFlasks) : copy.common.flaskNumber(progress.currentFlask)}>
-          {completed ? <Icon name="check" size={22} /> : progress.currentFlask}
-        </div>
-        <div className="skill-row-main">
-          <div className="skill-row-top">
-            <span className="skill-row-name">{skill.name}</span>
-            <span className="skill-row-points">
-              {completed
-                ? copy.common.flasksCount(progress.completedFlasks)
-                : t.pointsOfCapacity(progress.pointsInCurrentFlask, progress.currentCapacity)}
-            </span>
-          </div>
-          {!completed && (
-            <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={copy.common.flaskFilled(percent)}>
-              <div className="bar-fill" style={{ width: `${progress.fill * 100}%` }} />
-            </div>
-          )}
-          <div className="hint small">
-            {[
-              labels,
-              milestone &&
-                t.milestoneProgress(milestone.name, Math.min(progress.completedFlasks, milestone.targetFlaskNumber), milestone.targetFlaskNumber),
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-            {milestone?.reachedAt && !completed && <span className="badge">{t.milestoneBadge}</span>}
-          </div>
-        </div>
-      </Link>
-    </li>
+      </ul>
+    </>
   );
 }

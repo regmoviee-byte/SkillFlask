@@ -38,7 +38,7 @@ export async function createStep(raw: StepInput): Promise<string> {
   const now = nowIso();
   const id = await db.transaction('rw', [db.skills, db.steps], async () => {
     const skill = await requireSkill(raw.skillId);
-    if (skill.status !== 'ACTIVE') throw new ValidationError('Действия можно добавлять только к активному навыку');
+    requireActiveSkill(skill);
     const step: StepDefinition = {
       id: newId(),
       skillId: skill.id,

@@ -112,15 +112,16 @@ describe('CelebrationProvider', () => {
   it('an ordinary completion plays nothing: no card, no sheet', async () => {
     renderProvider();
     await act(() => api.celebrateResult(result({}), { skillId: 's1' }));
-    expect(screen.queryByText('Колба заполнена')).toBeNull();
+    expect(screen.queryByText(/^Колба \d+ заполнена$/)).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('a filled flask off screen is a TopCard, never a dialog, with the level-up vibration', async () => {
     renderProvider();
     await act(() => api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1, 150), levelChange: 1 }), { skillId: 's1' }));
-    expect(screen.getByText('Колба заполнена')).toBeTruthy();
-    expect(screen.getByText('Английский · колба 2')).toBeTruthy();
+    // The title names the flask that filled (the one the ring shows), the caption the skill.
+    expect(screen.getByText('Колба 1 заполнена')).toBeTruthy();
+    expect(screen.getByText('Английский')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(haptics.levelUp).toHaveBeenCalledWith(1);
   });
@@ -134,7 +135,7 @@ describe('CelebrationProvider', () => {
     expect(dialog.textContent).toContain('Веха достигнута');
     expect(haptics.milestone).toHaveBeenCalledTimes(1);
     // The level-up is folded into the milestone: no TopCard on top of the sheet.
-    expect(screen.queryByText('Колба заполнена')).toBeNull();
+    expect(screen.queryByText(/^Колба \d+ заполнена$/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Решу позже' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
@@ -173,9 +174,9 @@ describe('CelebrationProvider', () => {
     );
     const done = api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1), levelChange: 1 }), { skillId: 's1', afterNavigation: true, flaskRef: null });
     await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
-    expect(screen.queryByText('Колба заполнена')).toBeNull();
+    expect(screen.queryByText(/^Колба \d+ заполнена$/)).toBeNull();
     act(() => navigate('/skills/s1'));
     await act(() => done);
-    expect(screen.getByText('Колба заполнена')).toBeTruthy();
+    expect(screen.getByText(/^Колба \d+ заполнена$/)).toBeTruthy();
   });
 });

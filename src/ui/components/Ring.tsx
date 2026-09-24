@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-// A progress ring: level on the home cards, today's plan, achievement ladders and the
+// A progress ring: level on the home cards and the Today groups, achievement ladders and the
 // level-up TopCard. The value animates through stroke-dashoffset only.
 
 interface RingProps {
@@ -8,7 +8,8 @@ interface RingProps {
   value: number;
   size?: number;
   stroke?: number;
-  tone?: 'accent' | 'gold';
+  /** 'muted' for an archived skill: the level stays readable without the accent. */
+  tone?: 'accent' | 'gold' | 'muted';
   /** Accessible name; the ring is decorative without one. */
   label?: string;
   children?: ReactNode;

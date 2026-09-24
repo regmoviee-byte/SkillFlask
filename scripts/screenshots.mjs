@@ -85,10 +85,19 @@ const shot = async (name) => {
 // form is not photographed mid-scroll.
 const settled = () => page.waitForTimeout(800);
 const tab = (name) => page.getByRole('navigation', { name: 'Разделы' }).getByRole('link', { name });
+// The home filter: toggle buttons in a group, the segment kept in the URL.
+const filterGroup = () => page.getByRole('group', { name: 'Какие навыки показать' });
+const segment = (name) => filterGroup().getByRole('button', { name, exact: true });
 
+// `/` opens the skills while there is no action to tap, «Сегодня» afterwards.
 await page.goto(baseUrl);
-await page.getByText('Здесь будут ваши навыки').waitFor();
+await page.getByText('Первый навык').waitFor();
+if (!/#\/skills$/.test(page.url())) errors.push(`an empty start did not open the skills: ${page.url()}`);
 await shot('skills-empty');
+await tab('Сегодня').click();
+await page.getByText('Начните с навыка').waitFor();
+await shot('today-empty');
+await tab('Навыки').click();
 
 await page.getByRole('link', { name: 'Создать навык' }).click();
 await page.getByLabel('Название', { exact: true }).fill('Английский');
@@ -106,6 +115,12 @@ await shot('skill-form-advanced');
 await page.getByRole('button', { name: 'Создать навык' }).click();
 await page.getByText('Достичь C1').waitFor();
 await shot('skill-empty');
+// «Сегодня» with a skill but no action yet: one button per skill, back to it.
+await page.goto(`${baseUrl}#/today`);
+await page.getByText('Добавьте первое действие').waitFor();
+await shot('today-no-actions');
+await page.getByRole('link', { name: 'К навыку «Английский»' }).click();
+await page.getByText('Достичь C1').waitFor();
 
 // First action from the skill screen's bottom button; the form returns to the skill.
 await page.getByRole('button', { name: 'Создать первое действие' }).click();
@@ -249,13 +264,30 @@ await page.evaluate(() => window.scrollTo(0, 0));
 
 await page.reload();
 await page.getByText(/Навык достигнут/).first().waitFor();
-await page.getByRole('button', { name: 'Назад' }).click();
-await page.getByRole('tab', { name: 'Достигнутые' }).click();
+// History holds the «Сегодня» visit from above; go home directly.
+await page.goto(`${baseUrl}#/skills`);
+// The only skill is completed: its segment is the only chip and is shown right away.
+await segment('Достигнутые').waitFor();
+if (await segment('Активные').count()) errors.push('an empty «Активные» segment is offered');
 await shot('skills-completed');
+// The completed card's ring: gold with the check in its centre (the ring's own rotated svg
+// must not take the icon along).
+const ringCheck = await page.locator('.skill-card.is-completed .ring').first().evaluate((ring) => {
+  const r = ring.getBoundingClientRect();
+  const icon = ring.querySelector('.ring-label svg')?.getBoundingClientRect();
+  if (!icon) return 'no check icon';
+  const dx = icon.left + icon.width / 2 - (r.left + r.width / 2);
+  const dy = icon.top + icon.height / 2 - (r.top + r.height / 2);
+  return Math.abs(dx) > 2 || Math.abs(dy) > 2 || getComputedStyle(ring.querySelector('.ring-label svg')).transform !== 'none'
+    ? `the check is off the ring's centre by ${dx.toFixed(1)}, ${dy.toFixed(1)}`
+    : null;
+});
+if (ringCheck) errors.push(`completed card ring: ${ringCheck}`);
+await page.locator('.skill-card.is-completed').first().screenshot({ path: `${outDir}/${String(++n).padStart(2, '0')}-skill-card-completed.png` });
 
 // A second skill whose single 25-point action fills flasks 1 (10) and 2 (15) at once:
 // the toast must name both filled flasks. The action starts from an example chip.
-await page.getByRole('link', { name: 'Новый навык' }).click();
+await page.getByRole('link', { name: 'Новый навык' }).first().click();
 await page.getByLabel('Название', { exact: true }).fill('Тренировки');
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('5');
@@ -282,7 +314,7 @@ await page.getByRole('button', { name: 'Отметить выполненным'
 await page.getByText('Тренировка', { exact: true }).click();
 await shot('backdate');
 await page.getByRole('button', { name: 'Отметить выполненным' }).click();
-await page.locator('.top-card', { hasText: 'Колба заполнена' }).waitFor();
+await page.locator('.top-card', { hasText: /Колба \d+ заполнена/ }).waitFor();
 await page.waitForTimeout(500);
 await shot('topcard');
 await page.locator('.top-card').waitFor({ state: 'detached' });
@@ -300,10 +332,139 @@ if (!/#\/skills\/[^/]+\/edit$/.test(page.url())) errors.push(`double tap on «О
 await page.getByRole('button', { name: 'Удалить навык' }).waitFor();
 await page.getByRole('button', { name: 'Назад' }).click();
 
-// Root tabs: the bar is only on the four root routes; legacy paths redirect.
+// Home: the bento row, the cards (ring, liquid bar, milestone dots, «+N сегодня») and chips
+// for the non-empty segments only.
 await page.getByRole('button', { name: 'Назад' }).click();
 await page.getByRole('navigation', { name: 'Разделы' }).waitFor();
-for (const name of ['Сегодня', 'Ачивки', 'Настройки']) {
+await page.locator('.skill-card').first().waitFor();
+const chips = async () => (await filterGroup().getByRole('button').allTextContents()).join(' · ');
+if ((await chips()) !== 'Активные · Достигнутые') errors.push(`home chips: ${await chips()}`);
+if (!(await page.locator('.skill-card', { hasText: '+50 сегодня' }).count())) errors.push('the home card does not show today\'s points');
+await shot('home');
+
+// «Сегодня»: the coach chip above the first button, the two tiles, the groups. A tap that
+// fills a flask is told by the TopCard (no flask on this screen); «Сделано сегодня» follows.
+await tab('Сегодня').click();
+await page.locator('.coach-chip').waitFor();
+await page.getByRole('img', { name: 'Активных дней на неделе: 1' }).waitFor();
+await shot('today');
+const todayCheck = (skill) => page.locator('.today-group', { hasText: skill }).locator('.check-button').first();
+const idleToday = (skill) => page.locator('.today-group', { hasText: skill }).locator('.check-button[aria-busy="false"]').first();
+await todayCheck('Тренировки').click();
+await page.locator('.top-card', { hasText: /Колба \d+ заполнена/ }).waitFor();
+await shot('today-topcard');
+await page.locator('.top-card').waitFor({ state: 'detached' });
+if (await page.locator('.coach-chip').count()) errors.push('the coach chip stayed after the first completion');
+await page.getByText('Сделано сегодня').waitFor();
+await shot('today-done');
+// A row of «Сделано сегодня» opens the completion sheet.
+await page.locator('.done-row').first().click();
+await page.locator('.completion-sheet').waitFor();
+await page.keyboard.press('Escape');
+await page.locator('.completion-sheet').waitFor({ state: 'detached' });
+
+// A third skill with a 1-point action, tapped 21 times from «Сегодня»: its history has more
+// than one page (20 operations), so «Показать ещё» appears and loads the rest.
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await tab('Навыки').click();
+await page.getByRole('link', { name: 'Новый навык' }).first().click();
+await page.getByLabel('Название', { exact: true }).fill('Чтение');
+await page.getByRole('button', { name: 'Создать навык' }).click();
+await page.getByRole('button', { name: 'Создать первое действие' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Десять страниц');
+await page.getByLabel('Очки за выполнение').fill('1');
+await page.getByRole('button', { name: 'Создать действие' }).click();
+await check.waitFor();
+await page.getByRole('button', { name: 'Назад' }).click();
+await tab('Сегодня').click();
+for (let i = 0; i < 21; i++) {
+  await idleToday('Чтение').waitFor();
+  await todayCheck('Чтение').click();
+  await page.locator('.today-group', { hasText: 'Чтение' }).getByText(`сегодня ×${i + 1}`).waitFor();
+}
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await shot('today-many');
+await page.locator('.today-group-skill', { hasText: 'Чтение' }).click();
+await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+const moreButton = page.getByRole('button', { name: 'Показать ещё' });
+await moreButton.waitFor();
+const rowsBefore = await page.locator('button.timeline-row').count();
+await shot('history-more');
+await moreButton.click();
+await moreButton.waitFor({ state: 'detached' });
+const rowsAfter = await page.locator('button.timeline-row').count();
+if (!(rowsAfter > rowsBefore)) errors.push(`«Показать ещё» did not add rows: ${rowsBefore} → ${rowsAfter}`);
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.getByRole('button', { name: 'Назад' }).click();
+
+// Archive from the skill form: gone from «Сегодня», a third chip «Архив» on the home screen,
+// the banner with «Продолжить с этого места» on the skill.
+await tab('Навыки').click();
+await page.locator('.skill-card', { hasText: 'Тренировки' }).click();
+await page.getByRole('link', { name: 'Изменить навык' }).click();
+await page.getByRole('button', { name: 'Архивировать навык' }).click();
+await dialog.waitFor();
+await shot('confirm-archive');
+await dialog.getByRole('button', { name: 'В архив' }).click();
+await page.getByText('Навык в архиве').waitFor();
+await dialog.waitFor({ state: 'detached' });
+if ((await chips()) !== 'Активные · Достигнутые · Архив') errors.push(`home chips after archiving: ${await chips()}`);
+await segment('Архив').click();
+await page.locator('.skill-card.is-archived').waitFor();
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await shot('home-archive');
+await tab('Сегодня').click();
+await page.locator('.today-group').first().waitFor();
+if (await page.locator('.today-group', { hasText: 'Тренировки' }).count()) errors.push('an archived skill is still on «Сегодня»');
+await tab('Навыки').click();
+await segment('Архив').click();
+if (!page.url().endsWith('#/skills?filter=archived')) errors.push(`the archive segment is not in the URL: ${page.url()}`);
+await page.locator('.skill-card.is-archived').click();
+await page.locator('.archived-banner').waitFor();
+if (await page.locator('.check-button').count()) errors.push('an archived skill offers the ✓');
+await shot('skill-archived');
+// No form to open for an archived skill: «Удалить навык» closes its screen.
+await page.getByRole('button', { name: 'Удалить навык' }).scrollIntoViewIfNeeded();
+await shot('skill-archived-bottom');
+await page.evaluate(() => window.scrollTo(0, 0));
+// «Назад» returns to the archive segment it was opened from.
+await page.getByRole('button', { name: 'Назад' }).click();
+await page.locator('.skill-card.is-archived').waitFor();
+if ((await segment('Архив').getAttribute('aria-pressed')) !== 'true') errors.push('«Назад» from an archived skill did not return to «Архив»');
+await page.locator('.skill-card.is-archived').click();
+await page.locator('.archived-banner').waitFor();
+await page.getByRole('button', { name: 'Продолжить с этого места' }).click();
+await page.getByText('Навык снова в работе').waitFor();
+await check.waitFor();
+await page.getByRole('button', { name: 'Назад' }).click();
+
+// «Начать заново» on the completed skill: a copy with the same actions and an empty flask,
+// opened in its form for a new name; the completed one stays in «Достигнутые».
+await segment('Достигнутые').click();
+await page.locator('.skill-card.is-completed').click();
+await page.getByRole('button', { name: 'Начать заново' }).click();
+await dialog.waitFor();
+await shot('confirm-restart');
+await dialog.getByRole('button', { name: 'Начать заново' }).click();
+await page.getByText('Копия создана').waitFor();
+await page.getByRole('button', { name: 'Удалить навык' }).waitFor();
+// The page is inert until the confirmation sheet has finished closing.
+await dialog.waitFor({ state: 'detached' });
+await page.getByLabel('Название', { exact: true }).fill('Английский C1 → C2');
+await settled();
+await shot('restart-form');
+await page.getByRole('button', { name: 'Сохранить' }).click();
+await page.locator('.flask--empty').waitFor();
+await page.getByRole('heading', { name: 'Английский C1 → C2' }).waitFor();
+await page.getByText('Разговорная практика').waitFor();
+await shot('restart-skill');
+await page.getByRole('button', { name: 'Назад' }).click();
+await page.getByRole('navigation', { name: 'Разделы' }).waitFor();
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await shot('home-after');
+
+// Root tabs: the bar is only on the four root routes; legacy paths redirect.
+for (const name of ['Ачивки', 'Настройки']) {
   await tab(name).click();
   await page.waitForTimeout(200);
   await shot(`tab-${name}`);
@@ -342,7 +503,7 @@ const wipeSheet = page.locator('.sheet', { has: page.getByRole('button', { name:
 await wipeSheet.waitFor();
 await shot('settings-confirm-wipe');
 await wipeSheet.getByRole('button', { name: 'Удалить всё' }).click();
-await page.getByText('Здесь будут ваши навыки').waitFor();
+await page.getByText('Первый навык').waitFor();
 
 await tab('Настройки').click();
 await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
@@ -353,14 +514,14 @@ await importSheet.getByRole('button', { name: 'Проверить текст' })
 await importSheet.getByText('Это не резервная копия Skill Flask').waitFor();
 await shot('import-error');
 await importSheet.locator('input[type="file"]').setInputFiles(backupPath);
-await importSheet.getByText(/^Навыков: 2 · выполнений: \d+/).waitFor();
+await importSheet.getByText(/^Навыков: 4 · выполнений: \d+/).waitFor();
 if (await importSheet.getByLabel('Или вставьте текст копии').inputValue()) errors.push('the pasted text stayed next to the chosen file');
 await shot('import-preview');
 await importSheet.getByRole('button', { name: 'Заменить данные' }).click();
 const replaceSheet = page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) });
 await replaceSheet.getByRole('button', { name: 'Заменить', exact: true }).click();
 await page.getByText('Импортировано').waitFor();
-await page.getByText('Тренировки').waitFor();
+await page.getByText('Тренировки').first().waitFor();
 await shot('import-done');
 
 // Styleguide (dev server only): every component state on one page.
@@ -438,6 +599,40 @@ function cloudStoreFor(json) {
   });
   return store;
 }
+
+// Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
+// to fit instead of being cut (own context, so the walk above keeps its data).
+const bigContext = await browser.newContext({ ...contextOptions, viewport: { width: 320, height: 700 } });
+await applyTheme(bigContext);
+page = await openPage(bigContext);
+await page.goto(`${baseUrl}#/skills/new`);
+await page.getByLabel('Название', { exact: true }).fill('Очень длинное название навыка для проверки');
+await page.getByText('Дополнительно').click();
+await page.getByLabel('Колб', { exact: true }).fill('3');
+await page.getByLabel('Первая колба').fill('5000');
+await page.getByRole('button', { name: 'Создать навык' }).click();
+await page.getByRole('button', { name: 'Создать первое действие' }).click();
+await page.getByLabel('Название', { exact: true }).fill('Большой проект');
+await page.getByLabel('Очки за выполнение').fill('1250');
+await page.getByRole('button', { name: 'Создать действие' }).click();
+await page.locator('.check-button').first().waitFor();
+await page.goto(`${baseUrl}#/today`);
+await page.locator('.today-group .check-button').first().click();
+await page.getByText('Сделано сегодня').waitFor();
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+const clippedTiles = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.tile-number')].filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => el.textContent),
+  );
+await page.waitForTimeout(1200); // the count-up
+if ((await clippedTiles()).length) errors.push(`tile numbers cut at 320 px on «Сегодня»: ${await clippedTiles()}`);
+await shot('today-big-320');
+await tab('Навыки').click();
+await page.locator('.skill-card').first().waitFor();
+await page.waitForTimeout(1200);
+if ((await clippedTiles()).length) errors.push(`tile numbers cut at 320 px on the home screen: ${await clippedTiles()}`);
+await shot('home-big-320');
+await bigContext.close();
 
 const tgContext = await browser.newContext(contextOptions);
 await applyTheme(tgContext);
@@ -583,22 +778,28 @@ const setHidden = (hidden) =>
     document.dispatchEvent(new Event('visibilitychange'));
   }, hidden);
 
+// Telegram opens the app with its launch parameters in the hash; the router must still pick
+// the entry screen (StartRedirect), not treat the hash as an unknown page.
+const tgLaunch = `${baseUrl}#tgWebAppData=query_id%3DAAH%26user%3D%257B%2522id%2522%253A1%257D&tgWebAppVersion=7.10&tgWebAppPlatform=ios`;
+
 // Empty database + a copy in the cloud: the offer, never a silent restore.
-await page.goto(baseUrl);
-await page.getByText(/^Найдена резервная копия от .+: 2 навыка, \d+ выполнени/).waitFor();
+await page.goto(tgLaunch);
+await page.getByText(/^Найдена резервная копия от .+: 4 навыка, \d+ выполнени/).waitFor();
 await shot('tg-restore-offer');
 await page.locator('#tg-main', { hasText: 'Восстановить' }).click();
-await page.getByText('Тренировки').waitFor();
+// With actions restored, the app opens on «Сегодня».
+await page.locator('.today-group', { hasText: 'Тренировки' }).waitFor();
 await shot('tg-restored');
 
 await tab('Настройки').click();
 await page.getByText(/^Сохранено сегодня в \d\d:\d\d · \d+ КБ$/).waitFor();
-await page.getByText(/^Копия: .+ · 2 навыка/).waitFor();
+await page.getByText(/^Копия: .+ · 4 навыка/).waitFor();
 await shot('tg-settings');
 
 // A completion makes the copy stale; going to the background saves it at once.
 await tab('Навыки').click();
-await page.getByText('Тренировки').click();
+// «Чтение» (1 point a tap): no flask fills, so no milestone sheet stands in the way.
+await page.locator('.skill-card', { hasText: 'Чтение' }).click();
 await page.locator('.check-button').first().click();
 await page.getByRole('button', { name: 'Отменить', exact: true }).waitFor();
 await page.locator('#tg-back').click();
@@ -636,10 +837,12 @@ if ((await cloudMeta())?.h === 'ffffffffffffffff') errors.push('the foreign clou
 
 // «Удалить все данные» with the copy: both native popups are confirmed; nothing is offered after a reload.
 await page.getByRole('button', { name: 'Удалить все данные' }).click();
-await page.getByText('Здесь будут ваши навыки').waitFor();
+await page.getByText('Первый навык').waitFor();
 if ((await cloudKeys()).length) errors.push(`cloud keys left after deleting everything: ${await cloudKeys()}`);
-await page.reload();
-await page.getByText('Здесь будут ваши навыки').waitFor();
+// A new document (the query differs), as when Telegram opens the app again.
+await page.goto(tgLaunch.replace('/#', '/?relaunch#'));
+await page.getByText('Первый навык').waitFor();
+if (!/#\/skills$/.test(page.url())) errors.push(`a Telegram launch with no action did not open the skills: ${page.url()}`);
 await tgContext.close();
 
 await browser.close();

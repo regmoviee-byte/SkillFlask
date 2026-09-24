@@ -25,6 +25,8 @@
   --color-link: var(--tg-theme-link-color, #2481cc);
   --color-danger: var(--tg-theme-destructive-text-color, #e5393b);
   --color-positive: #34c759;
+  /* Positive text on a card (≥ 4.5:1); --color-positive itself is for fills and icons. */
+  --color-positive-text: #1a7f37;
   --color-border: var(--tg-theme-section-separator-color, rgba(60, 60, 67, 0.14));
   --color-section-header: var(--tg-theme-section-header-text-color, #5c5c61);
   --color-accent-soft: rgba(36, 129, 204, 0.14);
@@ -105,6 +107,7 @@
   --color-link: var(--tg-theme-link-color, #3e88f7);
   --color-danger: var(--tg-theme-destructive-text-color, #ff453a);
   --color-positive: #30d158;
+  --color-positive-text: #30d158;
   --color-border: var(--tg-theme-section-separator-color, rgba(84, 84, 88, 0.6));
   --color-section-header: var(--tg-theme-section-header-text-color, #b0b0b6);
   --color-accent-soft: rgba(62, 136, 247, 0.14);

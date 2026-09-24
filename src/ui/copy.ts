@@ -46,23 +46,74 @@ export const copy = Object.freeze({
     flaskNumber: (n: number) => `Колба ${n}`,
     flasksCount: (n: number) => `${n} ${plural(n, FLASKS)}`,
   },
-  skills: {
+  home: {
     title: 'Навыки',
     newSkill: 'Новый навык',
-    emptyTitle: 'Здесь будут ваши навыки',
-    emptyHint: 'Создайте навык, добавьте к нему действия и заполняйте колбы очками.',
-    create: 'Создать навык',
+    tileFlasks: 'Заполнено',
+    flasksCaption: (n: number) => plural(n, FLASKS),
+    /** The wide tile; package 7 replaces it with the last or next achievement. */
+    lastMilestone: (name: string, skillName: string, date: string) => `Последняя веха: ${name} · ${skillName} · ${formatDate(date)}`,
+    noMilestone: 'Достигнутые вехи появятся здесь',
+    filterLabel: 'Какие навыки показать',
     filterActive: 'Активные',
     filterCompleted: 'Достигнутые',
-    noActive: 'Нет активных навыков',
-    noCompleted: 'Достигнутые навыки появятся здесь',
-    statActive: 'в работе',
-    statFlasks: 'колб заполнено',
-    lastReached: 'Последнее достижение:',
-    noReached: 'Достигнутые вехи появятся здесь',
-    milestoneBadge: 'веха',
-    milestoneProgress: (name: string, done: number, target: number) => `${name}: ${done}/${target}`,
+    filterArchived: 'Архив',
     pointsOfCapacity: (points: number, capacity: number) => `${formatNumber(points)} / ${formatNumber(capacity)}`,
+    flasksDone: (n: number) => `${formatNumber(n)} ${plural(n, FLASKS)}`,
+    archivedSince: (date: string) => `в архиве с ${formatDate(date)}`,
+    /** Above 12 flasks the milestone is a count instead of dots: «7 / 20 колб». */
+    milestoneCount: (done: number, target: number) => `${formatNumber(done)} / ${formatNumber(target)} ${plural(target, FLASKS_OF)}`,
+    milestoneReached: 'веха достигнута',
+    todayPoints: (points: number) => `+${formatNumber(points)} сегодня`,
+    /** Accessible name of a skill card's ring. */
+    ringLabel: (flask: number, percent: number) => `Колба ${flask}, заполнена на ${percent}%`,
+    ringCompleted: (flasks: number) => `Навык достигнут: ${flasks} ${plural(flasks, FLASKS)}`,
+    emptyTitle: 'Первый навык',
+    emptyText: 'Создайте навык, добавьте действия и заполняйте колбы очками.',
+    create: 'Создать навык',
+    example: 'Пример: Английский B1 → C1',
+  },
+  today: {
+    title: 'Сегодня',
+    tileToday: 'Сегодня',
+    pointsCaption: (n: number) => plural(n, POINTS),
+    tileActions: 'Действий',
+    /** Under the count of today's completions (the label already says «Действий»). */
+    actionsCaption: 'за сегодня',
+    /** The week strip states facts only: no target, no count of the days without activity. */
+    week: (n: number) => `Активных дней на неделе: ${n}`,
+    weekdays: ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'],
+    groupPoints: (points: number, capacity: number) => `${formatNumber(points)}/${formatNumber(capacity)}`,
+    backdateLabel: (name: string) => `Задним числом: ${name}`,
+    done: 'Сделано сегодня',
+    doneCancelled: 'отменено',
+    donePoints: (points: number) => `+${formatNumber(points)}`,
+    doneCount: (n: number) => `×${n}`,
+    emptyTitle: 'Начните с навыка',
+    emptyText: 'Создайте навык и добавьте действия — они появятся здесь.',
+    create: 'Создать навык',
+    noStepsTitle: 'Добавьте первое действие',
+    noStepsText: 'Действия всех навыков собираются здесь, отметка — одним нажатием.',
+    toSkill: (name: string) => `К навыку «${name}»`,
+    /** The only coach hint of the app, shown once above the first button. */
+    coach: 'Нажмите на кнопку с очками — они сразу упадут в колбу. Ошиблись? «Отменить» в подсказке снизу.',
+    /** The chip is one button: its name says it is a hint and that a tap closes it. */
+    coachLabel: 'Подсказка: нажмите на кнопку с очками — они сразу упадут в колбу. Ошиблись? «Отменить» в подсказке снизу. Закрыть подсказку',
+  },
+  lifecycle: {
+    archivedSince: (date: string) => `В архиве с ${formatDate(date)}`,
+    archivedText: 'История и прогресс сохранены. Действия снова появятся на «Сегодня», когда вы продолжите.',
+    restore: 'Продолжить с этого места',
+    restored: 'Навык снова в работе',
+    restart: 'Начать заново',
+    confirmRestart: (name: string, archived: boolean) =>
+      `Создадим копию «${name}» с теми же действиями и вехой, но с пустой колбой. Этот навык останется ${archived ? 'в архиве' : 'в достигнутых'}.`,
+    restarted: 'Копия создана',
+    archive: 'Архивировать навык',
+    confirmArchive: (name: string) =>
+      `Убрать «${name}» в архив? История сохранится, действия перестанут показываться на «Сегодня». Вернуть можно в любой момент.`,
+    archiveOk: 'В архив',
+    archived: 'Навык в архиве',
   },
   skill: {
     edit: 'Изменить навык',
@@ -234,9 +285,6 @@ export const copy = Object.freeze({
   placeholders: {
     achievementsTitle: 'Ачивки',
     achievementsHint: 'Ачивки появятся в следующих версиях. Пока достигнутые вехи видны на главной.',
-    todayTitle: 'Сегодня',
-    todayHint: 'Здесь появятся действия на сегодня. Пока отмечайте выполнения на экране навыка.',
-    toSkills: 'К навыкам',
   },
   settings: {
     title: 'Настройки',
@@ -368,8 +416,8 @@ export const copy = Object.freeze({
   },
   celebration: {
     /** TopCard: a flask filled while the skill's own flask is not on screen. */
-    topTitle: 'Колба заполнена',
-    topText: (skillName: string, flask: number) => `${skillName} · колба ${flask}`,
+    /** Names the flask that filled, the one the ring shows; the caption is the skill. */
+    topTitle: (flask: number) => `Колба ${flask} заполнена`,
     milestoneTitle: 'Веха достигнута',
     milestoneLabel: (name: string) => `Веха достигнута: ${name}`,
     tileFlasks: (n: number) => plural(n, FLASKS),

@@ -157,7 +157,7 @@ export async function completeStep(stepId: string, options: CompleteStepOptions 
     const step = await db.steps.get(stepId);
     if (!step || !step.isActive) throw new ValidationError('Действие не найдено');
     const skill = await requireSkill(step.skillId);
-    if (skill.status !== 'ACTIVE') throw new ValidationError('Навык не активен');
+    requireActiveSkill(skill);
 
     // A double submit on a slow device: the UI's busy flag normally swallows it first.
     // Only ACTIVE ones count: a completion just undone via «Отменить» marks nothing any more.

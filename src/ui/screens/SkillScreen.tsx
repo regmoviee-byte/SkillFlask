@@ -1,12 +1,16 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { fromDeci, toDeci } from '../../domain/points';
 import type { Progress } from '../../domain/progression';
+import type { Skill } from '../../domain/types';
 import { getSkillHistory, HISTORY_PAGE } from '../../services/history';
+import { restartSkill, restoreSkill } from '../../services/lifecycle';
+import { deleteSkill } from '../../services/skills';
 import { getSkillDetails, type SkillDetails } from '../../services/queries';
 import { setStepActive } from '../../services/steps';
 import { formatNumber } from '../../lib/format';
+import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
 import { useCelebrationStage } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
@@ -88,14 +92,23 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
   const stage = useCelebrationStage(skill.id, details.progress);
   const progress = stage.shown ?? details.progress;
   const hasOperations = history ? history.operations > 0 : true;
+  const lifecycle = useLifecycle(skill);
 
   return (
     <>
       {(labels || skill.description) && <p className="t-caption skill-subtitle">{[labels, skill.description].filter(Boolean).join(' · ')}</p>}
 
+      {skill.status === 'ARCHIVED' && <ArchivedBanner skill={skill} busy={lifecycle.busy} onRestore={lifecycle.restore} onRestart={lifecycle.restart} />}
+
       <Hero details={details} progress={progress} flaskRef={stage.flaskRef} pill={stage.pill} announcement={stage.announcement} />
 
-      <MilestoneRack skill={skill} milestone={details.milestone} progress={progress} />
+      <MilestoneRack
+        skill={skill}
+        milestone={details.milestone}
+        progress={progress}
+        onRestart={skill.status === 'COMPLETED' ? lifecycle.restart : undefined}
+        restartBusy={lifecycle.busy}
+      />
 
       <ActionsCard details={details} />
 
@@ -110,8 +123,104 @@ function SkillContent({ details, today }: { details: SkillDetails; today: string
         )}
       </section>
 
+      {/* An active skill is deleted from its form; an archived or completed one has no form
+          to open, so «Удалить навык» closes its screen (section 6: any state → delete). */}
+      {!active && (
+        <div className="danger-zone">
+          <button type="button" className="button button-block button-danger" disabled={lifecycle.busy} onClick={lifecycle.remove}>
+            {copy.skillForm.remove}
+          </button>
+        </div>
+      )}
+
       <CompletionSheet completionId={openCompletion} onClose={() => setOpenCompletion(null)} />
     </>
+  );
+}
+
+/**
+ * «Продолжить с этого места», «Начать заново» and «Удалить навык» (section 6). Restarting opens the copy's form
+ * for a new name or target; the copy replaces this skill in the history, so «Назад» from the
+ * copy leads home rather than to the skill it was made from.
+ */
+function useLifecycle(skill: Skill) {
+  const t = copy.lifecycle;
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  // Rule: a double tap must not queue two confirmations; the ref flips before the first await.
+  const busyRef = useRef(false);
+
+  async function guarded(action: () => Promise<void>) {
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await action();
+    } catch (error) {
+      haptics.error();
+      showToast(errorMessage(error));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  function restore() {
+    if (busyRef.current) return;
+    void guarded(async () => {
+      await restoreSkill(skill.id);
+      haptics.success();
+      showToast(t.restored);
+    });
+  }
+
+  function restart() {
+    if (busyRef.current) return;
+    // dialogs.confirm runs synchronously in the click handler, before any await.
+    const answer = dialogs.confirm(t.confirmRestart(skill.name, skill.status === 'ARCHIVED'), { okLabel: t.restart });
+    void guarded(async () => {
+      if (!(await answer)) return;
+      const id = await restartSkill(skill.id);
+      haptics.success();
+      navigate(`/skills/${id}`, { replace: true });
+      navigate(`/skills/${id}/edit`);
+      showToast(t.restarted);
+    });
+  }
+
+  function remove() {
+    if (busyRef.current) return;
+    const f = copy.skillForm;
+    const answer = dialogs.confirm(f.confirmRemove, { okLabel: f.removeConfirmButton, danger: true });
+    void guarded(async () => {
+      if (!(await answer)) return;
+      await deleteSkill(skill.id);
+      showToast(f.removed);
+      navigate('/skills', { replace: true });
+    });
+  }
+
+  return { busy, restore, restart, remove };
+}
+
+function ArchivedBanner({ skill, busy, onRestore, onRestart }: { skill: Skill; busy: boolean; onRestore(): void; onRestart(): void }) {
+  const t = copy.lifecycle;
+  return (
+    <section className="card card-padded archived-banner">
+      <p className="archived-banner-title">
+        <Icon name="archive" size={20} />
+        {t.archivedSince(skill.archivedAt ?? skill.updatedAt)}
+      </p>
+      <p className="t-caption hint">{t.archivedText}</p>
+      <div className="button-stack">
+        <button type="button" className="button button-primary" disabled={busy} onClick={onRestore}>
+          {t.restore}
+        </button>
+        <button type="button" className="button" disabled={busy} onClick={onRestart}>
+          {t.restart}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -126,7 +235,8 @@ interface HeroProps {
 function Hero({ details: { skill, milestone }, progress: p, flaskRef, pill, announcement }: HeroProps) {
   const t = copy.skill;
   const completed = skill.status === 'COMPLETED';
-  const laurel = skill.status === 'ACTIVE' && milestone?.reachedAt != null;
+  // Follows the progress on display, so the laurel appears when the flask gets there.
+  const laurel = skill.status === 'ACTIVE' && milestone?.reachedAt != null && p.completedFlasks >= milestone.targetFlaskNumber;
   const percent = Math.floor(p.fill * 100);
   const left = fromDeci(toDeci(p.currentCapacity) - toDeci(p.pointsInCurrentFlask));
 

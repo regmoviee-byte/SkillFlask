@@ -59,6 +59,7 @@ export function monthEnd(date: string): string {
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 const dateFormatWithYear = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const timeFormat = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' });
+const weekdayFormat = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
 function toDate(value: string): Date {
   return value.length === 10 ? new Date(`${value}T00:00:00`) : new Date(value);
@@ -68,6 +69,11 @@ function toDate(value: string): Date {
 export function formatDate(value: string): string {
   const date = toDate(value);
   return (date.getFullYear() === nowDate().getFullYear() ? dateFormat : dateFormatWithYear).format(date);
+}
+
+/** «четверг, 24 сентября» — the second line of «Сегодня». Accepts YYYY-MM-DD. */
+export function formatWeekdayDate(date: string): string {
+  return weekdayFormat.format(toDate(date));
 }
 
 /** "24 сентября, 14:02" in the device time zone. */

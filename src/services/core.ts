@@ -54,10 +54,15 @@ export async function requireSkill(id: string): Promise<Skill> {
   return skill;
 }
 
-/** Progress changes are allowed only on an active skill (a completed one is read-only, decision 14.9). */
+/** One message for every write refused on a skill that is not ACTIVE. */
+export const NOT_ACTIVE_MESSAGE = 'Навык не активен';
+
+/**
+ * Steps and progress change only on an active skill: a completed one is read-only (decision
+ * 14.9), an archived one waits for «Продолжить с этого места» (section 6).
+ */
 export function requireActiveSkill(skill: Skill): void {
-  if (skill.status === 'COMPLETED') throw new ValidationError('Навык завершён — история доступна только для чтения');
-  if (skill.status === 'ARCHIVED') throw new ValidationError('Навык в архиве');
+  if (skill.status !== 'ACTIVE') throw new ValidationError(NOT_ACTIVE_MESSAGE);
 }
 
 export async function loadCapacityConfig(skill: Skill): Promise<CapacityConfig> {

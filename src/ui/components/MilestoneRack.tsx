@@ -22,9 +22,12 @@ interface MilestoneRackProps {
   milestone: Milestone | undefined;
   /** The progress on display (frozen while a celebration plays). */
   progress: Progress;
+  /** «Начать заново» on the card of a completed skill (section 6). */
+  onRestart?(): void;
+  restartBusy?: boolean;
 }
 
-export function MilestoneRack({ skill, milestone, progress }: MilestoneRackProps) {
+export function MilestoneRack({ skill, milestone, progress, onRestart, restartBusy = false }: MilestoneRackProps) {
   const { showToast } = useToast();
   const { celebrate } = useCelebrations();
   const [busy, setBusy] = useState(false);
@@ -46,12 +49,19 @@ export function MilestoneRack({ skill, milestone, progress }: MilestoneRackProps
           </span>
         </div>
         <p className="rack-text">{t.completedAt(skill.completedAt ?? skill.updatedAt, progress.completedFlasks, progress.totalPoints)}</p>
+        {onRestart && (
+          <button type="button" className="button button-block rack-restart" disabled={restartBusy} onClick={onRestart}>
+            {copy.lifecycle.restart}
+          </button>
+        )}
       </section>
     );
   }
 
   const active = skill.status === 'ACTIVE';
-  const reached = milestone.reachedAt !== null;
+  // Reached as far as the flask on screen shows: while a celebration holds the progress below
+  // the target, the ring, laurel and buttons wait for the flask (and the milestone sheet).
+  const reached = milestone.reachedAt !== null && progress.completedFlasks >= target;
 
   // Rule: a double tap must not queue two confirmations; the ref flips before the first await.
   async function guarded(action: () => Promise<void>) {

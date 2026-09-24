@@ -34,12 +34,16 @@ function Row() {
 }
 
 const layouts: Record<SkeletonLayout, ReactNode> = {
+  // The bento row (two tiles and the wide one), then skill cards.
   home: (
     <>
-      <Block h={96} />
-      <Row />
-      <Row />
-      <Row />
+      <div className="skeleton-row">
+        <Block h={132} r={16} />
+        <Block h={132} r={16} />
+      </div>
+      <Block h={64} r={16} />
+      <Block h={112} r={16} />
+      <Block h={112} r={16} />
     </>
   ),
   // The hero (flask and its numbers), the milestone rack, two actions.
@@ -59,10 +63,14 @@ const layouts: Record<SkeletonLayout, ReactNode> = {
       <Row />
     </>
   ),
+  // The two tiles, a group header and its actions.
   today: (
     <>
-      <Block h={64} />
-      <Row />
+      <div className="skeleton-row">
+        <Block h={132} r={16} />
+        <Block h={132} r={16} />
+      </div>
+      <Line w="45%" />
       <Row />
       <Row />
       <Row />

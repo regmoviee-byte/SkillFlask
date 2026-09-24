@@ -224,7 +224,7 @@ html[data-motion='reduced'] .flask-bubbles {
   flex: none;
 }
 
-.ring svg {
+.ring > svg {
   position: absolute;
   inset: 0;
   transform: rotate(-90deg);
@@ -246,8 +246,27 @@ html[data-motion='reduced'] .flask-bubbles {
   stroke: var(--gold-2);
 }
 
+.ring--gold .ring-label {
+  color: var(--gold-3);
+}
+
+.ring--muted .ring-track {
+  stroke: var(--color-bg-sunken);
+}
+
+.ring--muted .ring-value {
+  stroke: var(--color-fg-tertiary);
+}
+
+.ring--muted .ring-label {
+  color: var(--color-fg-secondary);
+}
+
 .ring-label {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;

@@ -65,8 +65,8 @@ export function TopCard({ content, onDone }: { content: TopCardContent; onDone()
         {content.flask}
       </Ring>
       <span className="top-card-text">
-        <span className="t-body-strong">{copy.celebration.topTitle}</span>
-        <span className="top-card-caption">{copy.celebration.topText(content.skillName, content.flask + 1)}</span>
+        <span className="t-body-strong">{copy.celebration.topTitle(content.flask)}</span>
+        <span className="top-card-caption">{content.skillName}</span>
       </span>
     </div>
   );

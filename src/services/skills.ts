@@ -4,12 +4,13 @@ import { nowIso } from '../lib/dates';
 import { canCompleteSkill } from '../domain/milestone';
 import type { Milestone, Skill } from '../domain/types';
 import { afterWrite } from './afterWrite';
-import { progressTables, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
+import { progressTables, requireActiveSkill, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
 
 // Skill lifecycle. Steps live in ./steps.ts and the journal in ./completions.ts; both are
 // re-exported here so existing importers keep one entry point.
 export { ValidationError } from './core';
 export { createStep, getStep, setStepActive, updateStep, type StepInput, type StepPatch } from './steps';
+export { archiveSkill, restartSkill, restoreSkill } from './lifecycle';
 export {
   cancelCompletion,
   completeStep,
@@ -124,11 +125,14 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
   await afterWrite();
 }
 
-/** Permanently deletes the skill with its whole history (FR-SK-006, FR-SK-007). */
+/**
+ * Permanently deletes the skill with its whole history (FR-SK-006, FR-SK-007). A copy made by
+ * «Начать заново» is a skill of its own and stays; its `originSkillId` simply points nowhere.
+ */
 export async function deleteSkill(id: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions],
+    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.achievementUnlocks],
     async () => {
       await Promise.all([
         db.milestones.where('skillId').equals(id).delete(),
@@ -136,6 +140,9 @@ export async function deleteSkill(id: string): Promise<void> {
         db.steps.where('skillId').equals(id).delete(),
         db.completions.where('skillId').equals(id).delete(),
         db.transactions.where('skillId').equals(id).delete(),
+        // An unlock keeps what was shown but forgets the skill: a dangling skillId would make
+        // every later backup fail its reference check on import.
+        db.achievementUnlocks.filter((u) => u.skillId === id).modify({ skillId: null }),
       ]);
       await db.skills.delete(id);
     },
@@ -146,8 +153,7 @@ export async function deleteSkill(id: string): Promise<void> {
 /** "Продолжить": keep the skill active and keep leveling after the milestone (FR-MS-005). */
 export async function continueAfterMilestone(skillId: string): Promise<void> {
   await db.transaction('rw', [db.skills, db.milestones], async () => {
-    const skill = await requireSkill(skillId);
-    if (skill.status !== 'ACTIVE') throw new ValidationError('Навык не активен');
+    requireActiveSkill(await requireSkill(skillId));
     const milestone = await db.milestones.where('skillId').equals(skillId).first();
     if (!milestone?.reachedAt) throw new ValidationError('Веха ещё не достигнута');
     await db.milestones.update(milestone.id, { decision: 'CONTINUE', updatedAt: nowIso() });

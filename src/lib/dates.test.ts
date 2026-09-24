@@ -6,6 +6,7 @@ import {
   formatDateTime,
   formatDateTimeRelative,
   formatDayLabel,
+  formatWeekdayDate,
   isoWeekday,
   isValidLocalDate,
   localDate,
@@ -68,6 +69,11 @@ describe('formatting', () => {
   it('formats a date with time', () => {
     const iso = new Date(2026, 8, 24, 14, 2).toISOString();
     expect(formatDateTime(iso)).toBe('24 сентября, 14:02');
+  });
+
+  it('names the weekday for the Today screen', () => {
+    expect(formatWeekdayDate('2026-09-24')).toBe('четверг, 24 сентября');
+    expect(formatWeekdayDate('2026-09-21')).toBe('понедельник, 21 сентября');
   });
 
   it('labels today and yesterday', () => {

@@ -20,6 +20,7 @@ import { getSkillHistory } from './history';
 import { getSkillDetails } from './queries';
 import { completeSkill, createSkill, ValidationError, type SkillInput } from './skills';
 import { createStep } from './steps';
+import { archiveSkill } from './lifecycle';
 
 const skillInput: SkillInput = {
   name: 'Английский',
@@ -138,15 +139,15 @@ describe('E2E-002: cancelling a completion rolls the flask back', () => {
     const second = await completeStep(stepId);
     await cancelCompletion(second.completionId);
     await completeSkill(skillId);
-    await expect(cancelCompletion(first.completionId)).rejects.toThrow('Навык завершён — история доступна только для чтения');
+    await expect(cancelCompletion(first.completionId)).rejects.toThrow('Навык не активен');
     await expect(restoreCompletion(second.completionId)).rejects.toThrow(ValidationError);
     expect((await details(skillId)).progress.totalPoints).toBe(100);
   });
 
   it('rejects cancel on an archived skill', async () => {
     const { skillId, crossing } = await e2e002();
-    await db.skills.update(skillId, { status: 'ARCHIVED' });
-    await expect(cancelCompletion(crossing.completionId)).rejects.toThrow('Навык в архиве');
+    await archiveSkill(skillId);
+    await expect(cancelCompletion(crossing.completionId)).rejects.toThrow('Навык не активен');
   });
 });
 
