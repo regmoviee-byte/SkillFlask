@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "screenshots": "node scripts/screenshots.mjs",
+    "check-bundle": "node scripts/check-bundle.mjs",
     "seed": "echo 'Demo data: run `npm run dev`, open the app, then in the browser console call __skillFlask.seed()'"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.1.1",
     "playwright-core": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",

@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { copy } from '../copy';
 
@@ -6,32 +6,25 @@ const t = copy.placeholders;
 
 export function AchievementsScreen() {
   return (
-    <Screen title={t.achievementsTitle}>
-      <div className="empty">
-        <p className="empty-title">{copy.common.soon}</p>
-        <p className="hint">{t.achievementsHint}</p>
-      </div>
+    <Screen title={t.achievementsTitle} largeTitle>
+      <EmptyState illustration="achievements" title={copy.common.soon} text={t.achievementsHint} />
     </Screen>
   );
 }
 
-export function TodoScreen() {
+/** «Сегодня»: real content arrives in package 6. */
+export function TodayScreen() {
   return (
-    <Screen title={t.todoTitle}>
-      <div className="empty">
-        <p className="empty-title">{copy.common.soon}</p>
-        <p className="hint">{t.todoHint}</p>
-        <Link to="/skills" className="button button-secondary" replace>
-          {t.toSkills}
-        </Link>
-      </div>
+    <Screen title={t.todayTitle} largeTitle>
+      <EmptyState illustration="today" title={copy.common.soon} text={t.todayHint} action={{ label: t.toSkills, to: '/skills', replace: true }} />
     </Screen>
   );
 }
 
-export function AccountScreen() {
+/** «Настройки»: real content arrives in package 4. */
+export function SettingsScreen() {
   return (
-    <Screen title={t.accountTitle}>
+    <Screen title={t.settingsTitle} largeTitle>
       <section className="card card-padded">
         <p>{t.version(__APP_VERSION__)}</p>
         <p className="hint">{t.localData}</p>

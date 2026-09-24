@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { listSkillSummaries } from '../../services/queries';
 import { createStep, ValidationError } from '../../services/skills';
-import { haptic } from '../../telegram';
+import { useUnsavedGuard } from '../../platform/buttons';
+import { haptics } from '../../platform/haptics';
 import { Screen } from '../components/Screen';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
@@ -20,6 +21,8 @@ export function StepFormScreen() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const t = copy.stepForm;
+  const formRef = useRef<HTMLFormElement>(null);
+  useUnsavedGuard(!busy && name.trim() !== '');
 
   const effectiveSkillId = skillId || skills?.[0]?.skill.id || '';
 
@@ -29,13 +32,14 @@ export function StepFormScreen() {
     setError(null);
     try {
       const id = await createStep({ skillId: effectiveSkillId, name, points: Number(points.trim()) });
+      haptics.success();
       showToast(t.created);
       // This screen replaced the "Добавить действие" entry; replace it back with the new step
       // pre-selected via the query string, so the selection survives reloads and does not
       // live in module state.
       navigate(`/skills/${effectiveSkillId}/add?step=${id}`, { replace: true });
     } catch (e) {
-      haptic('error');
+      haptics.error();
       setError(e instanceof ValidationError ? e.message : copy.errors.save);
       setBusy(false);
     }
@@ -46,13 +50,9 @@ export function StepFormScreen() {
       title={t.title}
       back={origin ? `/skills/${origin}/add` : '/skills'}
       replaceBack={origin !== ''}
-      footer={
-        <button type="submit" form="step-form" className="button button-primary button-block" disabled={busy || !effectiveSkillId}>
-          {t.submit}
-        </button>
-      }
+      primary={{ text: t.submit, onClick: () => formRef.current?.requestSubmit(), disabled: !effectiveSkillId, loading: busy }}
     >
-      <form id="step-form" className="form" onSubmit={submit}>
+      <form id="step-form" className="form" ref={formRef} onSubmit={submit}>
         <label className="field">
           <span className="field-label">{t.name}</span>
           <input
@@ -80,7 +80,7 @@ export function StepFormScreen() {
         <div className="field">
           <span className="field-label">{t.type}</span>
           <div className="segmented">
-            <button type="button" className="active" aria-pressed="true">
+            <button type="button" className="active" aria-pressed="true" onClick={() => haptics.select()}>
               {t.typeBoolean}
             </button>
             <button type="button" disabled title={copy.common.soon}>

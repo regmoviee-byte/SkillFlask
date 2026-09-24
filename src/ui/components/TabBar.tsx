@@ -1,40 +1,62 @@
-import { NavLink } from 'react-router';
+import { createContext, useContext } from 'react';
+import { NavLink, useLocation } from 'react-router';
+import { haptics } from '../../platform/haptics';
 import { copy } from '../copy';
+import { Icon, type IconName } from './Icon';
 
-const tabs = [
-  {
-    to: '/achievements',
-    label: copy.tabs.achievements,
-    icon: 'M8 4h8v4a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 12v4M8.5 20h7M10 16h4v4h-4z',
-  },
-  {
-    to: '/skills',
-    label: copy.tabs.skills,
-    icon: 'M9.5 3h5M10 3v6.5L5.2 18a2 2 0 0 0 1.8 3h10a2 2 0 0 0 1.8-3L14 9.5V3M7.5 14h9',
-  },
-  {
-    to: '/todo',
-    label: copy.tabs.todo,
-    icon: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
-  },
-  {
-    to: '/account',
-    label: copy.tabs.account,
-    icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0',
-  },
+export type TabKey = 'today' | 'skills' | 'achievements' | 'settings';
+
+export const TABS: { key: TabKey; to: string; label: string; icon: IconName }[] = [
+  { key: 'today', to: '/today', label: copy.tabs.today, icon: 'sun' },
+  { key: 'skills', to: '/skills', label: copy.tabs.skills, icon: 'flask' },
+  { key: 'achievements', to: '/achievements', label: copy.tabs.achievements, icon: 'medal' },
+  { key: 'settings', to: '/settings', label: copy.tabs.settings, icon: 'sliders' },
 ];
 
-export function TabBar() {
+/** True on the four root routes, where the tab bar is rendered. */
+export function isTabRoute(pathname: string): boolean {
+  return TABS.some((tab) => tab.to === pathname);
+}
+
+/** Whether the current screen has the tab bar under it (bottom padding, toast position). */
+export const TabBarContext = createContext(false);
+
+export const useHasTabBar = () => useContext(TabBarContext);
+
+interface TabBarProps {
+  /** A dot per tab (package 7 feeds the achievements tab). */
+  badges?: Partial<Record<TabKey, boolean>>;
+}
+
+export function TabBar({ badges = {} }: TabBarProps) {
+  const location = useLocation();
+
   return (
-    <nav className="tab-bar">
-      {tabs.map((tab) => (
-        <NavLink key={tab.to} to={tab.to} className="tab" replace>
-          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-            <path d={tab.icon} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>{tab.label}</span>
-        </NavLink>
-      ))}
+    <nav className="tab-bar" aria-label={copy.tabs.navLabel}>
+      {TABS.map((tab) => {
+        const active = location.pathname === tab.to;
+        return (
+          <NavLink
+            key={tab.key}
+            to={tab.to}
+            className="tab"
+            replace
+            aria-current={active ? 'page' : undefined}
+            onClick={(event) => {
+              haptics.select();
+              if (active) {
+                // Re-tapping the active tab scrolls to the top instead of re-navigating.
+                event.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          >
+            <Icon name={tab.icon} filled={active} />
+            <span>{tab.label}</span>
+            {badges[tab.key] && <span className="tab-badge" aria-hidden="true" />}
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }

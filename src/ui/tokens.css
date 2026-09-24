@@ -1,0 +1,227 @@
+/* Design tokens. Light values live on :root, dark ones under [data-theme="dark"]; inside
+   Telegram the --tg-theme-* variables injected by telegram-web-app.js win over the literal
+   fallbacks, so the app follows any user theme.
+
+   color-mix() support (Chrome/Android WebView 111+, iOS 16.2+): the derived colours are
+   declared twice — a literal value in the plain rules and the color-mix() version inside
+   @supports blocks further down. A custom property never fails at parse time, so two
+   declarations in ONE rule would not fall back (the color-mix one always wins and turns
+   var() invalid on an old WebView); only @supports keeps the literal there. */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces and text */
+  --color-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+  --color-bg-elevated: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+  --color-fg: var(--tg-theme-text-color, #1c1c1e);
+  --color-bg-sunken: #ececf1;
+  /* Essential meta text: ≥ 4.5:1 on both surfaces. */
+  --color-fg-secondary: #5c5c61;
+  /* Decorative only (placeholders, dividers' captions); never for information. */
+  --color-fg-tertiary: var(--tg-theme-hint-color, #6b6b70);
+  --color-accent: var(--tg-theme-button-color, #2481cc);
+  --color-on-accent: var(--tg-theme-button-text-color, #ffffff);
+  --color-link: var(--tg-theme-link-color, #2481cc);
+  --color-danger: var(--tg-theme-destructive-text-color, #e5393b);
+  --color-positive: #34c759;
+  --color-border: var(--tg-theme-section-separator-color, rgba(60, 60, 67, 0.14));
+  --color-section-header: var(--tg-theme-section-header-text-color, #5c5c61);
+  --color-accent-soft: rgba(36, 129, 204, 0.14);
+  --color-accent-glow: rgba(36, 129, 204, 0.38);
+  /* Tonal surface for destructive buttons (visible on elevated surfaces, e.g. in a sheet). */
+  --color-danger-soft: rgba(229, 57, 59, 0.12);
+
+  /* Liquid, derived from the accent (see the @supports block); theme.ts sets
+     data-liquid="fixed" when the accent is too dark, too light or grey to make a believable
+     liquid. */
+  --liquid-light: #8fd3ff;
+  --liquid-mid: #4fb8ec;
+  --liquid-deep: #2a8fcf;
+
+  /* Gold (completed skills) and medals (achievements) */
+  --gold-1: #f6cf5f;
+  --gold-2: #e0a92a;
+  --gold-3: #b57712;
+  --bronze-1: #e0a878;
+  --bronze-2: #8a5a2b;
+  --silver-1: #e6e9ef;
+  --silver-2: #8f98a6;
+
+  /* Spacing (4pt), radii, layout */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+  --sp-9: 36px;
+  --sp-10: 40px;
+  --gutter: max(16px, var(--tg-safe-area-inset-left, 0px));
+  --card-padding: 16px;
+  --row-min-height: 52px;
+  --tap-target: 44px;
+  --r-s: 12px;
+  --r-m: 16px;
+  --r-l: 20px;
+  --r-xl: 28px;
+  --r-full: 999px;
+  --tab-height: 58px;
+
+  /* Safe areas: Telegram 8.0 exposes both the device inset and the inset of its own header. */
+  --safe-top: calc(var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));
+  --safe-bottom: var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  /* Keyboard height, kept up to date by platform/viewport.ts. */
+  --kb: 0px;
+
+  /* Aliases for the pre-token class names; screens migrate to the semantic names over time. */
+  --bg: var(--color-bg);
+  --card: var(--color-bg-elevated);
+  --text: var(--color-fg);
+  --hint: var(--color-fg-secondary);
+  --accent: var(--color-accent);
+  --accent-text: var(--color-on-accent);
+  --link: var(--color-link);
+  --danger: var(--color-danger);
+  --separator: var(--color-border);
+  --section-header: var(--color-section-header);
+  --soft: var(--color-accent-soft);
+  --liquid: var(--liquid-mid);
+  --success: var(--color-positive);
+  --radius: var(--r-m);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: var(--tg-theme-secondary-bg-color, #000000);
+  --color-bg-elevated: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #1c1c1e));
+  --color-fg: var(--tg-theme-text-color, #ffffff);
+  --color-bg-sunken: #2a2a2d;
+  --color-fg-secondary: #b0b0b6;
+  --color-fg-tertiary: var(--tg-theme-hint-color, #9a9aa0);
+  --color-accent: var(--tg-theme-button-color, #3e88f7);
+  --color-link: var(--tg-theme-link-color, #3e88f7);
+  --color-danger: var(--tg-theme-destructive-text-color, #ff453a);
+  --color-positive: #30d158;
+  --color-border: var(--tg-theme-section-separator-color, rgba(84, 84, 88, 0.6));
+  --color-section-header: var(--tg-theme-section-header-text-color, #b0b0b6);
+  --color-accent-soft: rgba(62, 136, 247, 0.14);
+  --color-accent-glow: rgba(62, 136, 247, 0.55);
+  --color-danger-soft: rgba(255, 69, 58, 0.14);
+  --liquid-light: #8fd3ff;
+  --liquid-mid: #4fb8ec;
+  --liquid-deep: #2a8fcf;
+}
+
+/* Derived colours: only where color-mix() parses, otherwise the literals above stay. Both
+   theme rules are repeated here (the dark literals outrank a plain :root by specificity), and
+   the block comes before the data-liquid rules so the fixed cyan pair still wins by source
+   order. */
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root,
+  :root[data-theme='dark'] {
+    --color-bg-sunken: color-mix(in srgb, var(--color-fg) 6%, var(--color-bg-elevated));
+    --color-fg-secondary: color-mix(in srgb, var(--color-fg) 72%, transparent);
+    --color-accent-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    --color-accent-glow: color-mix(in srgb, var(--color-accent) 38%, transparent);
+    --color-danger-soft: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  }
+
+  :root[data-theme='dark'] {
+    --color-accent-glow: color-mix(in srgb, var(--color-accent) 55%, transparent);
+    --color-danger-soft: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  }
+}
+
+@supports (color: color-mix(in oklch, red, blue)) {
+  :root,
+  :root[data-theme='dark'] {
+    --liquid-light: color-mix(in oklch, var(--color-accent) 55%, white);
+    --liquid-mid: color-mix(in oklch, var(--color-accent) 85%, white);
+    --liquid-deep: color-mix(in oklch, var(--color-accent) 78%, black);
+  }
+}
+
+/* The signature cyan pair for accents that cannot carry the liquid. */
+:root[data-liquid='fixed'] {
+  --liquid-light: #a8e0ff;
+  --liquid-mid: #6fcdf5;
+  --liquid-deep: #3aa8e0;
+}
+
+:root[data-theme='dark'][data-liquid='fixed'] {
+  --liquid-light: #8fd3ff;
+  --liquid-mid: #4fb8ec;
+  --liquid-deep: #2a8fcf;
+}
+
+/* ---------- Type scale (system stack, tabular numerals) ---------- */
+
+.t-display-xl {
+  font-size: 56px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 374px) {
+  .t-display-xl {
+    font-size: 48px;
+  }
+}
+
+.t-display-l {
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.t-title-l {
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.t-title-m {
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.t-title-s {
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.t-body {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.t-body-strong {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* Labels only (section headers, chips), never running text. */
+.t-label {
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Essential meta text never goes below 14px. */
+.t-caption {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 500;
+}

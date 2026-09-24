@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillDetails } from '../../services/queries';
 import { completeStep } from '../../services/skills';
 import { localDate } from '../../lib/dates';
-import { haptic } from '../../telegram';
+import { haptics } from '../../platform/haptics';
+import { EmptyState } from '../components/EmptyState';
 import { Screen, useGoBack } from '../components/Screen';
+import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
@@ -19,22 +21,20 @@ export function AddActionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const goBack = useGoBack(`/skills/${skillId}`);
   const back = `/skills/${skillId}`;
   const t = copy.addAction;
 
-  if (details === undefined) return <Screen title={t.title} back={back}>{null}</Screen>;
-  if (details === null || details.skill.status !== 'ACTIVE') {
-    return (
-      <Screen title={t.title} back={back}>
-        <p className="hint center">{t.unavailable}</p>
-      </Screen>
-    );
-  }
-
-  const createLink = `/steps/new?skill=${skillId}`;
+  // One Screen for every state, so the skeleton stays mounted until the data replaces it.
+  const loading = details === undefined;
+  const available = details !== undefined && details !== null && details.skill.status === 'ACTIVE';
+  const steps = available ? details.steps : [];
   // The query string is untrusted: only a step of this skill can be submitted.
-  const selectedStep = details.steps.find((step) => step.id === selected);
+  const selectedStep = steps.find((step) => step.id === selected);
+  // The step form replaces this entry and, on success, replaces itself with this screen again
+  // (step pre-selected), so history never holds two "add" entries.
+  const createNew = () => navigate(`/steps/new?skill=${skillId}`, { replace: true });
 
   async function submit() {
     if (!selectedStep) return;
@@ -42,7 +42,9 @@ export function AddActionScreen() {
     setError(null);
     try {
       const result = await completeStep(selectedStep.id, { date });
-      haptic('success');
+      if (result.milestoneReached) haptics.milestone();
+      else if (result.levelChange > 0) haptics.levelUp(result.levelChange);
+      else haptics.success();
       showToast(
         result.milestoneReached
           ? copy.toast.milestoneReached(result.pointsAwarded)
@@ -52,7 +54,7 @@ export function AddActionScreen() {
       );
       goBack();
     } catch (e) {
-      haptic('error');
+      haptics.error();
       setError(e instanceof Error ? e.message : copy.errors.save);
       setBusy(false);
     }
@@ -62,56 +64,53 @@ export function AddActionScreen() {
     <Screen
       title={t.title}
       back={back}
-      footer={
-        details.steps.length > 0 && (
-          <button type="button" className="button button-primary button-block" disabled={!selectedStep || busy} onClick={submit}>
-            {t.submit}
-          </button>
-        )
-      }
+      primary={steps.length > 0 ? { text: t.submit, onClick: submit, disabled: !selectedStep, loading: busy } : undefined}
+      secondary={available ? { text: t.createNew, onClick: createNew, disabled: busy } : undefined}
     >
-      <p className="hint center skill-subtitle">{details.skill.name}</p>
+      <Skeleton layout="form" loading={loading}>
+        {!available ? (
+          <p className="hint center">{t.unavailable}</p>
+        ) : (
+          <>
+            <p className="hint center skill-subtitle">{details.skill.name}</p>
 
-      {details.steps.length === 0 ? (
-        <div className="empty">
-          <p className="empty-title">{t.emptyTitle}</p>
-          <p className="hint">{t.emptyHint}</p>
-        </div>
-      ) : (
-        <ul className="card list" role="radiogroup" aria-label={t.stepGroup}>
-          {details.steps.map((step) => (
-            <li key={step.id}>
-              <label className="radio-row">
-                <input
-                  type="radio"
-                  name="step"
-                  value={step.id}
-                  checked={selected === step.id}
-                  onChange={() => setSelected(step.id)}
-                />
-                <span className="radio-mark" aria-hidden="true" />
-                <span className="radio-label">{step.name}</span>
-                <span className="radio-value">{t.stepPoints(step.points)}</span>
+            {steps.length === 0 ? (
+              <EmptyState illustration="steps" title={t.emptyTitle} text={t.emptyHint} />
+            ) : (
+              <ul className="card list" role="radiogroup" aria-label={t.stepGroup}>
+                {steps.map((step) => (
+                  <li key={step.id}>
+                    <label className="radio-row">
+                      <input
+                        type="radio"
+                        name="step"
+                        value={step.id}
+                        checked={selected === step.id}
+                        onChange={() => {
+                          haptics.select();
+                          setSelected(step.id);
+                        }}
+                      />
+                      <span className="radio-mark" aria-hidden="true" />
+                      <span className="radio-label">{step.name}</span>
+                      <span className="radio-value">{t.stepPoints(step.points)}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {steps.length > 0 && (
+              <label className="field">
+                <span className="field-label">{t.when}</span>
+                <input type="date" className="input" value={date} max={localDate()} onChange={(e) => setDate(e.target.value || localDate())} />
               </label>
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
 
-      {details.steps.length > 0 && (
-        <label className="field">
-          <span className="field-label">{t.when}</span>
-          <input type="date" className="input" value={date} max={localDate()} onChange={(e) => setDate(e.target.value || localDate())} />
-        </label>
-      )}
-
-      {error && <p className="error">{error}</p>}
-
-      {/* The form replaces this entry and, on success, replaces itself with this screen again
-          (step pre-selected), so history never holds two "add" entries. */}
-      <Link to={createLink} className="button button-block button-secondary" replace>
-        {t.createNew}
-      </Link>
+            {error && <p className="error">{error}</p>}
+          </>
+        )}
+      </Skeleton>
     </Screen>
   );
 }

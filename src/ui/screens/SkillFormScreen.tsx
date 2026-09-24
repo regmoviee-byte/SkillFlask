@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillFormData } from '../../services/queries';
@@ -6,8 +6,11 @@ import { createSkill, deleteSkill, updateSkill, ValidationError, type SkillInput
 import { DEFAULT_MILESTONE_FLASKS } from '../../domain/milestone';
 import { DEFAULT_CAPACITY_BASE, DEFAULT_CAPACITY_INCREMENT, flaskCapacity, pointsToFill } from '../../domain/progression';
 import { formatNumber } from '../../lib/format';
-import { confirmDialog, haptic } from '../../telegram';
+import { useUnsavedGuard } from '../../platform/buttons';
+import { dialogs } from '../../platform/dialogs';
+import { haptics } from '../../platform/haptics';
 import { Screen, useGoBack } from '../components/Screen';
+import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
@@ -64,8 +67,7 @@ export function SkillFormScreen() {
   const editing = skillId !== undefined;
   const existing = useLiveQuery(async () => (skillId ? getSkillFormData(skillId) : null), [skillId]);
 
-  if (editing && existing === undefined) return <Screen title={copy.common.skill} back={`/skills/${skillId}`}>{null}</Screen>;
-  if (editing && !existing) {
+  if (editing && existing === null) {
     return (
       <Screen title={copy.common.skill} back="/skills">
         <p className="hint center">{copy.common.skillNotFound}</p>
@@ -73,7 +75,8 @@ export function SkillFormScreen() {
     );
   }
 
-  const initial: FormState = existing
+  // Undefined while the skill is still loading: the form renders its skeleton meanwhile.
+  const initial: FormState | undefined = existing
     ? {
         name: existing.skill.name,
         description: existing.skill.description,
@@ -85,28 +88,37 @@ export function SkillFormScreen() {
         capacityIncrement: String(existing.skill.capacityIncrement),
         manualCapacities: existing.manual.join(', '),
       }
-    : emptyForm;
+    : editing
+      ? undefined
+      : emptyForm;
 
   return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} />;
 }
 
-function SkillForm({ skillId, initial }: { skillId: string | undefined; initial: FormState }) {
-  const [form, setForm] = useState(initial);
+function SkillForm({ skillId, initial }: { skillId: string | undefined; initial: FormState | undefined }) {
+  // The form is the loaded values plus the user's edits, so it can mount (and keep its
+  // skeleton mounted) before the values arrive; nothing can be typed while they are hidden.
+  const [edits, setEdits] = useState<Partial<FormState>>({});
+  const form: FormState = { ...(initial ?? emptyForm), ...edits };
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const back = skillId ? `/skills/${skillId}` : '/skills';
   const goBack = useGoBack(back);
   const { showToast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+  const loading = initial === undefined;
+  const dirty = !busy && !loading && JSON.stringify(form) !== JSON.stringify(initial);
+  useUnsavedGuard(dirty);
 
   // Functional updates: two fields changed in the same tick must not overwrite each other.
   const set = (key: keyof FormState) => (e: { target: { value: string } }) => {
     const value = e.target.value;
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setEdits((prev) => ({ ...prev, [key]: value }));
   };
   const digits = (key: keyof FormState) => (e: { target: { value: string } }) => {
     const value = e.target.value.replace(/\D/g, '');
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setEdits((prev) => ({ ...prev, [key]: value }));
   };
 
   async function submit(event: FormEvent) {
@@ -121,11 +133,11 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
         goBack();
       } else {
         const id = await createSkill(input);
-        haptic('success');
+        haptics.success();
         navigate(`/skills/${id}`, { replace: true });
       }
     } catch (e) {
-      haptic('error');
+      haptics.error();
       setError(e instanceof ValidationError ? e.message : copy.errors.save);
       setBusy(false);
     }
@@ -133,9 +145,9 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
 
   async function remove() {
     if (!skillId || busy) return;
-    // Rule: confirmDialog runs synchronously in the click handler, before any await, so the
+    // Rule: dialogs.confirm runs synchronously in the click handler, before any await, so the
     // native dialog keeps its user-gesture context (and Telegram's showConfirm is not queued).
-    const ok = await confirmDialog(t.confirmRemove);
+    const ok = await dialogs.confirm(t.confirmRemove, { okLabel: t.removeConfirmButton, danger: true });
     if (!ok) return;
     setBusy(true);
     try {
@@ -143,7 +155,7 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
       showToast(t.removed);
       navigate('/skills', { replace: true });
     } catch (e) {
-      haptic('error');
+      haptics.error();
       showToast(e instanceof Error ? e.message : copy.errors.save);
       setBusy(false);
     }
@@ -153,87 +165,85 @@ function SkillForm({ skillId, initial }: { skillId: string | undefined; initial:
     <Screen
       title={skillId ? t.titleEdit : t.titleNew}
       back={back}
-      footer={
-        <button type="submit" form="skill-form" className="button button-primary button-block" disabled={busy}>
-          {skillId ? copy.common.save : t.create}
-        </button>
-      }
+      primary={loading ? undefined : { text: skillId ? copy.common.save : t.create, onClick: () => formRef.current?.requestSubmit(), loading: busy }}
     >
-      <form id="skill-form" className="form" onSubmit={submit}>
-        <label className="field">
-          <span className="field-label">{t.name}</span>
-          <input className="input" value={form.name} onChange={set('name')} placeholder={t.namePlaceholder} maxLength={100} required />
-        </label>
-        <label className="field">
-          <span className="field-label">{t.description}</span>
-          <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder={copy.common.optional} />
-        </label>
-        <div className="field-row">
+      <Skeleton layout="form" loading={loading}>
+        <form id="skill-form" className="form" ref={formRef} onSubmit={submit}>
           <label className="field">
-            <span className="field-label">{t.startLabel}</span>
-            <input className="input" value={form.startLabel} onChange={set('startLabel')} placeholder={t.startPlaceholder} maxLength={40} />
+            <span className="field-label">{t.name}</span>
+            <input className="input" value={form.name} onChange={set('name')} placeholder={t.namePlaceholder} maxLength={100} required />
           </label>
           <label className="field">
-            <span className="field-label">{t.targetLabel}</span>
-            <input className="input" value={form.targetLabel} onChange={set('targetLabel')} placeholder={t.targetPlaceholder} maxLength={40} />
+            <span className="field-label">{t.description}</span>
+            <textarea className="input" rows={2} value={form.description} onChange={set('description')} placeholder={copy.common.optional} />
           </label>
-        </div>
+          <div className="field-row">
+            <label className="field">
+              <span className="field-label">{t.startLabel}</span>
+              <input className="input" value={form.startLabel} onChange={set('startLabel')} placeholder={t.startPlaceholder} maxLength={40} />
+            </label>
+            <label className="field">
+              <span className="field-label">{t.targetLabel}</span>
+              <input className="input" value={form.targetLabel} onChange={set('targetLabel')} placeholder={t.targetPlaceholder} maxLength={40} />
+            </label>
+          </div>
 
-        <h2 className="section-title">{t.milestoneSection}</h2>
-        <div className="field-row">
-          <label className="field field-grow">
-            <span className="field-label">{t.milestoneName}</span>
-            <input
-              className="input"
-              value={form.milestoneName}
-              onChange={set('milestoneName')}
-              placeholder={t.defaultMilestoneName(form.targetLabel.trim())}
-              maxLength={100}
-            />
-          </label>
-          <label className="field field-narrow">
-            <span className="field-label">{t.milestoneFlasks}</span>
-            <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
-          </label>
-        </div>
+          <h2 className="section-title">{t.milestoneSection}</h2>
+          <div className="field-row">
+            <label className="field field-grow">
+              <span className="field-label">{t.milestoneName}</span>
+              <input
+                className="input"
+                value={form.milestoneName}
+                onChange={set('milestoneName')}
+                placeholder={t.defaultMilestoneName(form.targetLabel.trim())}
+                maxLength={100}
+              />
+            </label>
+            <label className="field field-narrow">
+              <span className="field-label">{t.milestoneFlasks}</span>
+              <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
+            </label>
+          </div>
 
-        <h2 className="section-title">{t.capacitySection}</h2>
-        <div className="field-row">
-          <label className="field">
-            <span className="field-label">{t.capacityBase}</span>
-            <input className="input" inputMode="numeric" value={form.capacityBase} onChange={digits('capacityBase')} required />
-          </label>
-          <label className="field">
-            <span className="field-label">{t.capacityIncrement}</span>
-            <input className="input" inputMode="numeric" value={form.capacityIncrement} onChange={digits('capacityIncrement')} required />
-          </label>
-        </div>
-        <div className="field">
-          <label className="field">
-            <span className="field-label">{t.manualCapacities}</span>
-            <input
-              className="input"
-              inputMode="numeric"
-              value={form.manualCapacities}
-              onChange={set('manualCapacities')}
-              placeholder={t.manualPlaceholder}
-              aria-describedby="manual-capacities-hint"
-            />
-          </label>
-          <span id="manual-capacities-hint" className="hint small">
-            {t.manualHint}
-          </span>
-        </div>
-        <CapacityPreview form={form} />
+          <h2 className="section-title">{t.capacitySection}</h2>
+          <div className="field-row">
+            <label className="field">
+              <span className="field-label">{t.capacityBase}</span>
+              <input className="input" inputMode="numeric" value={form.capacityBase} onChange={digits('capacityBase')} required />
+            </label>
+            <label className="field">
+              <span className="field-label">{t.capacityIncrement}</span>
+              <input className="input" inputMode="numeric" value={form.capacityIncrement} onChange={digits('capacityIncrement')} required />
+            </label>
+          </div>
+          <div className="field">
+            <label className="field">
+              <span className="field-label">{t.manualCapacities}</span>
+              <input
+                className="input"
+                inputMode="numeric"
+                value={form.manualCapacities}
+                onChange={set('manualCapacities')}
+                placeholder={t.manualPlaceholder}
+                aria-describedby="manual-capacities-hint"
+              />
+            </label>
+            <span id="manual-capacities-hint" className="hint small">
+              {t.manualHint}
+            </span>
+          </div>
+          <CapacityPreview form={form} />
 
-        {error && <p className="error">{error}</p>}
+          {error && <p className="error">{error}</p>}
 
-        {skillId && (
-          <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
-            {t.remove}
-          </button>
-        )}
-      </form>
+          {skillId && (
+            <button type="button" className="button button-block button-danger" disabled={busy} onClick={remove}>
+              {t.remove}
+            </button>
+          )}
+        </form>
+      </Skeleton>
     </Screen>
   );
 }

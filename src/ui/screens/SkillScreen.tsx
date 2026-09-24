@@ -1,23 +1,26 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillDetails, type HistoryEntry, type SkillDetails } from '../../services/queries';
 import { completeSkill, continueAfterMilestone } from '../../services/skills';
 import { canCompleteSkill } from '../../domain/milestone';
 import { formatDate } from '../../lib/dates';
 import { formatDelta, formatNumber } from '../../lib/format';
-import { confirmDialog, haptic } from '../../telegram';
+import { dialogs } from '../../platform/dialogs';
+import { haptics } from '../../platform/haptics';
 import { Flask } from '../components/Flask';
+import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
+import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
   const details = useLiveQuery(() => getSkillDetails(skillId), [skillId]);
+  const navigate = useNavigate();
   const t = copy.skill;
 
-  if (details === undefined) return <Screen title={copy.common.skill} back="/skills">{null}</Screen>;
   if (details === null) {
     return (
       <Screen title={copy.common.skill} back="/skills">
@@ -26,29 +29,38 @@ export function SkillScreen() {
     );
   }
 
-  const { skill, progress } = details;
-  const active = skill.status === 'ACTIVE';
-  const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
+  const skill = details?.skill;
+  const active = skill?.status === 'ACTIVE';
 
   return (
     <Screen
-      title={skill.name}
+      title={skill?.name ?? copy.common.skill}
       back="/skills"
       action={
+        skill &&
         active && (
           <Link to={`/skills/${skill.id}/edit`} className="text-button">
             {t.edit}
           </Link>
         )
       }
-      footer={
-        active && (
-          <Link to={`/skills/${skill.id}/add`} className="button button-primary button-block">
-            {t.addAction}
-          </Link>
-        )
-      }
+      primary={skill && active ? { text: t.addAction, onClick: () => navigate(`/skills/${skill.id}/add`) } : undefined}
     >
+      <Skeleton layout="skill" loading={details === undefined}>
+        {details && <SkillContent details={details} />}
+      </Skeleton>
+    </Screen>
+  );
+}
+
+function SkillContent({ details }: { details: SkillDetails }) {
+  const { skill, progress } = details;
+  const active = skill.status === 'ACTIVE';
+  const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
+  const t = copy.skill;
+
+  return (
+    <>
       {(labels || skill.description) && (
         <p className="hint center skill-subtitle">{[labels, skill.description].filter(Boolean).join(' · ')}</p>
       )}
@@ -56,7 +68,7 @@ export function SkillScreen() {
       <section className="flask-panel">
         <Flask fill={progress.fill} />
         <div className="flask-info">
-          <span className="hint">{t.flask}</span>
+          <span className="hint t-label">{t.flask}</span>
           <span className="flask-level">{progress.currentFlask}</span>
           <span className="flask-points">
             {formatNumber(progress.pointsInCurrentFlask)} <span className="hint">/ {formatNumber(progress.currentCapacity)}</span>
@@ -80,7 +92,7 @@ export function SkillScreen() {
           </ul>
         )}
       </section>
-    </Screen>
+    </>
   );
 }
 
@@ -92,21 +104,22 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
 
   const done = Math.min(progress.completedFlasks, milestone.targetFlaskNumber);
   const reached = milestone.reachedAt !== null;
+  const percent = Math.round((done / milestone.targetFlaskNumber) * 100);
 
   function fail(e: unknown) {
-    haptic('error');
+    haptics.error();
     showToast(e instanceof Error ? e.message : copy.errors.save);
   }
 
   async function finish() {
-    // Rule: confirmDialog runs synchronously in the click handler, before any await, so the
+    // Rule: dialogs.confirm runs synchronously in the click handler, before any await, so the
     // native dialog keeps its user-gesture context (and Telegram's showConfirm is not queued).
-    const ok = await confirmDialog(t.confirmFinish(skill.name));
+    const ok = await dialogs.confirm(t.confirmFinish(skill.name), { okLabel: t.finish });
     if (!ok) return;
     setBusy(true);
     try {
       await completeSkill(skill.id);
-      haptic('success');
+      haptics.milestone();
       showToast(copy.toast.skillCompleted);
     } catch (e) {
       fail(e);
@@ -119,6 +132,7 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
     setBusy(true);
     try {
       await continueAfterMilestone(skill.id);
+      haptics.tap();
     } catch (e) {
       fail(e);
     } finally {
@@ -130,7 +144,10 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
     return (
       <section className="card card-padded milestone milestone-done">
         <div className="milestone-head">
-          <span className="milestone-name">{milestone.name}</span>
+          <span className="milestone-name">
+            <Icon name="trophy" size={20} />
+            {milestone.name}
+          </span>
         </div>
         <p className="hint">{t.completedAt(skill.completedAt!, progress.completedFlasks)}</p>
       </section>
@@ -140,11 +157,14 @@ function MilestoneCard({ details: { skill, milestone, progress } }: { details: S
   return (
     <section className={`card card-padded milestone${reached ? ' milestone-reached' : ''}`}>
       <div className="milestone-head">
-        <span className="milestone-name">{milestone.name}</span>
+        <span className="milestone-name">
+          <Icon name="flag" size={20} />
+          {milestone.name}
+        </span>
         <span className="hint">{t.progress(done, milestone.targetFlaskNumber)}</span>
       </div>
-      <div className="bar">
-        <div className="bar-fill" style={{ width: `${(done / milestone.targetFlaskNumber) * 100}%` }} />
+      <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={t.progress(done, milestone.targetFlaskNumber)}>
+        <div className="bar-fill" style={{ width: `${percent}%` }} />
       </div>
       {reached && (
         <>

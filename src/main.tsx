@@ -1,11 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { initTelegram } from './telegram';
+import { installErrorLog } from './platform/errorLog';
+import { initTelegram } from './platform/telegram';
+import { applyTheme } from './platform/theme';
+import { installViewport } from './platform/viewport';
 import { App } from './ui/App';
+import { dropStaleSheetEntry } from './ui/components/Sheet';
 import { DbBoundary } from './ui/DbBoundary';
+import { applyMotion } from './ui/hooks/useMotion';
 import './ui/styles.css';
 
+installErrorLog();
 initTelegram();
+applyTheme();
+applyMotion();
+installViewport();
+dropStaleSheetEntry();
 
 if (import.meta.env.DEV) {
   // Demo data for screenshots and manual testing: open the console and call __skillFlask.seed().

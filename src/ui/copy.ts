@@ -15,13 +15,15 @@ import { FLASKS, FLASKS_OF, formatNumber, formatPoints, plural } from '../lib/fo
 
 export const copy = Object.freeze({
   tabs: {
-    achievements: 'Ачивки',
+    today: 'Сегодня',
     skills: 'Навыки',
-    todo: 'Список дел',
-    account: 'Аккаунт',
+    achievements: 'Ачивки',
+    settings: 'Настройки',
+    navLabel: 'Разделы',
   },
   common: {
     back: 'Назад',
+    loading: 'Загрузка…',
     save: 'Сохранить',
     saved: 'Сохранено',
     soon: 'Скоро',
@@ -131,18 +133,30 @@ export const copy = Object.freeze({
     manualInvalid: 'Свои ёмкости: целые положительные числа через запятую',
     preview: (target: number, points: number) => `До вехи: ${target} ${plural(target, FLASKS)}, ${formatPoints(points)}`,
     remove: 'Удалить навык',
+    removeConfirmButton: 'Удалить',
     confirmRemove: 'Навык и вся его история будут удалены без возможности восстановления. Удалить?',
     removed: 'Навык удалён',
   },
   placeholders: {
     achievementsTitle: 'Ачивки',
     achievementsHint: 'Ачивки появятся в следующих версиях. Пока достигнутые вехи видны на главной.',
-    todoTitle: 'Список дел',
-    todoHint: 'Здесь будут действия на сегодня по расписанию. Пока выполнения отмечаются вручную на экране навыка.',
+    todayTitle: 'Сегодня',
+    todayHint: 'Здесь появятся действия на сегодня. Пока отмечайте выполнения на экране навыка.',
     toSkills: 'К навыкам',
-    accountTitle: 'Аккаунт',
+    settingsTitle: 'Настройки',
     version: (version: string) => `Skill Flask · версия ${version}`,
     localData: 'Данные хранятся только на этом устройстве. Синхронизация между устройствами и резервная копия появятся позже.',
+  },
+  sheet: {
+    cancel: 'Отмена',
+    ok: 'OK',
+    close: 'Закрыть',
+    confirmLabel: 'Подтверждение',
+  },
+  errorBoundary: {
+    title: 'Что-то пошло не так',
+    text: 'Данные на устройстве не пострадали.',
+    reload: 'Перезагрузить',
   },
   toast: {
     skillCompleted: 'Навык достигнут 🎉',

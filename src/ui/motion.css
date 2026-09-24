@@ -1,0 +1,77 @@
+/* Motion vocabulary.
+   Budget rule: only transform, opacity and stroke-dashoffset animate; nothing moves while
+   idle except what the flask (package 5) whitelists. Decorative animation carries .anim-decor
+   and is removed under reduced motion; functional transitions carry .anim-func and shrink to
+   a fast opacity fade. html[data-motion="reduced"] is set by ui/hooks/useMotion.ts from
+   prefers-reduced-motion or the «Уменьшить движение» setting. */
+
+:root {
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 400ms;
+  --dur-hero: 900ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-spring: linear(
+    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%,
+    1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%,
+    0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1
+  );
+}
+
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+html[data-motion='reduced'] .anim-decor {
+  animation: none !important;
+}
+
+html[data-motion='reduced'] .anim-func {
+  transition-property: opacity;
+  transition-duration: var(--dur-fast);
+}
+
+.pressable {
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+
+.pressable:active {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
+/* Rows shrink less and tint instead of fading. */
+.pressable-row:active {
+  transform: scale(0.99);
+  opacity: 1;
+  background: var(--color-accent-soft);
+}
+
+html[data-motion='reduced'] .pressable:active {
+  transform: none;
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

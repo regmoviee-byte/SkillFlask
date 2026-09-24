@@ -31,8 +31,12 @@ npm install
 npm run dev        # http://localhost:5173, доступен и с телефона в той же сети
 npm test           # unit- и интеграционные тесты
 npm run build      # сборка в dist/
+npm run check-bundle  # бюджет: gzip JS в dist/assets ≤ 150 КБ (проверяется в CI)
+npm run screenshots   # прогон по экранам на телефонном viewport (нужен npm run preview); DARK=1 и TG_THEME=purple — тёмная и фиолетовая тема Telegram
 npm run seed       # подсказка, как заполнить dev-базу демо-данными
 ```
+
+Галерея компонентов (токены, типографика на 100 % и 130 %, листы, тосты, скелетоны, пустые состояния, иконки, граница ошибок) — маршрут `/styleguide`, только в dev-сборке; скрипт скриншотов снимает её, если запущен против `npm run dev`. Ручные проверки на устройствах — `docs/qa-checklist.md`.
 
 Демо-данные: запустить `npm run dev`, открыть приложение и в консоли браузера вызвать `__skillFlask.seed()` (или `__skillFlask.seed({ days: 45, seed: 7 })` — число дней истории и зерно генератора). Создаются три навыка с действиями и выполнениями через обычные сервисы, так что журнал остаётся корректным. Dev-сервер работает с базой `skill-flask-dev`, боевая база `skill-flask` не затрагивается.
 
@@ -48,8 +52,16 @@ src/domain/     чистая бизнес-логика без хранилища
 src/data/       схема IndexedDB (версия Dexie = версия схемы), миграции, открытие базы
 src/services/   сценарии (создать навык, отметить выполнение…), read-модели, проверка журнала
 src/ui/         экраны, компоненты и словарь копирайта (copy.ts)
+  tokens.css      дизайн-токены: цвета из темы Telegram с fallback, типографика, отступы, радиусы, safe-area
+  motion.css      длительности, кривые, .anim-decor/.anim-func, режим «Уменьшить движение»
+  components/     Screen, TabBar, Sheet/ContextSheet/ConfirmSheet, Toast, Skeleton, EmptyState, Icon, ErrorBoundary
+  hooks/          useMotion, useCountUp, useDelayedFlag
+  screens/StyleguideScreen.tsx  галерея всех состояний компонентов, маршрут /styleguide только в dev
+src/platform/   Telegram Mini App: типизированный SDK с таблицей версий (telegram.ts), тема (theme.ts),
+                вибро-словарь (haptics.ts), очередь диалогов (dialogs.ts), нативные кнопки (buttons.ts),
+                клавиатура (viewport.ts), журнал ошибок (errorLog.ts); вне Telegram всё — no-op или HTML-fallback
 src/dev/        демо-данные (только в DEV)
-src/telegram.ts обёртка над Telegram Mini App API (вне Telegram — no-op)
+src/telegram.ts реэкспорт из src/platform/ на один пакет (совместимость)
 ```
 
 Ключевые решения:
@@ -104,6 +116,6 @@ src/telegram.ts обёртка над Telegram Mini App API (вне Telegram —
 1. Включить GitHub Pages: *Settings → Pages → Source: GitHub Actions*. После пуша в `main` workflow `CI` опубликует сборку.
 2. В [@BotFather](https://t.me/BotFather): `/newbot`, затем `/newapp` (или *Bot Settings → Menu Button*) и указать URL страницы.
 
-Цвета приложения берутся из темы Telegram, используются нативная кнопка «Назад», подтверждения и вибро-отклик.
+Цвета берутся из темы Telegram (`--tg-theme-*`, переключение на лету по `themeChanged`; слишком тёмный или серый акцент заменяется фирменным цианом только для жидкости). Используются нативные кнопки «Назад», MainButton/SecondaryButton вместо HTML-футера, `showConfirm`/`showPopup`, подтверждение закрытия при несохранённой форме, вибро-отклик (`sf_haptics=off` в localStorage выключает), safe-area и цвет нижней панели. Все вызовы SDK идут через `supports(version)` — таблица версий Bot API лежит в `src/platform/telegram.ts`.
 
 Данные хранятся в IndexedDB WebView-а Telegram на конкретном устройстве; синхронизации между устройствами пока нет.

@@ -1,48 +1,17 @@
-/* Mobile-only layout. Colors follow the Telegram theme (--tg-theme-* variables are injected by
-   telegram-web-app.js) and fall back to an iOS-like palette in a regular browser. */
+/* Mobile-only layout on top of the design tokens (tokens.css) and the motion vocabulary
+   (motion.css). Surfaces are tonal and opaque — no blur, no glass — so low-end WebViews
+   stay smooth and the Telegram theme shows through unchanged. */
+
+@import './tokens.css';
+@import './motion.css';
 
 :root {
-  --bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
-  --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
-  --text: var(--tg-theme-text-color, #1c1c1e);
-  --hint: var(--tg-theme-hint-color, #8e8e93);
-  --accent: var(--tg-theme-button-color, #2481cc);
-  --accent-text: var(--tg-theme-button-text-color, #ffffff);
-  --link: var(--tg-theme-link-color, #2481cc);
-  --danger: var(--tg-theme-destructive-text-color, #e53935);
-  --separator: var(--tg-theme-section-separator-color, rgba(60, 60, 67, 0.14));
-  --section-header: var(--tg-theme-section-header-text-color, #6d6d72);
-  --soft: color-mix(in srgb, var(--accent) 12%, transparent);
-  --liquid: #6fcdf5;
-  --liquid-deep: #3aa8e0;
-  --success: #34c759;
-  --radius: 14px;
-  --tab-height: 58px;
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-top: var(--tg-content-safe-area-inset-top, 0px);
-
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Roboto, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Roboto, 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.35;
+  font-variant-numeric: tabular-nums;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-}
-
-@media (prefers-color-scheme: dark) {
-  html:not(.in-telegram) {
-    --bg: #000000;
-    --card: #1c1c1e;
-    --text: #ffffff;
-    --hint: #8d8d93;
-    --accent: #3e88f7;
-    --link: #3e88f7;
-    --danger: #ff453a;
-    --separator: rgba(84, 84, 88, 0.6);
-    --section-header: #8d8d93;
-    --liquid: #4fb8ec;
-    --liquid-deep: #2a8fcf;
-  }
 }
 
 * {
@@ -52,21 +21,33 @@
 html,
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--color-bg);
+  color: var(--color-fg);
   overscroll-behavior: none;
 }
 
 body {
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
+/* Body scroll lock while a sheet is open (Sheet.tsx saves and restores scrollY). */
+body.sheet-lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
 a {
-  color: var(--link);
+  color: var(--color-link);
   text-decoration: none;
 }
 
-p {
+p,
+h1,
+h2,
+h3 {
   margin: 0;
 }
 
@@ -78,18 +59,43 @@ textarea {
   color: inherit;
 }
 
+button {
+  -webkit-touch-callout: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .app {
   max-width: 560px;
   margin: 0 auto;
-  min-height: 100dvh;
+  min-height: var(--tg-viewport-stable-height, 100vh);
+  min-height: var(--tg-viewport-stable-height, 100dvh);
 }
 
 /* ---------- Screen ---------- */
 
 .screen {
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: var(--tg-viewport-stable-height, 100vh);
+  min-height: var(--tg-viewport-stable-height, 100dvh);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* A sticky footer paints the bottom inset itself (see .screen-footer). */
+.screen.has-footer {
+  padding-bottom: 0;
+}
+
+.screen.has-tab-bar {
   padding-bottom: calc(var(--tab-height) + var(--safe-bottom));
 }
 
@@ -101,10 +107,8 @@ textarea {
   grid-template-columns: 64px 1fr 64px;
   align-items: center;
   min-height: 52px;
-  padding: var(--safe-top) 8px 0;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  padding: var(--safe-top) var(--sp-2) 0;
+  background: var(--color-bg);
 }
 
 .screen-title {
@@ -117,6 +121,30 @@ textarea {
   text-overflow: ellipsis;
 }
 
+.screen-title.is-hidden {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.screen-title.is-visible {
+  opacity: 1;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.screen-large-title {
+  padding: 0 var(--sp-1);
+  overflow-wrap: anywhere;
+}
+
+/* Sentinel for the header title fade: sits 40px below the top of the body. */
+.screen-sentinel {
+  position: absolute;
+  top: 40px;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
 .screen-header-side {
   display: flex;
   align-items: center;
@@ -127,36 +155,57 @@ textarea {
 }
 
 .screen-body {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 8px 16px 24px;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--gutter) var(--sp-6);
 }
 
+/* Sticks to the viewport bottom and covers the safe-area inset with its own background, so
+   scrolled content never shows through under the button. The keyboard lifts it. */
 .screen-footer {
   position: sticky;
+  bottom: var(--kb);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--gutter) calc(var(--sp-3) + var(--safe-bottom));
+  background: var(--color-bg);
+  border-top: 0.5px solid var(--color-border);
+}
+
+.has-tab-bar .screen-footer {
   bottom: calc(var(--tab-height) + var(--safe-bottom));
-  padding: 12px 16px;
-  background: linear-gradient(to top, var(--bg) 70%, transparent);
+  padding-bottom: var(--sp-3);
 }
 
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: none;
-  color: var(--link);
+  color: var(--color-link);
   cursor: pointer;
 }
 
 .text-button {
-  padding: 10px 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--sp-2);
+  border: 0;
+  background: none;
+  color: var(--color-link);
   font-weight: 500;
+  cursor: pointer;
 }
 
 /* ---------- Tab bar ---------- */
@@ -173,36 +222,56 @@ textarea {
   margin: 0 auto;
   height: calc(var(--tab-height) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 0.5px solid var(--separator);
+  background: var(--color-bg-elevated);
+  border-top: 0.5px solid var(--color-border);
 }
 
 .tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  color: var(--hint);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
   font-size: 11px;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .tab.active {
-  color: var(--accent);
+  color: var(--color-accent);
+}
+
+.tab-badge {
+  position: absolute;
+  top: 8px;
+  left: calc(50% + 8px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-bg-elevated);
 }
 
 /* ---------- Cards & lists ---------- */
 
 .card {
-  background: var(--card);
-  border-radius: var(--radius);
+  background: var(--color-bg-elevated);
+  border-radius: var(--r-m);
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+:root[data-theme='dark'] .card {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
 }
 
 .card-padded {
-  padding: 14px 16px;
+  padding: var(--card-padding);
 }
 
 .list {
@@ -213,25 +282,26 @@ textarea {
 }
 
 .list > li + li {
-  border-top: 0.5px solid var(--separator);
+  border-top: 0.5px solid var(--color-border);
 }
 
 .section-title {
-  margin: 8px 4px -8px;
+  margin: var(--sp-2) var(--sp-1) calc(-1 * var(--sp-2));
   padding-bottom: 6px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.3;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--section-header);
+  letter-spacing: 0.04em;
+  color: var(--color-section-header);
 }
 
 .hint {
-  color: var(--hint);
+  color: var(--color-fg-secondary);
 }
 
 .small {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .center {
@@ -241,11 +311,11 @@ textarea {
 .badge {
   display: inline-block;
   margin-left: 6px;
-  padding: 1px 7px;
-  border-radius: 10px;
-  background: var(--soft);
-  color: var(--accent);
-  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -257,7 +327,7 @@ textarea {
 .bar {
   height: 6px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--hint) 22%, transparent);
+  background: var(--color-bg-sunken);
   overflow: hidden;
 }
 
@@ -265,9 +335,11 @@ textarea {
   height: 100%;
   border-radius: 3px;
   background: var(--liquid-deep);
-  transition: width 0.4s ease;
+  transform-origin: left;
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
+/* Legacy empty block; new screens use .empty-state */
 .empty {
   display: flex;
   flex-direction: column;
@@ -279,39 +351,313 @@ textarea {
 
 .empty-title {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-10) var(--sp-6);
+  text-align: center;
+}
+
+.empty-state .illustration {
+  width: 120px;
+  height: 120px;
+  margin-bottom: var(--sp-2);
+  color: var(--color-accent);
+}
+
+.empty-state-text {
+  max-width: 320px;
+  color: var(--color-fg-secondary);
+}
+
+.empty-state-action {
+  margin-top: var(--sp-3);
 }
 
 .error {
-  color: var(--danger);
+  color: var(--color-danger);
   text-align: center;
 }
+
+/* ---------- Toast ---------- */
 
 .toast {
   position: fixed;
-  /* Centered by auto margins: with `left: 50%` a shrink-to-fit box could only use half the
-     viewport and wrapped long toasts onto three lines. */
-  left: 16px;
-  right: 16px;
-  bottom: calc(var(--tab-height) + var(--safe-bottom) + 84px);
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: calc(var(--safe-bottom) + var(--sp-6));
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   width: max-content;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 2 * var(--gutter));
   margin-inline: auto;
-  padding: 10px 16px;
-  border-radius: 12px;
-  background: rgba(30, 30, 32, 0.92);
+  padding: 10px var(--sp-4);
+  border-radius: var(--r-full);
+  background: #1e1e20;
   color: #fff;
   font-weight: 500;
   text-align: center;
-  animation: toast-in 0.2s ease-out;
+  touch-action: pan-x;
+  animation: rise-in var(--dur-base) var(--ease-out);
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
+.toast.above-tab-bar {
+  bottom: calc(var(--tab-height) + var(--safe-bottom) + var(--sp-4));
+}
+
+/* Above a sticky .screen-footer (12px padding + 48px button + 12px padding); Toast.tsx
+   overrides the offset with the footer's measured height when it has two buttons. */
+.toast.above-footer {
+  bottom: calc(var(--safe-bottom) + var(--kb) + 72px + var(--sp-4));
+}
+
+:root[data-theme='dark'] .toast {
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-icon {
+  flex: none;
+  display: inline-flex;
+}
+
+.toast-action {
+  flex: none;
+  min-height: var(--tap-target);
+  margin: -10px calc(-1 * var(--sp-2)) -10px 0;
+  padding: 0 var(--sp-3);
+  border: 0;
+  background: none;
+  color: var(--liquid-light);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:root[data-theme='dark'] .toast-action {
+  color: var(--color-accent);
+}
+
+/* ---------- Sheet ---------- */
+
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+:root[data-theme='dark'] .sheet-scrim {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+  max-height: calc(100vh - var(--safe-top) - 24px);
+  max-height: calc(100dvh - var(--safe-top) - 24px);
+  margin: 0 auto;
+  padding-bottom: var(--safe-bottom);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  transform: translateY(100%);
+  transition: transform var(--dur-base) var(--ease-in);
+  will-change: transform;
+}
+
+.sheet.is-full {
+  height: calc(100vh - var(--safe-top) - 24px);
+  height: calc(100dvh - var(--safe-top) - 24px);
+}
+
+.sheet[data-state='open'] {
+  transform: translateY(0);
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+
+.sheet[data-state='open'] + .sheet-scrim,
+.sheet-scrim[data-state='open'] {
+  opacity: 1;
+}
+
+.sheet.is-dragging {
+  transition: none;
+}
+
+html[data-motion='reduced'] .sheet {
+  transform: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+html[data-motion='reduced'] .sheet[data-state='open'] {
+  opacity: 1;
+}
+
+.sheet-handle-area {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--tap-target);
+  margin-bottom: calc(-1 * var(--sp-2));
+  touch-action: none;
+  cursor: grab;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--color-fg-tertiary);
+  opacity: 0.5;
+}
+
+.sheet-header {
+  flex: none;
+  padding: var(--sp-2) var(--sp-5) var(--sp-3);
+  touch-action: none;
+}
+
+.sheet-title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+
+.sheet-footer {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5) 0;
+  padding-bottom: var(--kb);
+  background: var(--color-bg-elevated);
+}
+
+/* Fields sit on the elevated sheet surface, so they use the sunken tone to stay visible. */
+.sheet .input,
+.sheet .segmented {
+  background: var(--color-bg-sunken);
+}
+
+/* Context menu rows inside a sheet */
+.context-list {
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0;
+  list-style: none;
+}
+
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--row-min-height);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--color-fg);
+  font-size: 17px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-item.tone-danger {
+  color: var(--color-danger);
+}
+
+.confirm-message {
+  padding: var(--sp-2) 0 var(--sp-3);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+/* ---------- Skeleton ---------- */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-m);
+  background: var(--color-bg-sunken);
+}
+
+.skeleton-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--color-bg-elevated), transparent);
+  opacity: 0.6;
+  animation: shimmer 1.4s var(--ease-out) infinite;
+}
+
+.skeleton-line {
+  border-radius: 6px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+/* ---------- Error boundary ---------- */
+
+.error-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  text-align: center;
+}
+
+.error-screen .illustration {
+  width: 96px;
+  height: 96px;
+  color: var(--color-fg-secondary);
 }
 
 /* ---------- Buttons ---------- */
@@ -320,39 +666,49 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--sp-2);
   min-height: 48px;
-  padding: 0 20px;
+  padding: 0 var(--sp-5);
   border: 0;
-  border-radius: 12px;
-  background: var(--soft);
-  color: var(--accent);
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .button:active {
-  opacity: 0.7;
+  transform: scale(0.97);
+  opacity: 0.92;
 }
 
 .button:disabled {
   opacity: 0.45;
   cursor: default;
+  transform: none;
 }
 
 .button-primary {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .button-secondary {
-  background: var(--card);
+  background: var(--color-bg-elevated);
 }
 
+:root[data-theme='dark'] .button-secondary {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+/* Tonal like .button, in the danger colour: keeps a shape on elevated surfaces (sheets). */
 .button-danger {
-  background: var(--card);
-  color: var(--danger);
-  margin-top: 12px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  margin-top: var(--sp-3);
 }
 
 .button-block {
@@ -367,7 +723,27 @@ textarea {
 
 .button-row .button {
   flex: 1;
-  padding: 0 12px;
+  padding: 0 var(--sp-3);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 /* ---------- Forms ---------- */
@@ -387,9 +763,10 @@ textarea {
 }
 
 .field-label {
-  padding-left: 4px;
-  font-size: 13px;
-  color: var(--section-header);
+  padding-left: var(--sp-1);
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--color-section-header);
 }
 
 .field-row {
@@ -411,19 +788,28 @@ textarea {
   min-height: 46px;
   padding: 11px 14px;
   border: 0;
-  border-radius: 12px;
-  background: var(--card);
+  border-radius: var(--r-s);
+  background: var(--color-bg-elevated);
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  font-size: 16px;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
 }
 
-.input:focus {
-  box-shadow: 0 0 0 2px var(--accent);
+:root[data-theme='dark'] .input {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 select.input {
-  background-image: linear-gradient(45deg, transparent 50%, var(--hint) 50%), linear-gradient(135deg, var(--hint) 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-fg-secondary) 50%),
+    linear-gradient(135deg, var(--color-fg-secondary) 50%, transparent 50%);
   background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
   background-size: 5px 5px;
   background-repeat: no-repeat;
@@ -435,21 +821,21 @@ textarea.input {
 }
 
 .input::placeholder {
-  color: var(--hint);
-  opacity: 0.8;
+  color: var(--color-fg-tertiary);
+  opacity: 0.9;
 }
 
 .segmented {
   display: flex;
   padding: 3px;
   border-radius: 11px;
-  background: color-mix(in srgb, var(--hint) 18%, transparent);
+  background: var(--color-bg-sunken);
 }
 
 .segmented button {
   flex: 1;
   min-height: 36px;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
   border: 0;
   border-radius: 9px;
   background: none;
@@ -459,20 +845,19 @@ textarea.input {
 }
 
 .segmented button.active {
-  background: var(--card);
+  background: var(--color-bg-elevated);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .segmented button:disabled {
-  color: var(--hint);
+  color: var(--color-fg-secondary);
   cursor: default;
 }
 
 .preview {
   padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--soft);
-  font-variant-numeric: tabular-nums;
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
 }
 
 /* ---------- Skills list ---------- */
@@ -480,13 +865,13 @@ textarea.input {
 .overview {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--sp-3);
+  padding: var(--card-padding);
 }
 
 .stats {
   display: flex;
-  gap: 24px;
+  gap: var(--sp-6);
 }
 
 .stats > div {
@@ -507,13 +892,10 @@ textarea.input {
 .skill-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--sp-3);
+  min-height: var(--row-min-height);
+  padding: var(--sp-3) var(--card-padding);
   color: inherit;
-}
-
-.skill-row:active {
-  background: var(--soft);
 }
 
 .skill-row-level {
@@ -523,9 +905,9 @@ textarea.input {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(to top, var(--liquid-deep), var(--liquid));
-  color: #fff;
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
   font-weight: 700;
   font-size: 17px;
 }
@@ -541,7 +923,7 @@ textarea.input {
 .skill-row-top {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .skill-row-name {
@@ -553,23 +935,22 @@ textarea.input {
 
 .skill-row-points {
   flex: none;
-  color: var(--hint);
+  color: var(--color-fg-secondary);
   font-size: 14px;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Skill screen ---------- */
 
 .skill-subtitle {
-  margin-top: -8px;
+  margin-top: calc(-1 * var(--sp-2));
 }
 
 .flask-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 8px 0;
+  gap: var(--sp-6);
+  padding: var(--sp-2) 0;
 }
 
 .flask {
@@ -579,30 +960,33 @@ textarea.input {
 }
 
 .flask-glass {
-  fill: color-mix(in srgb, var(--card) 80%, transparent);
+  fill: var(--color-bg-elevated);
+  fill-opacity: 0.8;
 }
 
 .flask-outline {
   fill: none;
-  stroke: color-mix(in srgb, var(--text) 55%, transparent);
+  stroke: var(--color-fg);
+  stroke-opacity: 0.55;
   stroke-width: 3;
 }
 
 .flask-rim {
-  fill: var(--card);
-  stroke: color-mix(in srgb, var(--text) 55%, transparent);
+  fill: var(--color-bg-elevated);
+  stroke: var(--color-fg);
+  stroke-opacity: 0.55;
   stroke-width: 3;
 }
 
 .flask-liquid {
   transition:
-    y 0.6s cubic-bezier(0.3, 1.3, 0.5, 1),
-    height 0.6s cubic-bezier(0.3, 1.3, 0.5, 1);
+    y var(--dur-slow) var(--ease-spring),
+    height var(--dur-slow) var(--ease-spring);
 }
 
 .flask-surface {
   fill: rgba(255, 255, 255, 0.55);
-  transition: y 0.6s cubic-bezier(0.3, 1.3, 0.5, 1);
+  transition: y var(--dur-slow) var(--ease-spring);
 }
 
 .flask-shine {
@@ -610,7 +994,8 @@ textarea.input {
 }
 
 .flask-mark {
-  stroke: color-mix(in srgb, var(--text) 30%, transparent);
+  stroke: var(--color-fg);
+  stroke-opacity: 0.3;
   stroke-width: 2;
 }
 
@@ -623,15 +1008,15 @@ textarea.input {
 
 .flask-level {
   font-size: 56px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .flask-points {
   margin-top: 6px;
   font-size: 22px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .milestone {
@@ -643,20 +1028,23 @@ textarea.input {
 .milestone-head {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .milestone-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
 }
 
 .milestone-reached {
-  box-shadow: inset 0 0 0 2px var(--success);
+  box-shadow: inset 0 0 0 2px var(--color-positive);
 }
 
 .milestone-reached .bar-fill,
 .milestone-done .bar-fill {
-  background: var(--success);
+  background: var(--color-positive);
 }
 
 .milestone-text {
@@ -666,8 +1054,11 @@ textarea.input {
 .history-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 16px;
+  gap: var(--sp-3);
+  min-height: var(--row-min-height);
+  padding: 11px var(--card-padding);
+  content-visibility: auto;
+  contain-intrinsic-size: 0 64px;
 }
 
 .history-main {
@@ -687,12 +1078,11 @@ textarea.input {
 .history-delta {
   flex: none;
   font-weight: 600;
-  color: var(--success);
-  font-variant-numeric: tabular-nums;
+  color: var(--color-positive);
 }
 
 .history-delta.negative {
-  color: var(--danger);
+  color: var(--color-danger);
 }
 
 /* ---------- Add action ---------- */
@@ -700,9 +1090,9 @@ textarea.input {
 .radio-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  padding: 10px 16px;
+  gap: var(--sp-3);
+  min-height: var(--row-min-height);
+  padding: 10px var(--card-padding);
   cursor: pointer;
 }
 
@@ -716,18 +1106,18 @@ textarea.input {
   flex: none;
   width: 22px;
   height: 22px;
-  border: 2px solid var(--success);
+  border: 2px solid var(--color-positive);
   border-radius: 50%;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }
 
 .radio-row input:checked + .radio-mark {
-  background: var(--success);
-  box-shadow: inset 0 0 0 4px var(--card);
+  background: var(--color-positive);
+  box-shadow: inset 0 0 0 4px var(--color-bg-elevated);
 }
 
 .radio-row input:focus-visible + .radio-mark {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -738,18 +1128,82 @@ textarea.input {
 
 .radio-value {
   flex: none;
-  color: var(--hint);
+  color: var(--color-fg-secondary);
   font-size: 14px;
 }
 
 /* Database open state (DbBoundary): centred message before the app renders. */
 .db-boundary {
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 24px;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
   text-align: center;
+}
+
+/* ---------- Styleguide (DEV only) ---------- */
+
+.sg-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-2);
+}
+
+.sg-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.sg-swatch span:first-child {
+  height: 40px;
+  border-radius: var(--r-s);
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+.sg-icons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--sp-3);
+  justify-items: center;
+  font-size: 10px;
+  text-align: center;
+}
+
+.sg-icons > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sg-scale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  overflow: hidden;
+}
+
+.sg-zoom {
+  zoom: 1.3;
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .flask-liquid,
+  .flask-surface,
+  .bar-fill,
+  .toast,
+  .pressable,
+  .button {
+    transition: none;
+    animation: none;
+  }
 }

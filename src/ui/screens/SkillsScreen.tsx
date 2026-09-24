@@ -4,7 +4,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { listSkillSummaries, type SkillSummary } from '../../services/queries';
 import { formatDate } from '../../lib/dates';
 import { formatNumber } from '../../lib/format';
+import { haptics } from '../../platform/haptics';
+import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
+import { Skeleton } from '../components/Skeleton';
 import { copy } from '../copy';
 
 type Filter = 'ACTIVE' | 'COMPLETED';
@@ -17,59 +21,60 @@ export function SkillsScreen() {
 
   const addButton = (
     <Link to="/skills/new" className="icon-button" aria-label={t.newSkill}>
-      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-        <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      </svg>
+      <Icon name="plus" size={26} />
     </Link>
   );
 
-  if (!summaries) return <Screen title={t.title} action={addButton}>{null}</Screen>;
+  return (
+    <Screen title={t.title} largeTitle action={addButton}>
+      <Skeleton layout="home" loading={summaries === undefined}>
+        {summaries && <SkillsContent summaries={summaries} filter={filter} onFilter={setFilter} />}
+      </Skeleton>
+    </Screen>
+  );
+}
 
+function SkillsContent({ summaries, filter, onFilter }: { summaries: SkillSummary[]; filter: Filter; onFilter(next: Filter): void }) {
   const completedCount = summaries.filter((s) => s.skill.status === 'COMPLETED').length;
   const shown: Filter = completedCount > 0 ? filter : 'ACTIVE';
   const visible = summaries.filter((s) => s.skill.status === shown);
 
+  if (summaries.length === 0) {
+    return <EmptyState illustration="skills" title={t.emptyTitle} text={t.emptyHint} action={{ label: t.create, to: '/skills/new' }} />;
+  }
+
   return (
-    <Screen title={t.title} action={addButton}>
-      {summaries.length === 0 ? (
-        <div className="empty">
-          <p className="empty-title">{t.emptyTitle}</p>
-          <p className="hint">{t.emptyHint}</p>
-          <Link to="/skills/new" className="button button-primary">
-            {t.create}
-          </Link>
+    <>
+      <Overview summaries={summaries} />
+      {completedCount > 0 && (
+        <div className="segmented" role="tablist">
+          {(['ACTIVE', 'COMPLETED'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={shown === value}
+              className={shown === value ? 'active' : ''}
+              onClick={() => {
+                haptics.select();
+                onFilter(value);
+              }}
+            >
+              {value === 'ACTIVE' ? t.filterActive : t.filterCompleted}
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <Overview summaries={summaries} />
-          {completedCount > 0 && (
-            <div className="segmented" role="tablist">
-              {(['ACTIVE', 'COMPLETED'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={shown === value}
-                  className={shown === value ? 'active' : ''}
-                  onClick={() => setFilter(value)}
-                >
-                  {value === 'ACTIVE' ? t.filterActive : t.filterCompleted}
-                </button>
-              ))}
-            </div>
-          )}
-          {visible.length === 0 ? (
-            <p className="hint center">{shown === 'ACTIVE' ? t.noActive : t.noCompleted}</p>
-          ) : (
-            <ul className="card list">
-              {visible.map((summary) => (
-                <SkillRow key={summary.skill.id} summary={summary} />
-              ))}
-            </ul>
-          )}
-        </>
       )}
-    </Screen>
+      {visible.length === 0 ? (
+        <p className="hint center">{shown === 'ACTIVE' ? t.noActive : t.noCompleted}</p>
+      ) : (
+        <ul className="card list">
+          {visible.map((summary) => (
+            <SkillRow key={summary.skill.id} summary={summary} />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -109,11 +114,12 @@ function Overview({ summaries }: { summaries: SkillSummary[] }) {
 function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillSummary }) {
   const completed = skill.status === 'COMPLETED';
   const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
+  const percent = Math.round(progress.fill * 100);
   return (
     <li>
-      <Link to={`/skills/${skill.id}`} className="skill-row">
-        <div className="skill-row-level" aria-label={copy.common.flaskNumber(progress.currentFlask)}>
-          {completed ? '✓' : progress.currentFlask}
+      <Link to={`/skills/${skill.id}`} className="skill-row pressable pressable-row">
+        <div className="skill-row-level" aria-label={completed ? copy.common.flasksCount(progress.completedFlasks) : copy.common.flaskNumber(progress.currentFlask)}>
+          {completed ? <Icon name="check" size={22} /> : progress.currentFlask}
         </div>
         <div className="skill-row-main">
           <div className="skill-row-top">
@@ -125,7 +131,7 @@ function SkillRow({ summary: { skill, milestone, progress } }: { summary: SkillS
             </span>
           </div>
           {!completed && (
-            <div className="bar">
+            <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={copy.common.flaskFilled(percent)}>
               <div className="bar-fill" style={{ width: `${progress.fill * 100}%` }} />
             </div>
           )}
