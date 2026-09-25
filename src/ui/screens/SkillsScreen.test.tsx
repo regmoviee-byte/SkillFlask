@@ -63,8 +63,8 @@ describe('SkillsScreen', () => {
     const id = await createSkill(input('Английский', 10));
     const step = await createStep({ skillId: id, name: 'Разговор', points: 10 });
     const tileFlasks = async () => {
-      const tile = (await screen.findByText('Заполнено')).closest('.tile')!;
-      return { drawn: tile.querySelectorAll('.tile-flasks .flask').length, more: tile.querySelector('.tile-flasks-more')?.textContent ?? null };
+      const tile = (await screen.findByText('Пройдено')).closest('.tile')!;
+      return { drawn: tile.querySelectorAll('.tile-flasks .mini-flask').length, more: tile.querySelector('.tile-flasks-more')?.textContent ?? null };
     };
     for (let i = 0; i < 4; i++) await completeStep(step);
     renderHome();
@@ -86,7 +86,7 @@ describe('SkillsScreen', () => {
     await completeStep(run);
 
     renderHome();
-    await screen.findByText('Заполнено');
+    await screen.findByText('Пройдено');
     // Бег was worked on last, Гитара never.
     expect(cardNames()).toEqual(['Бег', 'Английский', 'Гитара']);
     expect(filterGroup()).toBeNull();
@@ -163,7 +163,7 @@ describe('SkillsScreen', () => {
     await completeStep(await createStep({ skillId: a, name: 'Разговор', points: 10 }));
     await completeSkill(a);
     renderHome();
-    await screen.findByText('Заполнено');
+    await screen.findByText('Пройдено');
     expect(cardNames()).toEqual(['Английский']);
     expect(filterGroup()).toBeNull();
   });

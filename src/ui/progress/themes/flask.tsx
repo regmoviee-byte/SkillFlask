@@ -1,16 +1,20 @@
-import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { formatNumber } from '../../lib/format';
-import { copy } from '../copy';
-import { useMotion, type MotionMode } from '../hooks/useMotion';
-import { PLAIN_TICKS, scaleTicks } from './flaskScale';
-import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, phaseTiming, refillTarget, type PhaseTiming } from './flaskAnimation';
+import { formatNumber } from '../../../lib/format';
+import { PLAIN_TICKS, scaleTicks } from '../../components/flaskScale';
+import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, phaseTiming, refillTarget, type PhaseTiming } from '../../components/flaskAnimation';
+import { copy } from '../../copy';
+import { useMotion } from '../../hooks/useMotion';
+import type { ProgressHeroHandle, ProgressHeroProps, ProgressMark, ProgressMiniProps, ProgressThemeDefinition } from '../contract';
+import { THEME_TEXT } from '../texts';
 
-// The flask: the product's signature object. One glass, one liquid group moved by a single
-// translateY, one idle wave and a static glow; bubbles only while the liquid rises. The
-// level-up choreography (rise → overflow → drain → refill) is driven by the pure state machine
-// in flaskAnimation.ts through WAAPI; only transform and opacity animate. Under reduced motion
-// every change is a short crossfade, and html.paused stops the idle wave while the page is hidden.
+// «Колба», the default progress theme and the reference implementation of the contract: the
+// product's signature object. One glass, one liquid group moved by a single translateY, one
+// idle wave and a static glow; bubbles only while the liquid rises. The level-up choreography
+// (rise → overflow → drain → refill) is driven by the pure state machine in flaskAnimation.ts
+// through WAAPI; only transform and opacity animate. Under reduced motion every change is a
+// short crossfade, and html.paused stops the idle wave while the page is hidden. Styles live in
+// src/ui/flask.css (with the ring). Bundled with the app: every other theme is a lazy chunk.
 
 // Geometry (viewBox 0 0 160 260): the liquid surface travels from y 226 (empty) to 34 (full).
 const GLASS = 'M40 30 V186 A40 40 0 0 0 120 186 V30 Z';
@@ -53,14 +57,6 @@ const CAPTION_X = 132;
 const VIEW_W = 160;
 const VIEW_H = 260;
 
-/** A mark as the hero draws it; `height` is 0..1 of this flask (domain/marks.ts markHeight). */
-export interface FlaskMark {
-  id: string;
-  /** The mark's title; the caption shortens it. */
-  label: string;
-  height: number;
-}
-
 const markY = (height: number) => Math.min(Math.max(BOTTOM - clamp(height) * TRAVEL, MARK_HIGHEST), MARK_LOWEST);
 /** x of a wall at `y`: straight down to y 186, then the half circle of the bottom around (80, 186). */
 const wallX = (y: number, r: number) => (y <= 186 ? 80 + r : 80 + Math.sqrt(Math.max(0, r * r - (y - 186) ** 2)));
@@ -100,38 +96,6 @@ function captionPad(ys: number[], i: number): number {
   const gaps = ys.filter((_, j) => j !== i).map((y) => Math.abs(y - ys[i]!) * HERO_SCALE);
   const room = gaps.length ? Math.min(...gaps) - CAPTION_LINE : CAPTION_PAD_MAX;
   return Math.round(Math.min(CAPTION_PAD_MAX, Math.max(CAPTION_PAD_MIN, room)));
-}
-
-export type FlaskState = 'empty' | 'active' | 'complete';
-
-export interface LevelUpOptions {
-  fromFill: number;
-  toFill: number;
-  levels: number;
-  /** Called at the overflow beat — the caller fires haptics.levelUp there. */
-  onOverflow?(): void;
-}
-
-export interface FlaskHandle {
-  playLevelUp(options: LevelUpOptions): Promise<void>;
-  /** The glass, as the target for flying points. */
-  element(): Element | null;
-}
-
-export interface FlaskProps {
-  /** Fill ratio 0..1. */
-  fill: number;
-  /** Capacity of the current flask; labels the ticks with absolute values. */
-  capacity?: number;
-  size?: 'hero' | 'mini';
-  state?: FlaskState;
-  motion?: MotionMode;
-  /** Accessible name; «Колба заполнена на N%» by default. */
-  label?: string;
-  /** Hero only: marks of this flask, oldest first; the newest MARK_CAPTIONS get a caption. */
-  marks?: FlaskMark[];
-  onMarkTap?(id: string): void;
-  ref?: Ref<FlaskHandle>;
 }
 
 const clamp = (v: number) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
@@ -177,12 +141,12 @@ function installPauseWhenHidden(): void {
   sync();
 }
 
-export function Flask({ fill, capacity, size = 'hero', state = 'active', motion: motionProp, label, marks, onMarkTap, ref }: FlaskProps) {
+/** The hero flask (contract: ProgressHeroProps). `marks` are the current flask's, oldest first. */
+function FlaskHero({ fill, capacity, state = 'active', motion: motionProp, label, marks, onMarkTap, ref }: ProgressHeroProps) {
   const systemMotion = useMotion();
   const motion = motionProp ?? systemMotion;
   // useId() may contain characters that break url(#id) references.
   const id = `flask${useId().replace(/[^\w-]/g, '')}`;
-  const hero = size === 'hero';
   const target = state === 'complete' ? 1 : state === 'empty' ? 0 : clamp(fill);
 
   // While a choreography runs (and right after it) the liquid shows `override`, not the prop.
@@ -196,8 +160,6 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
   const targetRef = useRef(target);
   targetRef.current = target;
   const shown = override ?? target;
-  const shownRef = useRef(shown);
-  shownRef.current = shown;
 
   const svgRef = useRef<SVGSVGElement>(null);
   const liquidRef = useRef<SVGGElement>(null);
@@ -217,7 +179,6 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
     previous.current = target;
     if (playing.current || from === target) return;
     setOverride(null);
-    if (!hero) return;
     if (motion === 'reduced') {
       if (liquidRef.current) animate(liquidRef.current, [{ opacity: 0.35 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
       return;
@@ -227,7 +188,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
       window.clearTimeout(fillingTimer.current);
       fillingTimer.current = window.setTimeout(() => setFilling(false), 900);
     }
-  }, [target, hero, motion]);
+  }, [target, motion]);
   useEffect(() => () => window.clearTimeout(fillingTimer.current), []);
 
   // Sealing: the cork drops in when the skill becomes completed on screen (never on first load).
@@ -242,7 +203,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
 
   // The empty flask: one droplet falls from the rim once, with a faint ripple.
   useEffect(() => {
-    if (state !== 'empty' || !hero || motion === 'reduced' || !dropletRef.current || !rippleRef.current) return;
+    if (state !== 'empty' || motion === 'reduced' || !dropletRef.current || !rippleRef.current) return;
     const drop = animate(
       dropletRef.current,
       [
@@ -263,12 +224,12 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
       drop?.cancel();
       ripple?.cancel();
     };
-    // Once per mount of the empty state, not on every motion or size change.
+    // Once per mount of the empty state, not on every motion change.
   }, [state === 'empty']);
 
   useImperativeHandle(
     ref,
-    (): FlaskHandle => ({
+    (): ProgressHeroHandle => ({
       element: () => svgRef.current,
       async playLevelUp({ fromFill, toFill, levels, onOverflow }) {
         const liquid = liquidRef.current;
@@ -284,9 +245,10 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           if (a) running.push(a);
           return a;
         };
-        // Overlapping celebrations: the stage may still show an earlier snapshot below
-        // `fromFill`; the rise starts from what is on screen instead of jumping up to it.
-        const start = Math.min(clamp(fromFill), shownRef.current);
+        // The app has already rendered the new level at `toFill` (the contract's rule); the
+        // rise starts from `fromFill`, the fill of the level being completed (the caller lowers
+        // it to what was on screen when writes overlap).
+        const start = clamp(fromFill);
         flushSync(() => {
           setScripted(true);
           setOverride(start);
@@ -385,7 +347,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
   // Static: marks never animate, and the caller decides which flask they belong to (they leave
   // with their flask at the overflow beat). The room for captions and the scale on the left
   // wall stay until the choreography ends, so nothing beside the flask jumps mid-animation.
-  const shownMarks = hero ? (marks ?? []) : [];
+  const shownMarks: ProgressMark[] = marks ?? [];
   const reserved = useRef(false);
   reserved.current = scripted ? reserved.current || shownMarks.length > 0 : shownMarks.length > 0;
   const marked = reserved.current;
@@ -394,22 +356,22 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
 
   const classes = [
     'flask',
-    `flask--${size}`,
+    'flask--hero',
     `flask--${state}`,
     marked ? 'flask--marked' : '',
-    filling && hero ? 'liquid--filling' : '',
+    filling ? 'liquid--filling' : '',
     scripted ? 'flask--scripted' : '',
   ].filter(Boolean);
 
   return (
     <div className={classes.join(' ')}>
-      {hero && <div className="flask-glow" ref={glowRef} style={{ opacity: 0.25 + shown * 0.55 }} aria-hidden="true" />}
+      <div className="flask-glow" ref={glowRef} style={{ opacity: 0.25 + shown * 0.55 }} aria-hidden="true" />
       <svg
         ref={svgRef}
         className="flask-svg"
         viewBox="0 0 160 260"
         role="img"
-        aria-label={label ?? copy.common.flaskFilled(Math.floor(shown * 100))}
+        aria-label={label ?? THEME_TEXT.flask.fillLabel(Math.floor(shown * 100))}
         style={{ ['--liquid-height' as string]: `${Math.round(shown * TRAVEL)}px` }}
       >
         <defs>
@@ -428,11 +390,11 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           <g className="liquid" ref={liquidRef} style={{ transform: offset(shown) }} opacity={state === 'empty' && override === null ? 0 : 1}>
             <rect x="0" y={SURFACE} width="160" height={TRAVEL + 8} fill={`url(#${id}-liquid)`} />
             <g className="flask-wave-wrap">
-              <path d={WAVE} className={`flask-wave${hero ? ' anim-decor' : ''}`} />
+              <path d={WAVE} className="flask-wave anim-decor" />
             </g>
-            {hero && <ellipse cx="80" cy={SURFACE + 5} rx="22" ry="2.5" className="flask-caustic" />}
+            <ellipse cx="80" cy={SURFACE + 5} rx="22" ry="2.5" className="flask-caustic" />
           </g>
-          {hero && filling && state !== 'complete' && (
+          {filling && state !== 'complete' && (
             <g className="flask-bubbles" aria-hidden="true">
               {BUBBLES.map((b) => (
                 <circle key={b.cx} cx={b.cx} cy={BOTTOM - 10} r={b.r} style={{ animationDelay: `${b.delay}ms` }} />
@@ -443,8 +405,7 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
           <rect x="104" y="30" width="12" height="200" className="flask-shade" />
         </g>
         <path d={GLASS} className="flask-outline" />
-        {hero &&
-          (capacity !== undefined ? scaleTicks(capacity) : PLAIN_TICKS.map((share) => ({ share, value: null }))).map(({ share, value }) => {
+        {(capacity !== undefined ? scaleTicks(capacity) : PLAIN_TICKS.map((share) => ({ share, value: null }))).map(({ share, value }) => {
             const y = BOTTOM - share * TRAVEL;
             return (
               <g key={share} className="flask-tick">
@@ -473,14 +434,12 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
         })}
         {state === 'complete' && <rect ref={corkRef} x="58" y="2" width="44" height="18" rx="6" className="flask-cork" />}
         <rect x="26" y="16" width="108" height="16" rx="8" className="flask-rim" />
-        {hero && (
-          <g ref={dropsRef} className="flask-drops" aria-hidden="true">
-            {DROPS.map(([x]) => (
-              <circle key={x} cx={x} cy="20" r="3" />
-            ))}
-          </g>
-        )}
-        {hero && state === 'empty' && (
+        <g ref={dropsRef} className="flask-drops" aria-hidden="true">
+          {DROPS.map(([x]) => (
+            <circle key={x} cx={x} cy="20" r="3" />
+          ))}
+        </g>
+        {state === 'empty' && (
           <>
             <circle ref={dropletRef} cx="80" cy="24" r="4" className="flask-droplet" />
             <ellipse ref={rippleRef} cx="80" cy={BOTTOM - 14} rx="4" ry="1.2" className="flask-ripple" />
@@ -502,3 +461,55 @@ export function Flask({ fill, capacity, size = 'hero', state = 'active', motion:
     </div>
   );
 }
+
+// ---- Mini: the milestone rack, skill cards, the home tile ----
+
+// A small tube with a rounded bottom (18 × 30 units) centred in a square; the liquid is a rect
+// clipped to its inside. Gold when the skill is completed (the rim stays; only the hero gets a cork).
+const MINI_GLASS = 'M4 3 V21 A5 5 0 0 0 14 21 V3 Z';
+const MINI_INNER = 'M5.5 3 V21 A3.5 3.5 0 0 0 12.5 21 V3 Z';
+const MINI_TOP = 3;
+const MINI_BOTTOM = 26;
+
+function FlaskMini({ fill, state = 'active', size = 32, label }: ProgressMiniProps) {
+  const clipId = `mini${useId().replace(/[^\w-]/g, '')}`;
+  const f = state === 'complete' ? 1 : state === 'empty' ? 0 : clamp(fill);
+  const y = MINI_BOTTOM - f * (MINI_BOTTOM - MINI_TOP);
+  const classes = ['mini-flask', f >= 1 ? 'is-full' : '', state === 'complete' ? 'is-complete' : ''].filter(Boolean).join(' ');
+  return (
+    <svg
+      className={classes}
+      width={size}
+      height={size}
+      viewBox="-6 0 30 30"
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      focusable="false"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <path d={MINI_INNER} />
+        </clipPath>
+      </defs>
+      <path d={MINI_GLASS} className="mini-flask-glass" />
+      {f > 0 && <rect x="0" y={y} width="18" height={MINI_BOTTOM - y + 1} className="mini-flask-liquid" clipPath={`url(#${clipId})`} />}
+      <rect x="2" y="1.5" width="14" height="3" rx="1.5" className="mini-flask-rim" />
+    </svg>
+  );
+}
+
+/** A mark's pennant sits on the inner right wall at the height of its points. */
+function markPoint(height: number): { x: number; y: number } {
+  const y = markY(height);
+  return { x: wallX(y, 35), y };
+}
+
+export const flaskTheme: ProgressThemeDefinition = {
+  key: 'flask',
+  text: THEME_TEXT.flask,
+  available: true,
+  Hero: FlaskHero,
+  Mini: FlaskMini,
+  markPoint,
+};

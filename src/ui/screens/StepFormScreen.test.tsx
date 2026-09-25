@@ -65,7 +65,7 @@ describe('StepFormScreen', () => {
     const presets = screen.getByRole('group', { name: 'Частые значения' });
     fireEvent.click(within(presets).getByRole('button', { name: '45 мин' }));
     expect(screen.getByText('45 мин → 22,5 очка')).toBeTruthy();
-    expect(await screen.findByText(/≈ 5 выполнений до первой колбы · веха через ≈ 9/)).toBeTruthy();
+    expect(await screen.findByText(/≈ 5 выполнений до колбы 1 · веха через ≈ 9/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Когда показывать на «Сегодня»'), { target: { value: 'WEEKDAYS' } });
     const days = screen.getByRole('group', { name: 'Дни недели' });

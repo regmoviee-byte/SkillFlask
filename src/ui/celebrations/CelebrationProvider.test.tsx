@@ -11,6 +11,8 @@ import type { MutationResult } from '../../services/completions';
 import { getSkillWithMilestone } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
 import { ToastProvider } from '../components/Toast';
+import { registerTheme } from '../progress/registry';
+import { standInTheme } from '../../test/standInTheme';
 import { CelebrationProvider, useCelebrations, useCelebrationStage } from './CelebrationProvider';
 
 vi.mock('../../services/queries', () => ({ getSkillWithMilestone: vi.fn() }));
@@ -63,6 +65,8 @@ const skill = {
   completedAt: null,
   archivedAt: null,
   originSkillId: null,
+  theme: 'flask' as const,
+  color: null,
   createdAt: '2026-09-01T09:00:00',
   updatedAt: '2026-09-01T09:00:00',
 };
@@ -143,6 +147,52 @@ describe('CelebrationProvider', () => {
     expect(screen.getByText('Английский')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(haptics.levelUp).toHaveBeenCalledWith(1);
+  });
+
+  it('hands the hero its new level and fill before the level-up plays, and the progress after it', async () => {
+    renderProvider(progress(0, 96));
+    const glass = document.createElement('div');
+    glass.getBoundingClientRect = () => ({ x: 120, y: 120, top: 120, left: 120, right: 260, bottom: 320, width: 140, height: 200, toJSON: () => ({}) });
+    const seen: unknown[] = [];
+    const playLevelUp = vi.fn(async ({ onOverflow }: { onOverflow?(): void }) => {
+      // What the theme draws while it plays: the level being filled after the write, at toFill.
+      seen.push(stage.hero);
+      onOverflow?.();
+    });
+    stage.flaskRef.current = { playLevelUp, element: () => glass };
+    await act(() => api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1), levelChange: 1 }), { skillId: 's1' }));
+    expect(playLevelUp).toHaveBeenCalledOnce();
+    expect(playLevelUp.mock.calls[0]![0]).toMatchObject({ fromFill: 0.96, toFill: 0.01, levels: 1 });
+    expect(seen).toEqual([{ level: 2, fill: 0.01 }]);
+    // Afterwards the progress names it again.
+    expect(stage.hero).toBeNull();
+    expect(stage.announcement).toBe('Колба 1 заполнена');
+  });
+
+  it('starts a level-up from the fill on display when an earlier write still holds the stage', async () => {
+    renderProvider(progress(0, 50));
+    const glass = document.createElement('div');
+    glass.getBoundingClientRect = () => ({ x: 120, y: 120, top: 120, left: 120, right: 260, bottom: 320, width: 140, height: 200, toJSON: () => ({}) });
+    const playLevelUp = vi.fn(async (_options: { fromFill: number; toFill: number }) => {});
+    stage.flaskRef.current = { playLevelUp, element: () => glass };
+    // The stage still shows 50 of the first level (an earlier write's hold) while this write goes 70 → 101.
+    const release = api.hold('s1');
+    await act(() => api.celebrateResult(result({ before: progress(0, 70), after: progress(1, 1), levelChange: 1 }), { skillId: 's1' }));
+    release();
+    expect(playLevelUp.mock.calls[0]![0]).toMatchObject({ fromFill: 0.5, toFill: 0.01 });
+  });
+
+  it('names a level in the skill’s theme and paints the TopCard in its colour', async () => {
+    vi.mocked(getSkillWithMilestone).mockResolvedValue({ skill: { ...skill, theme: 'pizza', color: 'coral' }, milestone });
+    const off = registerTheme(standInTheme('pizza'));
+    try {
+      renderProvider();
+      await act(() => api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1, 150), levelChange: 1 }), { skillId: 's1' }));
+      const title = screen.getByText('Пицца 1 съедена');
+      expect(title.closest('.top-card')?.getAttribute('data-liquid-color')).toBe('coral');
+    } finally {
+      off();
+    }
   });
 
   it('a reached milestone opens the sheet with «Решу позже», which only closes it', async () => {
@@ -269,7 +319,7 @@ describe('CelebrationProvider', () => {
     // The achievement card would sit right over the hero: it waits for the pill to go.
     await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
     expect(screen.queryByText('Новая ачивка')).toBeNull();
-    expect(await screen.findByText('Первая колба', undefined, { timeout: 4000 })).toBeTruthy();
+    expect(await screen.findByText('Первый уровень', undefined, { timeout: 4000 })).toBeTruthy();
   });
 
   it('announces a new achievement with a card at the top, after the flask, and opens it on the tab', async () => {
@@ -283,7 +333,7 @@ describe('CelebrationProvider', () => {
     expect(screen.getByText('Колба 1 заполнена')).toBeTruthy();
     expect(screen.queryByText('Новая ачивка')).toBeNull();
     fireEvent.click(screen.getByText('Колба 1 заполнена'));
-    const title = await screen.findByText('Первая колба', undefined, { timeout: 2000 });
+    const title = await screen.findByText('Первый уровень', undefined, { timeout: 2000 });
     expect(screen.getByText('Новая ачивка')).toBeTruthy();
     expect(screen.getByText('Английский')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -301,7 +351,7 @@ describe('CelebrationProvider', () => {
       }),
     );
     expect(await screen.findByText('Первое действие и ещё 3 ачивки')).toBeTruthy();
-    expect(screen.getByText('Первая колба, Ювелирно, Вехи · 1')).toBeTruthy();
+    expect(screen.getByText('Первый уровень, Ювелирно, Вехи · 1')).toBeTruthy();
     expect(haptics.press).toHaveBeenCalledTimes(1);
     expect(markCelebrated).toHaveBeenCalledWith(['first-step', 'first-flask', 'exact', 'milestones-1'], expect.any(String));
   });

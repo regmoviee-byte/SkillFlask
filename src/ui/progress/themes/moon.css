@@ -1,0 +1,565 @@
+/* «Луна» (themes/moon.tsx). Natural night colours for the sky, the stars and the twelve lands;
+   the lit part of the Moon is the skill colour (--liquid-*), golden when the skill is completed,
+   tinted on a special moon. Only transform, opacity and stroke-dashoffset move; the twinkling
+   star is the one idle loop (.anim-decor). */
+
+.moon {
+  /* Literal night colours; the color-mix() versions below lean them towards the page, so the
+     panel sits softly on a light page and deepens on a dark one. */
+  --moon-sky-top: #121a3a;
+  --moon-sky-low: #2b3872;
+  --moon-shade: #222d58;
+  --moon-star: #fff6da;
+  --moon-pennant: #f7efd2;
+  /* The lands by moonlight: snow, grass, earth, bark, blossom, harvest, water. */
+  --mn-snow: #d3dcf0;
+  --mn-drift: #a9b7de;
+  --mn-snowfar: #7f8fc0;
+  --mn-ice: #a8c8f0;
+  --mn-fir: #173630;
+  --mn-grassfar: #1b3444;
+  --mn-grass: #2a5540;
+  --mn-meadow: #3f7f4c;
+  --mn-leaf: #3b8a4c;
+  --mn-earth: #4f3b30;
+  --mn-earthfar: #33304a;
+  --mn-bark: #4a3226;
+  --mn-pink: #ec9fc4;
+  --mn-bloom: #fbd6e7;
+  --mn-white: #f4efe2;
+  --mn-yellow: #f0cd57;
+  --mn-lilac: #b7a0ee;
+  --mn-berry: #e2404e;
+  --mn-water: #34508f;
+  --mn-gold: #e2b75a;
+  --mn-field: #8a6c3a;
+  --mn-goldfar: #4f4436;
+  --mn-orange: #e8843a;
+  --mn-rust: #cf5634;
+  --mn-autumnfar: #3a2c3c;
+  --mn-dark: #0a0f26;
+  position: relative;
+  flex: none;
+}
+
+@supports (color: color-mix(in oklch, red, blue)) {
+  .moon {
+    --moon-sky-top: color-mix(in oklch, #101838 88%, var(--color-bg));
+    --moon-sky-low: color-mix(in oklch, #2e3b78 88%, var(--color-bg));
+    --moon-shade: color-mix(in oklch, #25305e 80%, var(--liquid-deep));
+    --moon-star: color-mix(in oklch, #fff3cf 90%, var(--color-bg-elevated));
+    --moon-pennant: color-mix(in oklch, #f7efd2 92%, var(--color-bg-elevated));
+    /* The lands lean a little towards the page, like the sky above them. */
+    --mn-snow: color-mix(in oklch, #d3dcf0 92%, var(--color-bg));
+    --mn-drift: color-mix(in oklch, #a9b7de 92%, var(--color-bg));
+    --mn-snowfar: color-mix(in oklch, #7f8fc0 90%, var(--color-bg));
+    --mn-ice: color-mix(in oklch, #a8c8f0 92%, var(--color-bg-elevated));
+    --mn-fir: color-mix(in oklch, #173630 92%, var(--color-bg));
+    --mn-grassfar: color-mix(in oklch, #1b3444 92%, var(--color-bg));
+    --mn-grass: color-mix(in oklch, #2a5540 92%, var(--color-bg));
+    --mn-meadow: color-mix(in oklch, #3f7f4c 92%, var(--color-bg));
+    --mn-leaf: color-mix(in oklch, #3b8a4c 92%, var(--color-bg));
+    --mn-earth: color-mix(in oklch, #4f3b30 92%, var(--color-bg));
+    --mn-earthfar: color-mix(in oklch, #33304a 92%, var(--color-bg));
+    --mn-bark: color-mix(in oklch, #4a3226 92%, var(--color-bg));
+    --mn-pink: color-mix(in oklch, #ec9fc4 92%, var(--color-bg-elevated));
+    --mn-bloom: color-mix(in oklch, #fbd6e7 92%, var(--color-bg-elevated));
+    --mn-white: color-mix(in oklch, #f4efe2 92%, var(--color-bg-elevated));
+    --mn-yellow: color-mix(in oklch, #f0cd57 92%, var(--color-bg-elevated));
+    --mn-lilac: color-mix(in oklch, #b7a0ee 92%, var(--color-bg-elevated));
+    --mn-berry: color-mix(in oklch, #e2404e 92%, var(--color-bg));
+    --mn-water: color-mix(in oklch, #34508f 92%, var(--color-bg));
+    --mn-gold: color-mix(in oklch, #e2b75a 92%, var(--color-bg-elevated));
+    --mn-field: color-mix(in oklch, #8a6c3a 92%, var(--color-bg));
+    --mn-goldfar: color-mix(in oklch, #4f4436 92%, var(--color-bg));
+    --mn-orange: color-mix(in oklch, #e8843a 92%, var(--color-bg-elevated));
+    --mn-rust: color-mix(in oklch, #cf5634 92%, var(--color-bg));
+    --mn-autumnfar: color-mix(in oklch, #3a2c3c 92%, var(--color-bg));
+    --mn-dark: color-mix(in oklch, #0a0f26 94%, var(--color-bg));
+  }
+}
+
+.moon--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.moon-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.moon-sky-top {
+  stop-color: var(--moon-sky-top);
+}
+
+.moon-sky-low {
+  stop-color: var(--moon-sky-low);
+}
+
+.moon-mini-sky {
+  fill: var(--moon-sky-top);
+}
+
+/* ---- The sky: remembered stars, constellations, the Milky Way ---- */
+
+.moon-star {
+  fill: var(--moon-star);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.moon-faint {
+  fill: var(--moon-star);
+  opacity: 0.45;
+}
+
+.moon-line {
+  fill: none;
+  stroke: var(--moon-star);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 1;
+}
+
+.moon-milky-edge {
+  stop-color: var(--moon-star);
+  stop-opacity: 0;
+}
+
+.moon-milky-mid {
+  stop-color: var(--moon-star);
+  stop-opacity: 0.3;
+}
+
+.moon-dust {
+  fill: none;
+  stroke: var(--moon-star);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.moon-twinkle.anim-decor {
+  animation: moon-twinkle 3.6s ease-in-out infinite;
+}
+
+@keyframes moon-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.6) rotate(45deg);
+  }
+}
+
+/* The new star on its way up from the Moon (moon.tsx cometFrames). */
+.moon-comet {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.moon-comet-glow {
+  fill: var(--moon-star);
+  opacity: 0.25;
+}
+
+/* ---- The land (moon.tsx LANDS): each layer a fill or a stroke in its natural colour ---- */
+
+.moon-f {
+  fill: currentColor;
+}
+
+.moon-s {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.moon-c-snow {
+  color: var(--mn-snow);
+}
+
+.moon-c-drift {
+  color: var(--mn-drift);
+}
+
+.moon-c-snowfar {
+  color: var(--mn-snowfar);
+}
+
+.moon-c-ice {
+  color: var(--mn-ice);
+}
+
+.moon-c-fir {
+  color: var(--mn-fir);
+}
+
+.moon-c-grassfar {
+  color: var(--mn-grassfar);
+}
+
+.moon-c-grass {
+  color: var(--mn-grass);
+}
+
+.moon-c-meadow {
+  color: var(--mn-meadow);
+}
+
+.moon-c-leaf {
+  color: var(--mn-leaf);
+}
+
+.moon-c-earth {
+  color: var(--mn-earth);
+}
+
+.moon-c-earthfar {
+  color: var(--mn-earthfar);
+}
+
+.moon-c-bark {
+  color: var(--mn-bark);
+}
+
+.moon-c-pink {
+  color: var(--mn-pink);
+}
+
+.moon-c-bloom {
+  color: var(--mn-bloom);
+}
+
+.moon-c-white {
+  color: var(--mn-white);
+}
+
+.moon-c-yellow {
+  color: var(--mn-yellow);
+}
+
+.moon-c-lilac {
+  color: var(--mn-lilac);
+}
+
+.moon-c-berry {
+  color: var(--mn-berry);
+}
+
+.moon-c-water {
+  color: var(--mn-water);
+}
+
+.moon-c-gold {
+  color: var(--mn-gold);
+}
+
+.moon-c-field {
+  color: var(--mn-field);
+}
+
+.moon-c-goldfar {
+  color: var(--mn-goldfar);
+}
+
+.moon-c-orange {
+  color: var(--mn-orange);
+}
+
+.moon-c-rust {
+  color: var(--mn-rust);
+}
+
+.moon-c-autumnfar {
+  color: var(--mn-autumnfar);
+}
+
+.moon-c-dark {
+  color: var(--mn-dark);
+}
+
+/* The name of the moon, under it. */
+.moon-name {
+  fill: var(--moon-star);
+  opacity: 0.85;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-anchor: middle;
+}
+
+/* ---- The Moon ---- */
+
+.moon-shadow {
+  fill: var(--moon-shade);
+}
+
+.moon-lit-top {
+  stop-color: var(--liquid-light);
+  transition: stop-color 1.2s var(--ease-out);
+}
+
+.moon-lit-low {
+  stop-color: var(--liquid-mid);
+  transition: stop-color 1.2s var(--ease-out);
+}
+
+.moon--complete .moon-lit-top {
+  stop-color: var(--gold-1);
+}
+
+.moon--complete .moon-lit-low {
+  stop-color: var(--gold-2);
+}
+
+.moon-crater {
+  fill: var(--liquid-deep);
+  opacity: 0.28;
+}
+
+.moon--complete .moon-crater {
+  fill: var(--gold-3);
+}
+
+/* The faint rim: all a new moon shows. */
+.moon-rim {
+  fill: none;
+  stroke: var(--liquid-light);
+  stroke-opacity: 0.5;
+  stroke-width: 1.5;
+}
+
+.moon-rim--mini {
+  stroke-width: 1.5;
+  stroke-opacity: 0.6;
+}
+
+.moon--complete .moon-rim {
+  stroke: var(--gold-1);
+}
+
+.moon-halo-in {
+  stop-color: var(--liquid-light);
+  stop-opacity: 0.55;
+}
+
+.moon-halo-out {
+  stop-color: var(--liquid-light);
+  stop-opacity: 0;
+}
+
+.moon--complete .moon-halo-in,
+.moon--complete .moon-halo-out {
+  stop-color: var(--gold-1);
+}
+
+.moon-halo {
+  transition: opacity var(--dur-hero) var(--ease-out);
+}
+
+/* ---- Special moons (moon.tsx specialMoon): a tint over the skill colour, a bigger disc ---- */
+
+.moon-tint {
+  opacity: 0;
+}
+
+.moon--blue {
+  --moon-tint-top: #f3f7ff;
+  --moon-tint-low: #b4c9f4;
+  --moon-glow: #d4e2ff;
+}
+
+.moon--blood {
+  --moon-tint-top: #d9794b;
+  --moon-tint-low: #8c2e22;
+  --moon-glow: #d0623e;
+}
+
+.moon-tint-top {
+  stop-color: var(--moon-tint-top, transparent);
+}
+
+.moon-tint-low {
+  stop-color: var(--moon-tint-low, transparent);
+}
+
+.moon--blue .moon-halo-in,
+.moon--blue .moon-halo-out,
+.moon--blood .moon-halo-in,
+.moon--blood .moon-halo-out {
+  stop-color: var(--moon-glow);
+}
+
+.moon--blue .moon-rim,
+.moon--blood .moon-rim,
+.moon--blue .moon-ring,
+.moon--blood .moon-ring {
+  stroke: var(--moon-glow);
+}
+
+/* A supermoon: the disc and its glow a tenth larger (the marks' orbit stays clear). */
+.moon-size {
+  transform-box: view-box;
+  transform-origin: 80px 96px;
+  transition: transform 0.6s var(--ease-out);
+}
+
+.moon--super .moon-size {
+  transform: scale(1.1);
+}
+
+.moon--super .moon-halo-in {
+  stop-opacity: 0.7;
+}
+
+.moon--rig .moon-halo {
+  transition: none;
+}
+
+.moon-flash,
+.moon-ring,
+.moon-body,
+.moon-squeeze {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.moon-flash {
+  opacity: 0;
+}
+
+.moon-ring {
+  fill: none;
+  stroke: var(--liquid-light);
+  stroke-width: 2;
+  opacity: 0;
+}
+
+/* The phase mask: white shows the lit surface, black hides it. */
+.moon-mask-on {
+  fill: #fff;
+}
+
+.moon-mask-off {
+  fill: #000;
+}
+
+/* Mirrored while the Moon wanes (moon.tsx sweep). */
+.moon-rigging {
+  transform-box: view-box;
+  transform-origin: 80px 96px;
+}
+
+/* At rest the lit part is one path; while it moves the rig (half disc + two ellipses) draws it. */
+.moon-rigging {
+  opacity: 0;
+}
+
+.moon--rig .moon-rigging {
+  opacity: 1;
+}
+
+.moon--rig .moon-lit {
+  opacity: 0;
+}
+
+/* ---- Marks: pennants on the orbit arc along the right rim, captions to the right ---- */
+
+.moon-orbit {
+  fill: none;
+  stroke: var(--moon-star);
+  stroke-opacity: 0.35;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+}
+
+/* The captions start at 142 px (moon.tsx CAPTION_X) and take up to 98 px: a 12-character
+   caption fits in full. */
+.moon--hero.moon--marked {
+  margin-right: 100px;
+}
+
+.moon-mark {
+  cursor: pointer;
+}
+
+.moon-mark-hit {
+  fill: transparent;
+}
+
+.moon-mark-foot {
+  fill: var(--moon-pennant);
+}
+
+.moon-mark-pole {
+  stroke: var(--moon-pennant);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.moon-mark-flag {
+  fill: var(--moon-pennant);
+}
+
+.moon-mark-caption {
+  position: absolute;
+  max-width: 98px;
+  min-height: 24px;
+  margin: 0;
+  /* The vertical padding comes from moon.tsx (captionPad): up to a 44 px tap area. */
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* After the base rule: on 320–374 px phones the captions are a size smaller, so 12 characters
+   still fit in a narrower column. */
+@media (max-width: 374px) {
+  .moon--hero.moon--marked {
+    margin-right: 92px;
+  }
+
+  .moon-mark-caption {
+    max-width: 90px;
+    font-size: 11px;
+  }
+}
+
+.moon-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.moon--mini {
+  display: block;
+}
+
+html[data-motion='reduced'] .moon-halo,
+html[data-motion='reduced'] .moon-size,
+html[data-motion='reduced'] .moon-lit-top,
+html[data-motion='reduced'] .moon-lit-low {
+  transition: none;
+}

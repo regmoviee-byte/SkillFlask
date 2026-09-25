@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import type { Progress } from '../../domain/progression';
 import type { Milestone, Skill } from '../../domain/types';
 import { canCompleteSkill } from '../../domain/milestone';
@@ -8,14 +8,19 @@ import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
 import { copy } from '../copy';
+import { ProgressMini } from '../progress/ProgressHero';
+import { copyForSkill, skillTheme } from '../progress/registry';
 import { Icon } from './Icon';
 import { useToast } from './Toast';
 
-// The milestone card of the skill screen: a shelf of mini flasks up to the target (a bar when
-// the target is above 12), and once the milestone is reached the choice «Завершить» /
+// The milestone card of the skill screen: a shelf of the theme's minis up to the target (a bar
+// when the target is above 12; two tiers above 6), and once the milestone is reached the choice «Завершить» /
 // «Продолжить», which never has to be made right away (FR-MS-005).
 
 const SHELF_MAX = 12;
+/** Up to this many minis stand in one row; more go on two tiers of equal length. */
+const ROW_MAX = 6;
+const MINI_SIZE = 28;
 
 interface MilestoneRackProps {
   skill: Skill;
@@ -32,8 +37,8 @@ export function MilestoneRack({ skill, milestone, progress, onRestart, restartBu
   const { celebrate } = useCelebrations();
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const clipId = `rack${useId().replace(/[^\w-]/g, '')}`;
   const t = copy.milestone;
+  const lc = copyForSkill(skill);
   if (!milestone) return null;
 
   const target = milestone.targetFlaskNumber;
@@ -48,7 +53,7 @@ export function MilestoneRack({ skill, milestone, progress, onRestart, restartBu
             {milestone.name}
           </span>
         </div>
-        <p className="rack-text">{t.completedAt(skill.completedAt ?? skill.updatedAt, progress.completedFlasks, progress.totalPoints)}</p>
+        <p className="rack-text">{lc.completedAt(skill.completedAt ?? skill.updatedAt, progress.completedFlasks, progress.totalPoints)}</p>
         {onRestart && (
           <button type="button" className="button button-block rack-restart" disabled={restartBusy} onClick={onRestart}>
             {copy.lifecycle.restart}
@@ -109,21 +114,26 @@ export function MilestoneRack({ skill, milestone, progress, onRestart, restartBu
             </span>
           )}
         </span>
-        <span className="t-caption hint">{t.progress(done, target)}</span>
+        <span className="t-caption hint">{lc.milestoneProgress(done, target)}</span>
       </div>
       {target <= SHELF_MAX ? (
-        <div className="rack-shelf" role="img" aria-label={t.progress(done, target)}>
-          <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: 'absolute' }}>
-            <clipPath id={clipId}>
-              <path d={MINI_INNER} />
-            </clipPath>
-          </svg>
-          {Array.from({ length: target }, (_, i) => (
-            <MiniFlask key={i} clipId={clipId} fill={i < progress.completedFlasks ? 1 : i === progress.completedFlasks ? progress.fill : 0} />
-          ))}
+        <div
+          className="rack-shelf"
+          role="img"
+          aria-label={lc.milestoneProgress(done, target)}
+          style={{ '--rack-columns': target > ROW_MAX ? Math.ceil(target / 2) : target } as CSSProperties}
+        >
+          {Array.from({ length: target }, (_, i) => {
+            const fill = i < progress.completedFlasks ? 1 : i === progress.completedFlasks ? progress.fill : 0;
+            return (
+              <span key={i} className={`rack-slot${fill >= 1 ? ' is-full' : ''}`} aria-hidden="true">
+                <ProgressMini theme={skillTheme(skill.theme)} fill={fill} state={fill > 0 ? 'active' : 'empty'} size={MINI_SIZE} level={i + 1} />
+              </span>
+            );
+          })}
         </div>
       ) : (
-        <div className="bar rack-bar" role="progressbar" aria-valuemin={0} aria-valuemax={target} aria-valuenow={done} aria-label={t.progress(done, target)}>
+        <div className="bar rack-bar" role="progressbar" aria-valuemin={0} aria-valuemax={target} aria-valuenow={done} aria-label={lc.milestoneProgress(done, target)}>
           <div className="bar-fill" style={{ width: `${(done / target) * 100}%` }} />
         </div>
       )}
@@ -149,23 +159,5 @@ export function MilestoneRack({ skill, milestone, progress, onRestart, restartBu
         </>
       )}
     </section>
-  );
-}
-
-// 18 × 30: a small tube with a rounded bottom; the liquid is a rect clipped to its inside.
-const MINI_GLASS = 'M4 3 V21 A5 5 0 0 0 14 21 V3 Z';
-const MINI_INNER = 'M5.5 3 V21 A3.5 3.5 0 0 0 12.5 21 V3 Z';
-const MINI_TOP = 3;
-const MINI_BOTTOM = 26;
-
-function MiniFlask({ fill, clipId }: { fill: number; clipId: string }) {
-  const f = Math.min(1, Math.max(0, fill));
-  const y = MINI_BOTTOM - f * (MINI_BOTTOM - MINI_TOP);
-  return (
-    <svg className={`mini-flask${f >= 1 ? ' is-full' : ''}`} viewBox="0 0 18 30" aria-hidden="true" focusable="false">
-      <path d={MINI_GLASS} className="mini-flask-glass" />
-      {f > 0 && <rect x="0" y={y} width="18" height={MINI_BOTTOM - y + 1} className="mini-flask-liquid" clipPath={`url(#${clipId})`} />}
-      <rect x="2" y="1.5" width="14" height="3" rx="1.5" className="mini-flask-rim" />
-    </svg>
   );
 }

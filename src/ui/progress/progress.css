@@ -1,0 +1,155 @@
+/* The theme engine's own pieces (ProgressHero.tsx, the appearance picker). Each theme styles
+   its drawing in themes/<key>.css. */
+
+/* The hero while its theme's chunk loads: the size of every hero (140 × 228), a quiet shape. */
+.progress-hero-placeholder {
+  width: 140px;
+  height: 228px;
+  border-radius: 28px;
+  background: var(--color-bg-sunken);
+  opacity: 0.6;
+}
+
+.progress-mini-placeholder {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-bg-sunken);
+}
+
+/* ---- «Оформление»: the appearance picker (AppearancePicker.tsx) ---- */
+
+.appearance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* The live preview: the chosen hero at 45 % on a sunken stage. */
+.appearance-preview {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-3) 0 var(--sp-2);
+  border-radius: var(--r-l);
+  background: var(--color-bg-sunken);
+  /* Room for a theme whose drawing reaches past its box (a glow, a flag). */
+  overflow: hidden;
+}
+
+.appearance-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.appearance-group legend {
+  margin-bottom: var(--sp-2);
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.theme-card {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.theme-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 88px;
+  padding: var(--sp-3) var(--sp-1) 10px;
+  border-radius: var(--r-m);
+  background: var(--color-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  transition: box-shadow 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.theme-card:active .theme-card-body {
+  transform: scale(0.97);
+}
+
+.theme-card input:checked + .theme-card-body {
+  box-shadow: inset 0 0 0 2px var(--liquid-deep);
+  background: var(--liquid-soft, var(--color-accent-soft));
+}
+
+.theme-card input:focus-visible + .theme-card-body {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.theme-card-name {
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  /* «Мяч в корзину» takes two lines in a narrow card rather than an ellipsis. */
+  text-wrap: balance;
+}
+
+.appearance-group:disabled .theme-card,
+.appearance-group:disabled .swatch {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* 44 px targets around a 30 px dot. */
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swatch-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--liquid-light), var(--liquid-deep));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 160ms var(--ease-out);
+}
+
+/* «Как в теме»: the Telegram accent, half filled, so it reads as «automatic». */
+.swatch-dot--auto {
+  background: linear-gradient(135deg, var(--color-accent) 50%, var(--color-bg-sunken) 50%);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.swatch input:checked + .swatch-dot {
+  box-shadow: 0 0 0 2px var(--color-bg-elevated), 0 0 0 4px var(--color-fg);
+}
+
+.swatch input:focus-visible + .swatch-dot {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 5px;
+}
+
+.appearance-color-name {
+  margin: var(--sp-1) 0 0 var(--sp-1);
+  color: var(--color-fg-secondary);
+}
+
+html[data-motion='reduced'] .theme-card-body,
+html[data-motion='reduced'] .swatch-dot {
+  transition: none;
+}

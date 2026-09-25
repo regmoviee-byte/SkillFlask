@@ -1,0 +1,1072 @@
+/* The chick (themes/chick.tsx). Natural colours: a literal, then a color-mix() of tokens in
+   @supports (warm ones on --gold-*, the rest nudged off the background by --color-fg; the yard
+   sinks into --color-bg-elevated so it stays quieter than the nest). The skill colour
+   (--liquid-*) is only the ribbon and bow, and the scarves and bows of every third hen. */
+
+.chick {
+  position: relative;
+  flex: none;
+  --chick-shell: #f7eddc;
+  --chick-shell-shade: #e6d2ae;
+  --chick-shell-line: #9c7a50;
+  --chick-inside: #c9ad84;
+  --chick-shine: #fff;
+  --chick-yellow: #ffd23c;
+  --chick-yellow-shade: #f4aa1f;
+  --chick-yellow-line: #b87812;
+  --chick-beak: #ea8a24;
+  --chick-eye: #2a1d14;
+  --chick-straw: #d3a553;
+  --chick-straw-light: #f0cf86;
+  --chick-straw-dark: #95652a;
+  --chick-nest-back: #ad7f3c;
+  --chick-hollow: #5c3c17;
+  --chick-wood: #a37a4c;
+  --hen-body: #c9763c;
+  --hen-light: #efb576;
+  --hen-dark: #94501f;
+  --hen-line: #6c3514;
+  --hen-comb: #e0392c;
+  --hen-speck: #f3ebdf;
+  --yard-grass: #e2efd3;
+  --yard-meadow: #edf4e3;
+  --yard-tuft: #a9cc8c;
+  --yard-wood: #d9c6a8;
+  --yard-wood-line: #bfa780;
+  --yard-coop: #e3cfb1;
+  --yard-roof: #d98f7c;
+  --yard-door: #9a7a62;
+  --yard-shadow: rgba(60, 80, 40, 0.2);
+  --flock-light: #efe9dc;
+  --flock-dark: #c79a78;
+  --flock-comb: #e38a78;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .chick {
+    --chick-shell: color-mix(in srgb, #fbf2e2 95%, var(--color-fg));
+    --chick-shell-shade: color-mix(
+      in srgb,
+      var(--gold-1) 30%,
+      var(--chick-shell)
+    );
+    --chick-shell-line: color-mix(
+      in srgb,
+      var(--gold-3) 55%,
+      var(--chick-hollow)
+    );
+    --chick-inside: color-mix(
+      in srgb,
+      var(--gold-3) 30%,
+      var(--chick-shell-shade)
+    );
+    --chick-shine: color-mix(in srgb, var(--gold-1) 6%, white);
+    --chick-yellow: color-mix(in srgb, var(--gold-1) 50%, #ffd800);
+    --chick-yellow-shade: color-mix(in srgb, var(--gold-2) 60%, #ffb000);
+    --chick-yellow-line: color-mix(in srgb, var(--gold-3) 88%, var(--color-fg));
+    --chick-beak: color-mix(in srgb, var(--gold-2) 50%, #f06a1c);
+    --chick-eye: color-mix(in srgb, #2a1d14 94%, var(--color-fg));
+    --chick-straw: color-mix(in srgb, var(--gold-2) 65%, #c4a676);
+    --chick-straw-light: color-mix(in srgb, var(--gold-1) 70%, #f4e4c4);
+    --chick-straw-dark: color-mix(in srgb, var(--gold-3) 65%, #5a3c24);
+    --chick-nest-back: color-mix(in srgb, var(--gold-3) 70%, #a08a6a);
+    --chick-hollow: color-mix(in srgb, #5a3a15 90%, var(--color-fg));
+    --chick-wood: color-mix(in srgb, #a67b4a 80%, var(--color-fg));
+    --hen-body: color-mix(in srgb, #cc783c 94%, var(--color-fg));
+    --hen-light: color-mix(in srgb, var(--gold-1) 45%, var(--hen-body));
+    --hen-dark: color-mix(in srgb, #97521f 90%, var(--color-fg));
+    --hen-line: color-mix(in srgb, #6c3514 80%, var(--color-fg));
+    --hen-comb: color-mix(in srgb, #e4392b 94%, var(--color-fg));
+    --hen-speck: color-mix(in srgb, #f6efe3 92%, var(--color-fg));
+    --yard-grass: color-mix(in srgb, #86bd5c 24%, var(--color-bg-elevated));
+    --yard-meadow: color-mix(in srgb, #9cca72 14%, var(--color-bg-elevated));
+    --yard-tuft: color-mix(in srgb, #5f9c3c 48%, var(--color-bg-elevated));
+    --yard-wood: color-mix(in srgb, var(--chick-wood) 42%, var(--color-bg-elevated));
+    --yard-wood-line: color-mix(in srgb, var(--chick-wood) 60%, var(--color-bg-elevated));
+    --yard-coop: color-mix(in srgb, #c49a66 44%, var(--color-bg-elevated));
+    --yard-roof: color-mix(in srgb, #c4452f 50%, var(--color-bg-elevated));
+    --yard-door: color-mix(in srgb, var(--chick-hollow) 55%, var(--color-bg-elevated));
+    --yard-shadow: color-mix(in srgb, #2d4a1c 22%, transparent);
+    --flock-light: color-mix(in srgb, #f4eee2 62%, var(--yard-grass));
+    --flock-dark: color-mix(in srgb, #b8703f 56%, var(--yard-grass));
+    --flock-comb: color-mix(in srgb, #e4392b 62%, var(--yard-grass));
+  }
+}
+
+/* At night the yard sinks further into the background. */
+html[data-theme='dark'] .chick {
+  --yard-grass: #283224;
+  --yard-meadow: #23291f;
+  --yard-shadow: rgba(0, 0, 0, 0.28);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  html[data-theme='dark'] .chick {
+    --yard-grass: color-mix(in srgb, #86bd5c 12%, var(--color-bg-elevated));
+    --yard-meadow: color-mix(in srgb, #9cca72 6%, var(--color-bg-elevated));
+    --yard-tuft: color-mix(in srgb, #5f9c3c 34%, var(--color-bg-elevated));
+    --yard-wood: color-mix(in srgb, var(--chick-wood) 34%, var(--color-bg-elevated));
+    --yard-wood-line: color-mix(in srgb, var(--chick-wood) 46%, var(--color-bg-elevated));
+    --yard-coop: color-mix(in srgb, #b98d5c 34%, var(--color-bg-elevated));
+    --yard-roof: color-mix(in srgb, #b8452f 40%, var(--color-bg-elevated));
+    --yard-shadow: color-mix(in srgb, black 26%, transparent);
+  }
+}
+
+/* Plumages of the hens (the brown one is the default above); the hen in the nest wears the one
+   she will have in the yard. */
+.chick-plume--white {
+  --hen-body: #f6f1e6;
+  --hen-light: #fffdf7;
+  --hen-dark: #ddd2bf;
+  --hen-line: #9c8a70;
+}
+
+.chick-plume--speckled {
+  --hen-body: #a38c74;
+  --hen-light: #dccab2;
+  --hen-dark: #6f5b47;
+  --hen-line: #4b3b2d;
+}
+
+.chick-plume--blackred {
+  --hen-body: #45332b;
+  --hen-light: #c97432;
+  --hen-dark: #2a1f1a;
+  --hen-line: #1e1511;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .chick-plume--white {
+    --hen-body: color-mix(in srgb, #f8f3e8 94%, var(--color-fg));
+    --hen-light: color-mix(in srgb, #fffdf8 96%, var(--color-fg));
+    --hen-dark: color-mix(in srgb, #ddd1bc 92%, var(--color-fg));
+    --hen-line: color-mix(in srgb, #9c8a70 88%, var(--color-fg));
+  }
+
+  .chick-plume--speckled {
+    --hen-body: color-mix(in srgb, #a58e76 92%, var(--color-fg));
+    --hen-dark: color-mix(in srgb, #705c48 90%, var(--color-fg));
+    --hen-line: color-mix(in srgb, #4b3b2d 84%, var(--color-fg));
+  }
+
+  .chick-plume--blackred {
+    --hen-body: color-mix(in srgb, #47342b 86%, var(--color-fg));
+    --hen-light: color-mix(in srgb, var(--gold-2) 40%, #c9602a);
+    --hen-dark: color-mix(in srgb, #2a1f1a 84%, var(--color-fg));
+    --hen-line: color-mix(in srgb, #1e1511 82%, var(--color-fg));
+  }
+}
+
+/* The golden hen of a completed skill. */
+.chick--complete .chick-hen {
+  --hen-body: var(--gold-1);
+  --hen-light: #fbe7aa;
+  --hen-dark: var(--gold-2);
+  --hen-line: var(--gold-3);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .chick--complete .chick-hen {
+    --hen-light: color-mix(in srgb, var(--gold-1) 55%, white);
+  }
+}
+
+.chick--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.chick-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chick--mini {
+  display: block;
+}
+
+.chick--mini .chick-svg {
+  overflow: hidden;
+}
+
+/* Prop-driven changes glide; a scripted choreography owns the parts and turns this off. */
+.chick--hero .chick-part {
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    opacity var(--dur-slow) var(--ease-out),
+    stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+.chick--scripted .chick-part,
+html[data-motion='reduced'] .chick--hero .chick-part {
+  transition: none;
+}
+
+/* ---- Ground, nest, ribbon (the skill colour) ---- */
+
+.chick-ground {
+  fill: var(--yard-shadow);
+}
+
+.chick-nest-back,
+.chick-nest {
+  fill: var(--chick-nest-back);
+  stroke: var(--chick-straw-dark);
+  stroke-width: 2;
+}
+
+.chick-nest {
+  fill: var(--chick-straw);
+}
+
+.chick-hollow {
+  fill: var(--chick-hollow);
+}
+
+.chick-straw,
+.chick-ribbon,
+.chick-ribbon-shine,
+.chick-crack,
+.chick-lid-edge,
+.chick-tuft,
+.chick-hen-feather,
+.chick-legs {
+  fill: none;
+  stroke-width: 2;
+}
+
+.chick-straw--light {
+  stroke: var(--chick-straw-light);
+}
+
+.chick-straw--dark {
+  stroke: var(--chick-straw-dark);
+}
+
+.chick-ribbon {
+  stroke: var(--liquid-mid);
+  stroke-width: 6;
+}
+
+.chick-ribbon-shine {
+  stroke: var(--liquid-light);
+  stroke-width: 1.6;
+  stroke-opacity: 0.9;
+}
+
+.chick-bow {
+  fill: var(--liquid-mid);
+  stroke: var(--liquid-deep);
+  stroke-width: 1.6;
+}
+
+.chick-bow-knot {
+  fill: var(--liquid-deep);
+}
+
+/* ---- Egg ---- */
+
+.chick-shell,
+.chick-whole {
+  fill: var(--chick-shell);
+}
+
+.chick-shell {
+  stroke: var(--chick-shell-line);
+  stroke-width: 2.4;
+}
+
+.chick-shell-shade {
+  fill: var(--chick-shell-shade);
+}
+
+.chick-shell-shine {
+  fill: var(--chick-shine);
+  fill-opacity: 0.7;
+}
+
+.chick-speck,
+.chick-inside {
+  fill: var(--chick-inside);
+}
+
+.chick-crack,
+.chick-lid-edge {
+  stroke: var(--chick-shell-line);
+  stroke-width: 2.2;
+  /* No cap dot where a dashed crack has not started yet. */
+  stroke-linecap: butt;
+}
+
+.chick-wobble.anim-decor {
+  animation: chick-wobble 4s ease-in-out infinite;
+}
+
+@keyframes chick-wobble {
+  0%,
+  72%,
+  100% {
+    transform: rotate(0deg);
+  }
+  77% {
+    transform: rotate(-4deg);
+  }
+  83% {
+    transform: rotate(3.5deg);
+  }
+  89% {
+    transform: rotate(-2deg);
+  }
+  95% {
+    transform: rotate(1deg);
+  }
+}
+
+/* ---- Chick ---- */
+
+.chick-sil {
+  fill: var(--chick-yellow-line);
+  stroke: var(--chick-yellow-line);
+  stroke-width: 4.4;
+}
+
+.chick-body {
+  fill: var(--chick-yellow);
+}
+
+.chick-body-shade {
+  fill: var(--chick-yellow-shade);
+}
+
+.chick-tuft {
+  stroke: var(--chick-yellow-line);
+  stroke-width: 2.2;
+}
+
+.chick-beak {
+  fill: var(--chick-beak);
+  stroke: var(--chick-yellow-line);
+  stroke-width: 1.2;
+}
+
+.chick-eye {
+  fill: var(--chick-eye);
+}
+
+.chick-eye-shine {
+  fill: var(--chick-shine);
+}
+
+.chick-blush {
+  fill: var(--hen-comb);
+  fill-opacity: 0.4;
+}
+
+.chick-blink.anim-decor {
+  animation: chick-blink 4.4s ease-in-out infinite;
+}
+
+@keyframes chick-blink {
+  0%,
+  90%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  93% {
+    transform: scaleY(0.12);
+  }
+}
+
+/* ---- Hen ---- */
+
+.chick-hen .chick-sil {
+  fill: var(--hen-line);
+  stroke: var(--hen-line);
+}
+
+.chick-hen-body {
+  fill: var(--hen-body);
+}
+
+.chick-hen-light {
+  fill: var(--hen-light);
+}
+
+.chick-hen-dark {
+  fill: var(--hen-dark);
+}
+
+.chick-hen-feather {
+  stroke: var(--hen-line);
+  stroke-width: 1.6;
+  stroke-opacity: 0.7;
+}
+
+.chick-hen-wing,
+.chick-comb {
+  fill: var(--hen-dark);
+  stroke: var(--hen-line);
+  stroke-width: 2;
+}
+
+.chick-comb {
+  fill: var(--hen-comb);
+  stroke-width: 1.6;
+}
+
+.chick-hen .chick-beak {
+  stroke: var(--hen-line);
+}
+
+.chick-legs {
+  opacity: 0;
+  stroke: var(--chick-beak);
+  stroke-width: 3;
+}
+
+.chick-sparkle {
+  fill: var(--gold-1);
+  stroke: var(--gold-3);
+  stroke-width: 1.2;
+}
+
+.chick-rays {
+  opacity: 0;
+}
+
+.chick-rays line {
+  stroke: var(--chick-beak);
+  stroke-width: 3;
+}
+
+.chick-hen-speck {
+  fill: var(--hen-speck);
+}
+
+.chick--complete .chick-hen .chick-hen-speck {
+  display: none;
+}
+
+/* Her shadow on the grass once she is out of the nest. */
+.chick-hen-shadow {
+  opacity: 0;
+  fill: var(--yard-shadow);
+}
+
+/* A scarf or a bow in the skill colour. */
+.chick-wear {
+  fill: var(--liquid-mid);
+  stroke: var(--liquid-deep);
+  stroke-width: 1.6;
+}
+
+.chick-wear-knot {
+  fill: var(--liquid-deep);
+}
+
+/* ---- The yard behind the nest: quieter than the nest ---- */
+
+.chick-meadow {
+  fill: var(--yard-meadow);
+}
+
+.chick-grass {
+  fill: var(--yard-grass);
+}
+
+.chick-rail,
+.chick-coop-plank,
+.chick-tuft-grass {
+  fill: none;
+  stroke: var(--yard-wood);
+  stroke-width: 1.6;
+}
+
+.chick-post {
+  fill: var(--yard-wood);
+  stroke: var(--yard-wood-line);
+  stroke-width: 0.8;
+}
+
+.chick-coop-wall {
+  fill: var(--yard-coop);
+}
+
+.chick-coop-plank {
+  stroke: var(--yard-wood-line);
+  stroke-width: 0.8;
+  stroke-opacity: 0.5;
+}
+
+.chick-coop-roof {
+  fill: var(--yard-roof);
+}
+
+.chick-coop-door {
+  fill: var(--yard-door);
+}
+
+.chick-coop-ramp {
+  fill: var(--yard-wood-line);
+}
+
+.chick-tuft-grass {
+  stroke: var(--yard-tuft);
+  stroke-width: 1.3;
+}
+
+.chick-flock-light {
+  fill: var(--flock-light);
+}
+
+.chick-flock-dark {
+  fill: var(--flock-dark);
+}
+
+.chick-flock-comb {
+  fill: var(--flock-comb);
+}
+
+/* The strolling hens, in hen units (the big hen's drawing at about a seventh of its size). */
+.chick-yh-sil {
+  fill: var(--hen-line);
+  stroke: var(--hen-line);
+  stroke-width: 10;
+}
+
+.chick-yh-rim {
+  fill: none;
+  stroke: var(--hen-line);
+  stroke-width: 10;
+}
+
+.chick-yh .chick-hen-wing {
+  stroke-width: 4;
+}
+
+.chick-yh .chick-comb {
+  stroke-width: 3;
+}
+
+.chick-yh .chick-beak {
+  stroke: var(--hen-line);
+  stroke-width: 3;
+}
+
+.chick-yh .chick-wear {
+  stroke-width: 5;
+}
+
+.chick-yh-legs {
+  fill: none;
+  stroke: var(--chick-beak);
+  stroke-width: 7;
+}
+
+.chick-yh-shadow {
+  fill: var(--yard-shadow);
+}
+
+.chick-walk.anim-decor,
+.chick-pose.anim-decor,
+.chick-peck.anim-decor {
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* ---- Growth stake: the straw band (the fill), quarter ticks and marks («засечки») ---- */
+
+.chick-stake {
+  fill: var(--chick-wood);
+}
+
+.chick-band {
+  fill: var(--chick-straw);
+}
+
+.chick-knot {
+  fill: var(--chick-straw-dark);
+}
+
+.chick-tick {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+}
+
+/* The captions overflow the 140 px box (they start at 122 px); the hero leaves room for them,
+   so a 12-character caption shows in full. */
+.chick--hero.chick--marked {
+  margin-right: 76px;
+}
+
+.chick-mark {
+  cursor: pointer;
+}
+
+.chick-mark-hit {
+  fill: transparent;
+}
+
+.chick-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}
+
+.chick-mark-caption {
+  position: absolute;
+  max-width: 94px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* A soft halo keeps the caption legible over the yard. */
+  text-shadow:
+    0 0 2px var(--color-bg-elevated),
+    0 0 4px var(--color-bg-elevated);
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* After the base rule, so the narrower captions win on 320–374 px phones. */
+@media (max-width: 374px) {
+  .chick--hero.chick--marked {
+    margin-right: 68px;
+  }
+
+  .chick-mark-caption {
+    max-width: 86px;
+    font-size: 11px;
+  }
+}
+
+.chick-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---- Mini: bolder lines, no straw texture ---- */
+
+.chick--mini :is(.chick-shell, .chick-crack, .chick-lid-edge) {
+  stroke-width: 6;
+}
+
+.chick--mini .chick-sil {
+  stroke-width: 10;
+}
+
+.chick--mini :is(.chick-nest, .chick-nest-back) {
+  stroke-width: 5;
+}
+
+.chick--mini .chick-ribbon {
+  stroke-width: 11;
+}
+
+.chick--mini .chick-comb {
+  stroke-width: 3;
+}
+
+.chick--mini
+  :is(
+    .chick-straw,
+    .chick-ribbon-shine,
+    .chick-speck,
+    .chick-hen-feather,
+    .chick-tuft,
+    .chick-blush,
+    .chick-eye-shine
+  ) {
+  display: none;
+}
+
+/* ---- The strolls of the yard hens: generated by wanderCss() in chick.tsx from WANDER_PATTERNS
+   (chick.test.ts keeps this text in step). Walk and turn, body (waddle, peck tilt, hop), head. */
+
+@keyframes chick-walk-0 {
+  0% { transform: translate(0px, 0px) scale(1, 1); }
+  11.22% { transform: translate(0px, 0px) scale(1, 1); }
+  23.69% { transform: translate(-8px, 0px) scale(1, 1); }
+  37.41% { transform: translate(-8px, 0px) scale(1, 1); }
+  38.4% { transform: translate(-8px, 0px) scale(0.45, 1); }
+  38.43% { transform: translate(-8px, 0px) scale(-0.45, 1); }
+  39.4% { transform: translate(-8px, 0px) scale(-1, 1); }
+  39.41% { transform: translate(-8px, 0px) scale(-1, 1); }
+  62.78% { transform: translate(7px, 0px) scale(-1, 1); }
+  80.86% { transform: translate(7px, 0px) scale(-1, 1); }
+  81.86% { transform: translate(7px, 0px) scale(-0.45, 1); }
+  81.88% { transform: translate(7px, 0px) scale(0.45, 1); }
+  82.86% { transform: translate(7px, 0px) scale(1, 1); }
+  82.87% { transform: translate(7px, 0px) scale(1, 1); }
+  93.77% { transform: translate(0px, 0px) scale(1, 1); }
+  100% { transform: translate(0px, 0px) scale(1, 1); }
+}
+
+@keyframes chick-pose-0 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  11.22% { transform: translate(0px, 0px) rotate(0deg); }
+  13.3% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  15.38% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  17.46% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  19.53% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  21.61% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  23.69% { transform: translate(0px, 0px) rotate(0deg); }
+  23.7% { transform: translate(0px, 0px) rotate(0deg); }
+  24.94% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  25.94% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  27.43% { transform: translate(0px, 0px) rotate(0deg); }
+  27.44% { transform: translate(0px, 0px) rotate(0deg); }
+  28.68% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  29.68% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  31.17% { transform: translate(0px, 0px) rotate(0deg); }
+  39.4% { transform: translate(0px, 0px) rotate(0deg); }
+  41.35% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  43.3% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  45.25% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  47.19% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  49.14% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  51.09% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  53.04% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  54.99% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  56.94% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  58.88% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  60.83% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  62.78% { transform: translate(0px, 0px) rotate(0deg); }
+  66.52% { transform: translate(0px, 0px) rotate(0deg); }
+  67.64% { transform: translate(0px, -30px) rotate(0deg); }
+  68.77% { transform: translate(0px, 0px) rotate(0deg); }
+  69.2% { transform: translate(0px, 3px) rotate(0deg); }
+  69.64% { transform: translate(0px, 0px) rotate(0deg); }
+  77.12% { transform: translate(0px, 0px) rotate(0deg); }
+  78.37% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  79.36% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  80.86% { transform: translate(0px, 0px) rotate(0deg); }
+  82.86% { transform: translate(0px, 0px) rotate(0deg); }
+  85.04% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  87.22% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  89.4% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  91.58% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  93.77% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-peck-0 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  23.69% { transform: translate(0px, 0px) rotate(0deg); }
+  24.94% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  25.94% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  27.43% { transform: translate(0px, 0px) rotate(0deg); }
+  27.44% { transform: translate(0px, 0px) rotate(0deg); }
+  28.68% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  29.68% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  31.17% { transform: translate(0px, 0px) rotate(0deg); }
+  77.12% { transform: translate(0px, 0px) rotate(0deg); }
+  78.37% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  79.36% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  80.86% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-walk-1 {
+  0% { transform: translate(0px, 0px) scale(1, 1); }
+  27.41% { transform: translate(0px, 0px) scale(1, 1); }
+  28.37% { transform: translate(0px, 0px) scale(0.45, 1); }
+  28.39% { transform: translate(0px, 0px) scale(-0.45, 1); }
+  29.32% { transform: translate(0px, 0px) scale(-1, 1); }
+  29.33% { transform: translate(0px, 0px) scale(-1, 1); }
+  35.28% { transform: translate(4px, 0px) scale(-1, 1); }
+  54.35% { transform: translate(4px, 0px) scale(-1, 1); }
+  55.3% { transform: translate(4px, 0px) scale(-0.45, 1); }
+  55.33% { transform: translate(4px, 0px) scale(0.45, 1); }
+  56.26% { transform: translate(4px, 0px) scale(1, 1); }
+  56.27% { transform: translate(4px, 0px) scale(1, 1); }
+  69.67% { transform: translate(-5px, 0px) scale(1, 1); }
+  81.59% { transform: translate(-5px, 0px) scale(1, 1); }
+  82.54% { transform: translate(-5px, 0px) scale(0.45, 1); }
+  82.56% { transform: translate(-5px, 0px) scale(-0.45, 1); }
+  83.49% { transform: translate(-5px, 0px) scale(-1, 1); }
+  83.5% { transform: translate(-5px, 0px) scale(-1, 1); }
+  90.94% { transform: translate(0px, 0px) scale(-1, 1); }
+  98.09% { transform: translate(0px, 0px) scale(-1, 1); }
+  99.05% { transform: translate(0px, 0px) scale(-0.45, 1); }
+  99.07% { transform: translate(0px, 0px) scale(0.45, 1); }
+  100% { transform: translate(0px, 0px) scale(1, 1); }
+}
+
+@keyframes chick-pose-1 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  9.54% { transform: translate(0px, 0px) rotate(0deg); }
+  10.73% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  11.68% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  13.11% { transform: translate(0px, 0px) rotate(0deg); }
+  13.12% { transform: translate(0px, 0px) rotate(0deg); }
+  14.3% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  15.26% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  16.69% { transform: translate(0px, 0px) rotate(0deg); }
+  16.7% { transform: translate(0px, 0px) rotate(0deg); }
+  17.88% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  18.83% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  20.26% { transform: translate(0px, 0px) rotate(0deg); }
+  29.32% { transform: translate(0px, 0px) rotate(0deg); }
+  31.31% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  33.29% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  35.28% { transform: translate(0px, 0px) rotate(0deg); }
+  35.29% { transform: translate(0px, 0px) rotate(0deg); }
+  36.47% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  37.43% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  38.86% { transform: translate(0px, 0px) rotate(0deg); }
+  38.87% { transform: translate(0px, 0px) rotate(0deg); }
+  40.05% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  41% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  42.43% { transform: translate(0px, 0px) rotate(0deg); }
+  56.26% { transform: translate(0px, 0px) rotate(0deg); }
+  58.17% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  60.09% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  62% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  63.92% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  65.84% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  67.75% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  69.67% { transform: translate(0px, 0px) rotate(0deg); }
+  74.43% { transform: translate(0px, 0px) rotate(0deg); }
+  75.63% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  76.58% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  78.01% { transform: translate(0px, 0px) rotate(0deg); }
+  83.49% { transform: translate(0px, 0px) rotate(0deg); }
+  85.35% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  87.22% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  89.08% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  90.94% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-peck-1 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  9.54% { transform: translate(0px, 0px) rotate(0deg); }
+  10.73% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  11.68% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  13.11% { transform: translate(0px, 0px) rotate(0deg); }
+  13.12% { transform: translate(0px, 0px) rotate(0deg); }
+  14.3% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  15.26% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  16.69% { transform: translate(0px, 0px) rotate(0deg); }
+  16.7% { transform: translate(0px, 0px) rotate(0deg); }
+  17.88% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  18.83% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  20.26% { transform: translate(0px, 0px) rotate(0deg); }
+  35.28% { transform: translate(0px, 0px) rotate(0deg); }
+  36.47% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  37.43% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  38.86% { transform: translate(0px, 0px) rotate(0deg); }
+  38.87% { transform: translate(0px, 0px) rotate(0deg); }
+  40.05% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  41% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  42.43% { transform: translate(0px, 0px) rotate(0deg); }
+  74.43% { transform: translate(0px, 0px) rotate(0deg); }
+  75.63% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  76.58% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  78.01% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-walk-2 {
+  0% { transform: translate(0px, 0px) scale(1, 1); }
+  8.34% { transform: translate(0px, 0px) scale(1, 1); }
+  9.18% { transform: translate(0px, 0px) scale(0.45, 1); }
+  9.2% { transform: translate(0px, 0px) scale(-0.45, 1); }
+  10.01% { transform: translate(0px, 0px) scale(-1, 1); }
+  10.02% { transform: translate(0px, 0px) scale(-1, 1); }
+  23.04% { transform: translate(10px, 0px) scale(-1, 1); }
+  33.47% { transform: translate(10px, 0px) scale(-1, 1); }
+  34.31% { transform: translate(10px, 0px) scale(-0.45, 1); }
+  34.33% { transform: translate(10px, 0px) scale(0.45, 1); }
+  35.14% { transform: translate(10px, 0px) scale(1, 1); }
+  35.15% { transform: translate(10px, 0px) scale(1, 1); }
+  61.21% { transform: translate(-10px, 0px) scale(1, 1); }
+  79.46% { transform: translate(-10px, 0px) scale(1, 1); }
+  80.29% { transform: translate(-10px, 0px) scale(0.45, 1); }
+  80.31% { transform: translate(-10px, 0px) scale(-0.45, 1); }
+  81.13% { transform: translate(-10px, 0px) scale(-1, 1); }
+  81.14% { transform: translate(-10px, 0px) scale(-1, 1); }
+  94.16% { transform: translate(0px, 0px) scale(-1, 1); }
+  98.33% { transform: translate(0px, 0px) scale(-1, 1); }
+  99.17% { transform: translate(0px, 0px) scale(-0.45, 1); }
+  99.19% { transform: translate(0px, 0px) scale(0.45, 1); }
+  100% { transform: translate(0px, 0px) scale(1, 1); }
+}
+
+@keyframes chick-pose-2 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  10.01% { transform: translate(0px, 0px) rotate(0deg); }
+  11.64% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  13.27% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  14.9% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  16.53% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  18.16% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  19.79% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  21.42% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  23.04% { transform: translate(0px, 0px) rotate(0deg); }
+  30.34% { transform: translate(0px, 0px) rotate(0deg); }
+  31.39% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  32.22% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  33.47% { transform: translate(0px, 0px) rotate(0deg); }
+  35.14% { transform: translate(0px, 0px) rotate(0deg); }
+  36.77% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  38.4% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  40.03% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  41.66% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  43.29% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  44.92% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  46.55% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  48.18% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  49.8% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  51.43% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  53.06% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  54.69% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  56.32% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  57.95% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  59.58% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  61.21% { transform: translate(0px, 0px) rotate(0deg); }
+  65.38% { transform: translate(0px, 0px) rotate(0deg); }
+  66.32% { transform: translate(0px, -30px) rotate(0deg); }
+  67.26% { transform: translate(0px, 0px) rotate(0deg); }
+  67.62% { transform: translate(0px, 3px) rotate(0deg); }
+  67.99% { transform: translate(0px, 0px) rotate(0deg); }
+  68% { transform: translate(0px, 0px) rotate(0deg); }
+  69.03% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  69.86% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  71.12% { transform: translate(0px, 0px) rotate(0deg); }
+  71.13% { transform: translate(0px, 0px) rotate(0deg); }
+  72.16% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  72.99% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  74.24% { transform: translate(0px, 0px) rotate(0deg); }
+  81.13% { transform: translate(0px, 0px) rotate(0deg); }
+  82.76% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  84.38% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  86.01% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  87.64% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  89.27% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  90.9% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  92.53% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  94.16% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-peck-2 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  30.34% { transform: translate(0px, 0px) rotate(0deg); }
+  31.39% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  32.22% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  33.47% { transform: translate(0px, 0px) rotate(0deg); }
+  67.99% { transform: translate(0px, 0px) rotate(0deg); }
+  69.03% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  69.86% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  71.12% { transform: translate(0px, 0px) rotate(0deg); }
+  71.13% { transform: translate(0px, 0px) rotate(0deg); }
+  72.16% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  72.99% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  74.24% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-walk-3 {
+  0% { transform: translate(0px, 0px) scale(1, 1); }
+  11.02% { transform: translate(0px, 0px) scale(1, 1); }
+  20.2% { transform: translate(-6px, 0px) scale(1, 1); }
+  28.15% { transform: translate(-6px, 0px) scale(1, 1); }
+  29.13% { transform: translate(-6px, 0px) scale(0.45, 1); }
+  29.16% { transform: translate(-6px, 0px) scale(-0.45, 1); }
+  30.11% { transform: translate(-6px, 0px) scale(-1, 1); }
+  30.12% { transform: translate(-6px, 0px) scale(-1, 1); }
+  43.88% { transform: translate(3px, 0px) scale(-1, 1); }
+  59.79% { transform: translate(3px, 0px) scale(-1, 1); }
+  68.97% { transform: translate(9px, 0px) scale(-1, 1); }
+  78.15% { transform: translate(9px, 0px) scale(-1, 1); }
+  79.13% { transform: translate(9px, 0px) scale(-0.45, 1); }
+  79.16% { transform: translate(9px, 0px) scale(0.45, 1); }
+  80.11% { transform: translate(9px, 0px) scale(1, 1); }
+  80.12% { transform: translate(9px, 0px) scale(1, 1); }
+  93.88% { transform: translate(0px, 0px) scale(1, 1); }
+  100% { transform: translate(0px, 0px) scale(1, 1); }
+}
+
+@keyframes chick-pose-3 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  11.02% { transform: translate(0px, 0px) rotate(0deg); }
+  12.85% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  14.69% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  16.52% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  18.36% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  20.2% { transform: translate(0px, 0px) rotate(0deg); }
+  20.21% { transform: translate(0px, 0px) rotate(0deg); }
+  21.3% { transform: translate(0px, -30px) rotate(0deg); }
+  22.4% { transform: translate(0px, 0px) rotate(0deg); }
+  22.83% { transform: translate(0px, 3px) rotate(0deg); }
+  23.26% { transform: translate(0px, 0px) rotate(0deg); }
+  30.11% { transform: translate(0px, 0px) rotate(0deg); }
+  32.08% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  34.04% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  36.01% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  37.98% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  39.95% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  41.91% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  43.88% { transform: translate(0px, 0px) rotate(0deg); }
+  43.89% { transform: translate(0px, 0px) rotate(0deg); }
+  45.1% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  46.08% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  47.55% { transform: translate(0px, 0px) rotate(0deg); }
+  47.56% { transform: translate(0px, 0px) rotate(0deg); }
+  48.78% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  49.76% { transform: translate(-5.7px, -1.2px) rotate(-22deg); }
+  51.22% { transform: translate(0px, 0px) rotate(0deg); }
+  59.79% { transform: translate(0px, 0px) rotate(0deg); }
+  61.63% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  63.46% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  65.3% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  67.14% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  68.97% { transform: translate(0px, 0px) rotate(0deg); }
+  75.09% { transform: translate(0px, 0px) rotate(0deg); }
+  76.19% { transform: translate(0px, -30px) rotate(0deg); }
+  77.29% { transform: translate(0px, 0px) rotate(0deg); }
+  77.72% { transform: translate(0px, 3px) rotate(0deg); }
+  78.15% { transform: translate(0px, 0px) rotate(0deg); }
+  80.11% { transform: translate(0px, 0px) rotate(0deg); }
+  82.08% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  84.04% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  86.01% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  87.98% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  89.95% { transform: translate(1.2px, -3.4px) rotate(5deg); }
+  91.91% { transform: translate(-1.2px, -4.5px) rotate(-5deg); }
+  93.88% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+@keyframes chick-peck-3 {
+  0% { transform: translate(0px, 0px) rotate(0deg); }
+  43.88% { transform: translate(0px, 0px) rotate(0deg); }
+  45.1% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  46.08% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  47.55% { transform: translate(0px, 0px) rotate(0deg); }
+  47.56% { transform: translate(0px, 0px) rotate(0deg); }
+  48.78% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  49.76% { transform: translate(45.2px, -38.4px) rotate(-58deg); }
+  51.22% { transform: translate(0px, 0px) rotate(0deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}

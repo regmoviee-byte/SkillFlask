@@ -9,6 +9,7 @@ import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { announceCompletion, errorMessage } from '../completionFeedback';
 import { copy } from '../copy';
+import { copyForSkill } from '../progress/registry';
 import { MinutesSheet } from '../sheets/MinutesSheet';
 import { Icon } from './Icon';
 import { useToast } from './Toast';
@@ -37,7 +38,8 @@ export function scheduleCaption(step: Pick<StepDefinition, 'schedule'>): string 
 
 export interface StepRowProps {
   step: StepDefinition;
-  skill: Pick<Skill, 'status'>;
+  /** Its status gates the ✓; its theme names the level in the undo toast. */
+  skill: Pick<Skill, 'status'> & Partial<Pick<Skill, 'theme'>>;
   /** ACTIVE completions of the step on the row's date (today unless `date` says otherwise). */
   todayCount: number;
   /** 'edit' turns the row into a link to the step form. */
@@ -123,7 +125,7 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
     try {
       const result = await completeStep(step.id, { date, minutes });
       setDone(true);
-      announceCompletion(result, step.name, showToast);
+      announceCompletion(result, step.name, showToast, copyForSkill(skill));
       void celebrations
         .celebrateResult(result, { skillId: step.skillId, source: button.current, points: result.pointsAwarded })
         .finally(release);

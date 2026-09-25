@@ -1,6 +1,8 @@
 // Domain model — see requirements v0.2, section 5.
 // Dates are ISO strings; calendar dates (without time) are local YYYY-MM-DD.
 
+import type { ProgressThemeKey, SkillColor } from './appearance';
+
 export type SkillStatus = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 export type StepType = 'BOOLEAN' | 'TIMED';
 export type CompletionSource = 'SCHEDULED' | 'MANUAL';
@@ -38,6 +40,13 @@ export interface Skill extends Timestamps {
   archivedAt: string | null;
   /** The skill this one was copied from by «Начать заново»; null otherwise. */
   originSkillId: string | null;
+  /**
+   * The progress theme («образ прогресса», presentation only; schema 4). A value this build
+   * does not know is read as the flask (domain/appearance.ts normalizeTheme).
+   */
+  theme: ProgressThemeKey;
+  /** The skill colour; null follows the Telegram accent («Как в теме»). */
+  color: SkillColor | null;
 }
 
 export interface Milestone extends Timestamps {

@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { weekStart } from '../../lib/dates';
 import { RECORD_KINDS, type RecordKind, type Records } from '../../domain/records';
 import { copy } from '../copy';
+import { copyForSkill } from '../progress/registry';
 import { Icon, type IconName } from './Icon';
 
 // Personal records («Рекорды»): rows of an icon, what the record is, then its value with where
@@ -36,7 +37,14 @@ const recapOf = (date: string) => `/recap/${weekStart(date)}`;
  * The row of one record, or null while the journal holds none. `weekLinks: false` leaves the
  * date records without a link (they are already on their week's recap).
  */
-export function recordRow(kind: RecordKind, records: Records, skillNames: Record<string, string>, weekLinks = true): InfoRowSpec | null {
+export function recordRow(
+  kind: RecordKind,
+  records: Records,
+  skillNames: Record<string, string>,
+  /** The skills' stored themes: the fastest level is named in its skill's nouns («Пицца 3»). */
+  skillThemes: Record<string, string>,
+  weekLinks = true,
+): InfoRowSpec | null {
   const name = (skillId: string) => skillNames[skillId] ?? '';
   const row = (meta: string, value: string, to: string | undefined): InfoRowSpec => ({ key: kind, icon: ICONS[kind], title: t[kind], meta, value, to });
   switch (kind) {
@@ -62,7 +70,7 @@ export function recordRow(kind: RecordKind, records: Records, skillNames: Record
     }
     case 'fastestFlask': {
       const r = records.fastestFlask;
-      return r && row(t.flask(name(r.skillId), r.flask, r.date), t.flaskDays(r.days), `/skills/${r.skillId}`);
+      return r && row(copyForSkill({ theme: skillThemes[r.skillId] }).record(name(r.skillId), r.flask, r.date), t.flaskDays(r.days), `/skills/${r.skillId}`);
     }
   }
 }
@@ -112,9 +120,9 @@ function InfoRow({ row }: { row: InfoRowSpec }) {
 }
 
 /** «Рекорды» on the «Ачивки» tab; nothing before the first completion. */
-export function RecordsSection({ records, skillNames }: { records: Records; skillNames: Record<string, string> }) {
+export function RecordsSection({ records, skillNames, skillThemes }: { records: Records; skillNames: Record<string, string>; skillThemes: Record<string, string> }) {
   const titleId = useId();
-  const rows = RECORD_KINDS.map((kind) => recordRow(kind, records, skillNames)).filter((row) => row !== null);
+  const rows = RECORD_KINDS.map((kind) => recordRow(kind, records, skillNames, skillThemes)).filter((row) => row !== null);
   if (rows.length === 0) return null;
   // With one skill its best day is the overall one: the list per skill starts from two.
   const perSkill = records.bestDayBySkill.length >= 2 ? records.bestDayBySkill : [];

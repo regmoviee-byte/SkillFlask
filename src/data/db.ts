@@ -12,6 +12,7 @@ import type {
 } from '../domain/types';
 import { upgradeCompletionV2, upgradeSkillV2, upgradeStepV2 } from './migrations/v2';
 import { upgradeV3 } from './migrations/v3';
+import { upgradeV4 } from './migrations/v4';
 
 // Local IndexedDB storage (section 11.1). Schema rules:
 // - Dexie's version number is the schema version and equals `schemaVersion` of a backup file.
@@ -73,11 +74,25 @@ export class SkillFlaskDb extends Dexie {
         marks: 'id, skillId, [skillId+date]',
       })
       .upgrade(upgradeV3);
+    // Version 4: the skill's appearance (theme, colour); no new index.
+    this.version(4)
+      .stores({
+        skills: 'id, status, createdAt',
+        milestones: 'id, skillId',
+        levelThresholds: '[skillId+flaskNumber], skillId',
+        steps: 'id, skillId',
+        completions: 'id, skillId, stepId, date, [skillId+date], [stepId+date], [status+date]',
+        transactions: 'id, skillId, completionId, createdAt, [skillId+createdAt]',
+        settings: 'key',
+        achievementUnlocks: 'id',
+        marks: 'id, skillId, [skillId+date]',
+      })
+      .upgrade(upgradeV4);
   }
 }
 
 /** Current schema version; a backup file with a higher `schemaVersion` cannot be imported. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export function createDb(name?: string): SkillFlaskDb {
   return new SkillFlaskDb(name);

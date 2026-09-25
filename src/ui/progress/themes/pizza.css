@@ -1,0 +1,327 @@
+/* The pizza theme (progress/themes/pizza.tsx). Only transform and opacity move; the steam is
+   the one decorative loop (.anim-decor), paused by html.paused and removed under reduced motion.
+   Colours (README rule 3): the pizza is drawn in its natural colours — a baked crust, melted
+   cheese, red pepperoni, green basil, dark olives — mixed from the fixed warm tokens (gold,
+   bronze, danger, positive) so they read the same on light, dark and any Telegram theme. The
+   skill colour (--liquid-*) goes on one detail only: the rim of the plate. Gold takes over the
+   pizza for a completed skill. */
+
+.pizza {
+  /* Literal fallbacks for WebViews without color-mix(); the mixes follow in @supports. */
+  --pizza-crust: var(--bronze-1);
+  --pizza-crust-edge: var(--bronze-2);
+  --pizza-sauce: var(--color-danger);
+  --pizza-cheese: var(--gold-1);
+  --pizza-pepperoni: var(--color-danger);
+  --pizza-pepperoni-light: var(--bronze-1);
+  --pizza-herb: var(--color-positive);
+  --pizza-olive: var(--bronze-2);
+  --pizza-crumb: var(--bronze-1);
+  --pizza-plate: var(--color-bg-elevated);
+  --pizza-plate-well: var(--color-bg-elevated);
+  --pizza-plate-edge: var(--color-border);
+  /* The one detail in the skill colour. */
+  --pizza-rim: var(--liquid-light);
+  --pizza-rim-edge: var(--liquid-deep);
+  /* The beat's ring swells past the plate onto the page: the skill colour at full strength. */
+  --pizza-pulse: var(--liquid-light);
+  /* The chef hat is white linen in every theme (a dark hat would read as a mistake). */
+  --pizza-hat: white;
+  --pizza-mark: var(--color-fg-secondary);
+  position: relative;
+  flex: none;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .pizza {
+    --pizza-crust: color-mix(in srgb, var(--gold-2) 62%, var(--bronze-2));
+    --pizza-crust-edge: color-mix(in srgb, var(--bronze-2) 80%, black);
+    --pizza-sauce: color-mix(in srgb, var(--color-danger) 70%, var(--gold-2));
+    --pizza-cheese: color-mix(in srgb, var(--gold-1) 72%, white);
+    --pizza-pepperoni: color-mix(in srgb, var(--color-danger) 78%, var(--bronze-2));
+    --pizza-pepperoni-light: color-mix(in srgb, var(--color-danger) 45%, var(--gold-1));
+    --pizza-herb: color-mix(in srgb, var(--color-positive) 62%, var(--bronze-2));
+    --pizza-olive: color-mix(in srgb, var(--bronze-2) 45%, black);
+    --pizza-crumb: color-mix(in srgb, var(--gold-2) 55%, var(--bronze-2));
+    --pizza-plate-well: color-mix(in srgb, var(--color-fg) 4%, var(--color-bg-elevated));
+    --pizza-plate-edge: color-mix(in srgb, var(--color-fg) 16%, transparent);
+    --pizza-rim: color-mix(in srgb, var(--liquid-mid) 70%, var(--color-bg-elevated));
+    --pizza-rim-edge: color-mix(in srgb, var(--liquid-deep) 85%, var(--color-bg-elevated));
+    --pizza-hat: color-mix(in srgb, var(--gold-1) 18%, white);
+    --pizza-mark: color-mix(in srgb, var(--color-fg) 70%, transparent);
+  }
+}
+
+/* A completed skill: the pizza turns golden and the plate rim follows. */
+.pizza--complete {
+  --pizza-crust: var(--gold-2);
+  --pizza-crust-edge: var(--gold-3);
+  --pizza-sauce: var(--gold-3);
+  --pizza-cheese: var(--gold-1);
+  --pizza-pepperoni: var(--gold-3);
+  --pizza-pepperoni-light: var(--gold-2);
+  --pizza-herb: var(--gold-2);
+  --pizza-olive: var(--gold-3);
+  --pizza-rim: var(--gold-1);
+  --pizza-rim-edge: var(--gold-3);
+  --pizza-pulse: var(--gold-1);
+}
+
+.pizza--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.pizza--mini {
+  display: block;
+  flex: none;
+}
+
+.pizza-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The plate: a rim in the skill colour around a plain well. */
+.pizza-plate {
+  fill: var(--pizza-rim);
+  stroke: var(--pizza-rim-edge);
+  stroke-width: 1.5;
+}
+
+.pizza-plate-ring {
+  fill: var(--pizza-plate-well);
+  stroke: var(--pizza-plate-edge);
+  stroke-width: 1;
+}
+
+.pizza--mini .pizza-plate {
+  stroke-width: 1.5;
+}
+
+/* The serving (plate and pizza) slides away and back during a level-up; the bounce of the
+   beat scales it around the pizza centre. */
+.pizza-serving {
+  transform-origin: 80px 90px;
+}
+
+.pizza-slice {
+  transform-origin: 80px 90px;
+}
+
+.pizza-crust {
+  fill: var(--pizza-crust);
+  stroke: var(--pizza-crust-edge);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.pizza--mini .pizza-crust {
+  stroke-width: 1;
+}
+
+.pizza-sauce {
+  fill: var(--pizza-sauce);
+}
+
+.pizza-cheese {
+  fill: var(--pizza-cheese);
+}
+
+.pizza-pepperoni {
+  fill: var(--pizza-pepperoni);
+}
+
+.pizza-pepperoni-light {
+  fill: var(--pizza-pepperoni-light);
+  fill-opacity: 0.85;
+}
+
+.pizza-herb {
+  fill: var(--pizza-herb);
+}
+
+.pizza-olive {
+  fill: none;
+  stroke: var(--pizza-olive);
+  stroke-width: 1.8;
+}
+
+/* The cuts between slices show the plate through them; a bite is the plate too. */
+.pizza-cut {
+  fill: none;
+  stroke: var(--pizza-plate-well);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.pizza-bite {
+  fill: var(--pizza-plate-well);
+}
+
+.pizza-crumbs circle {
+  fill: var(--pizza-crumb);
+}
+
+.pizza-burst circle {
+  fill: var(--pizza-crust);
+  stroke: var(--pizza-crust-edge);
+  stroke-width: 1;
+  opacity: 0;
+}
+
+/* The beat: a ring at the plate edge swells and fades, in the skill colour. */
+.pizza-pulse {
+  fill: none;
+  stroke: var(--pizza-pulse);
+  stroke-width: 3.5;
+  opacity: 0;
+  transform-origin: 80px 90px;
+}
+
+/* The idle steam: one group, rising and fading. */
+.pizza-steam path {
+  fill: none;
+  stroke: var(--color-fg-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.pizza-steam {
+  opacity: 0;
+}
+
+.pizza-steam.anim-decor {
+  animation: pizza-steam 3.6s ease-in-out infinite;
+}
+
+@keyframes pizza-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  35% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.pizza-hat {
+  fill: var(--pizza-hat);
+  stroke: var(--gold-3);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* The capacity ruler under the plate: eight segments, one per slice. */
+.pizza-ruler-line,
+.pizza-ruler-tick {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.pizza-ruler-eaten {
+  stroke: var(--color-fg-secondary);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.pizza--complete .pizza-ruler-eaten {
+  stroke: var(--gold-2);
+}
+
+.pizza-ruler text {
+  fill: var(--color-fg-tertiary);
+  /* 11px on screen: the hero draws 160 units in 140px. */
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Marks («засечки»): a pennant on the rim, pointing outwards, and a caption list under the plate. */
+.pizza-mark {
+  cursor: pointer;
+}
+
+.pizza-mark-hit {
+  fill: transparent;
+}
+
+.pizza-mark-pole {
+  stroke: var(--pizza-mark);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.pizza-mark-flag {
+  fill: var(--pizza-mark);
+}
+
+/* The number of a captioned pennant, matching the one before its caption. */
+.pizza-mark-num {
+  fill: var(--color-bg-elevated);
+  /* 7 px on screen. */
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.pizza-mark-caption {
+  position: absolute;
+  max-width: 124px;
+  margin: 0;
+  /* The vertical padding comes from PizzaHero (captionPad): up to a 44 px tap area, never
+     over a neighbouring caption. */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  /* CAPTION_LINE in pizza.tsx. */
+  line-height: 15px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A small numbered pennant before the caption, the same as the one on the rim. */
+.pizza-mark-caption-num {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 14px;
+  height: 12px;
+  margin-right: 5px;
+  padding-right: 3px;
+  /* Top-aligned and shifted, so the badge never makes the 15 px line box taller. */
+  position: relative;
+  top: 1.5px;
+  vertical-align: top;
+  background: var(--pizza-mark);
+  color: var(--color-bg-elevated);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  clip-path: polygon(0 0, 100% 0, 72% 50%, 100% 100%, 0 100%);
+}
+
+.pizza-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+

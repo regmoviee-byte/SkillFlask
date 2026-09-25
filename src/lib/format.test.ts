@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { FLASKS, FLASKS_OF, formatDelta, formatMinutes, formatPoints, formatRate, parseDecimal, plural } from './format';
+import { THEME_TEXT } from '../ui/progress/texts';
+import { formatDelta, formatMinutes, formatPoints, formatRate, parseDecimal, plural } from './format';
 
 describe('plural', () => {
+  // The flask's level nouns (every theme's are checked in copy.test.ts).
+  const { levelForms, levelFormsOf } = THEME_TEXT.flask;
+
   it('declines flasks as a subject', () => {
-    expect([1, 2, 5, 11, 21, 22].map((n) => plural(n, FLASKS))).toEqual(['колба', 'колбы', 'колб', 'колб', 'колба', 'колбы']);
+    expect([1, 2, 5, 11, 21, 22].map((n) => plural(n, levelForms))).toEqual(['колба', 'колбы', 'колб', 'колб', 'колба', 'колбы']);
   });
 
   it('declines flasks after «из»', () => {
-    expect([1, 2, 3, 5, 11, 21].map((n) => `из ${n} ${plural(n, FLASKS_OF)}`)).toEqual([
+    expect([1, 2, 3, 5, 11, 21].map((n) => `из ${n} ${plural(n, levelFormsOf)}`)).toEqual([
       'из 1 колбы',
       'из 2 колб',
       'из 3 колб',

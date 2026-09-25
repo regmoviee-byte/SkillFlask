@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ring } from '../components/Ring';
-import { copy } from '../copy';
+import { colorScope, copyForSkill } from '../progress/registry';
 
-// A flask filled where its flask is not on screen (Today, «Задним числом», a scrolled skill
+// A level completed where the skill's hero is not on screen (Today, «Задним числом», a scrolled skill
 // screen): an opaque card slides in under the safe area, the ring fills, and it leaves by
 // itself after 3.5 s. Tap (or Enter on its button) or swipe up dismisses. Not a modal: the
 // screen stays usable.
@@ -10,9 +10,12 @@ import { copy } from '../copy';
 export interface TopCardContent {
   /** Fill of the flask before the write; the ring animates from here to full. */
   fromFill: number;
-  /** The flask that filled. */
+  /** The flask (level) that filled. */
   flask: number;
   skillName: string;
+  /** The skill's stored theme and colour: the title in its nouns, the ring in its colour. */
+  theme?: unknown;
+  color?: unknown;
 }
 
 const SHOW_MS = 3500;
@@ -48,7 +51,7 @@ export function TopCard({ content, onDone }: { content: TopCardContent; onDone()
 
   // The card is a status region; the button inside dismisses it (tap, Enter or Space).
   return (
-    <div className="top-card anim-func" data-state={state} role="status">
+    <div className="top-card anim-func" data-state={state} role="status" {...colorScope(content.color)}>
       <button
         type="button"
         className="top-card-body"
@@ -68,7 +71,7 @@ export function TopCard({ content, onDone }: { content: TopCardContent; onDone()
           {content.flask}
         </Ring>
         <span className="top-card-text">
-          <span className="t-body-strong">{copy.celebration.topTitle(content.flask)}</span>
+          <span className="t-body-strong">{copyForSkill({ theme: content.theme }).completed(content.flask)}</span>
           <span className="top-card-caption">{content.skillName}</span>
         </span>
       </button>

@@ -14,11 +14,10 @@ import { formatDate } from '../../lib/dates';
 import { formatNumber } from '../../lib/format';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
-import { useCelebrationStage } from '../celebrations/CelebrationProvider';
+import { useCelebrationStage, type HeroLevelUp } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
 import { ContextSheet, type ContextItem } from '../components/ContextSheet';
 import { EmptyState } from '../components/EmptyState';
-import { Flask, type FlaskHandle, type FlaskMark } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { MilestoneRack } from '../components/MilestoneRack';
 import { Screen } from '../components/Screen';
@@ -26,16 +25,22 @@ import { Skeleton } from '../components/Skeleton';
 import { scheduleCaption, StepRow, stepValue } from '../components/StepRow';
 import { Timeline } from '../components/Timeline';
 import { useToast } from '../components/Toast';
-import { copy } from '../copy';
+import { copy, type LevelCopy } from '../copy';
 import { useCountUp } from '../hooks/useCountUp';
 import { useToday } from '../hooks/useToday';
+import type { ProgressHeroHandle, ProgressMark } from '../progress/contract';
+import { ProgressHero } from '../progress/ProgressHero';
+import { colorScope, copyForSkill, skillTheme } from '../progress/registry';
+import { AppearanceSheet } from '../sheets/AppearanceSheet';
 import { CompletionSheet } from '../sheets/CompletionSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 
-// Wireframe 2: the flask as the hero with the flask number in big numerals, the milestone
-// rack, the marks («Засечки»), the actions with their ✓ and the history as a timeline. What
-// the hero shows can be frozen for a moment by a celebration (useCelebrationStage), so the
-// points fly in first. The header ⋯ opens the skill's menu: edit it, add a mark.
+// Wireframe 2: the skill's progress theme as the hero (the flask by default, ProgressHero) with
+// the level number in big numerals, the milestone rack, the marks («Засечки»), the actions with
+// their ✓ and the history as a timeline. What the hero shows can be frozen for a moment by a
+// celebration (useCelebrationStage), so the points fly in first. The whole screen is painted in
+// the skill's colour (colorScope). The header ⋯ opens the skill's menu: edit it, its
+// appearance («Оформление»), add a mark.
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -44,6 +49,7 @@ export function SkillScreen() {
   const navigate = useNavigate();
   const t = copy.skill;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [markTarget, setMarkTarget] = useState<MarkSheetTarget | null>(null);
 
   if (details === null) {
@@ -90,20 +96,26 @@ export function SkillScreen() {
       }
     >
       <Skeleton layout="skill" loading={details === undefined}>
-        {details && <SkillContent details={details} today={today} onMark={setMarkTarget} />}
+        {details && (
+          <div className="liquid-scope" {...colorScope(details.skill.color)}>
+            <SkillContent details={details} today={today} onMark={setMarkTarget} />
+          </div>
+        )}
       </Skeleton>
       {skill && (
         <ContextSheet
           open={menuOpen && active}
           title={skill.name}
           onClose={() => setMenuOpen(false)}
-          items={skillMenu(skill.id, navigate, () => setMarkTarget({ kind: 'new' }))}
+          items={skillMenu(skill.id, navigate, () => setAppearanceOpen(true), () => setMarkTarget({ kind: 'new' }))}
         />
       )}
+      {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
       {details && (
         <MarkSheet
           target={markTarget}
           skillId={details.skill.id}
+          levels={copyForSkill(details.skill)}
           marks={details.marks}
           capacityOf={(n) => flaskCapacity(n, details.config)}
           editable={active}
@@ -115,9 +127,10 @@ export function SkillScreen() {
 }
 
 /** The ⋯ menu of an active skill. Items run after the menu has closed (ContextSheet). */
-function skillMenu(skillId: string, navigate: ReturnType<typeof useNavigate>, addMark: () => void): ContextItem[] {
+function skillMenu(skillId: string, navigate: ReturnType<typeof useNavigate>, appearance: () => void, addMark: () => void): ContextItem[] {
   return [
     { icon: 'edit', label: copy.skill.edit, onSelect: () => navigate(`/skills/${skillId}/edit`) },
+    { icon: 'palette', label: copy.appearance.title, onSelect: appearance },
     { icon: 'pennant', label: copy.marks.add, onSelect: addMark },
   ];
 }
@@ -131,7 +144,7 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
   const [limit, setLimit] = useState(HISTORY_PAGE);
   // `today` re-keys the query so «Сегодня / Вчера» move on at midnight.
   const history = useLiveQuery(() => getSkillHistory(skill.id, limit), [skill.id, limit, today]);
-  const stage = useCelebrationStage(skill.id, details.progress);
+  const stage = useCelebrationStage(skill.id, details.progress, copyForSkill(skill));
   const progress = stage.shown ?? details.progress;
   // A mark alone is history too: the list shows it rather than the empty state.
   const hasOperations = history ? history.operations > 0 || details.marks.length > 0 : true;
@@ -147,7 +160,8 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
       <Hero
         details={details}
         progress={progress}
-        flaskRef={stage.flaskRef}
+        heroRef={stage.flaskRef}
+        heroLevelUp={stage.hero}
         pill={stage.pill}
         announcement={stage.announcement}
         onMarkTap={openMark}
@@ -174,6 +188,7 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
         ) : (
           <Timeline
             events={history.events}
+            levels={copyForSkill(skill)}
             today={today}
             hasMore={history.hasMore}
             onMore={() => setLimit((n) => n + HISTORY_PAGE)}
@@ -290,7 +305,9 @@ function ArchivedBanner({ skill, busy, onRestore, onRestart }: { skill: Skill; b
 interface HeroProps {
   details: SkillDetails;
   progress: Progress;
-  flaskRef: RefObject<FlaskHandle | null>;
+  heroRef: RefObject<ProgressHeroHandle | null>;
+  /** The level and fill the hero draws while a level-up plays (set before the choreography), else null. */
+  heroLevelUp: HeroLevelUp | null;
   pill: { key: number; flask: number } | null;
   announcement: string;
   onMarkTap(markId: string): void;
@@ -301,7 +318,7 @@ interface HeroProps {
  * celebration, so they leave with it at the overflow beat), at their stored points against
  * that flask's capacity today. A sealed flask shows none; the list below has them all.
  */
-function heroMarks(details: SkillDetails, progress: Progress): FlaskMark[] {
+function heroMarks(details: SkillDetails, progress: Progress): ProgressMark[] {
   if (details.skill.status === 'COMPLETED') return [];
   return marksForFlask(details.marks, progress.currentFlask).map((mark) => ({
     id: mark.id,
@@ -310,9 +327,10 @@ function heroMarks(details: SkillDetails, progress: Progress): FlaskMark[] {
   }));
 }
 
-function Hero({ details, progress: p, flaskRef, pill, announcement, onMarkTap }: HeroProps) {
+function Hero({ details, progress: p, heroRef, heroLevelUp, pill, announcement, onMarkTap }: HeroProps) {
   const { skill, milestone } = details;
   const t = copy.skill;
+  const lc = copyForSkill(skill);
   const completed = skill.status === 'COMPLETED';
   const marks = heroMarks(details, p);
   // Follows the progress on display, so the laurel appears when the flask gets there.
@@ -323,26 +341,27 @@ function Hero({ details, progress: p, flaskRef, pill, announcement, onMarkTap }:
   return (
     <section className={`hero${marks.length > 0 ? ' hero--marks' : ''}`}>
       <div className="hero-flask">
-        <Flask
-          ref={flaskRef}
-          size="hero"
-          fill={p.fill}
-          // A sealed flask has no current capacity to measure against.
+        <ProgressHero
+          ref={heroRef}
+          theme={skillTheme(skill.theme)}
+          fill={heroLevelUp?.fill ?? p.fill}
+          // A completed level has no current capacity to measure against.
           capacity={completed ? undefined : p.currentCapacity}
           state={completed ? 'complete' : p.totalPoints === 0 ? 'empty' : 'active'}
-          label={completed ? t.completedFlaskLabel(p.completedFlasks) : t.flaskLabel(p.currentFlask, p.pointsInCurrentFlask, p.currentCapacity, percent)}
+          label={completed ? lc.completedLabel(p.completedFlasks) : lc.heroLabel(p.currentFlask, p.pointsInCurrentFlask, p.currentCapacity, percent)}
           marks={marks}
           onMarkTap={onMarkTap}
+          level={heroLevelUp?.level ?? p.currentFlask}
         />
         {pill && (
           <span key={pill.key} className="level-pill" aria-hidden="true">
-            {t.levelPill(pill.flask)}
+            {lc.noun(pill.flask)}
           </span>
         )}
       </div>
       <div className="hero-info">
         <span className="hero-eyebrow t-label">
-          {completed ? t.reached : t.flask}
+          {completed ? t.reached : lc.name}
           {laurel && (
             <span className="hero-laurel" role="img" aria-label={t.milestoneReachedIcon}>
               <Icon name="laurel" size={16} />
@@ -351,14 +370,14 @@ function Hero({ details, progress: p, flaskRef, pill, announcement, onMarkTap }:
         </span>
         <RollNumber value={completed ? p.completedFlasks : p.currentFlask} />
         {completed ? (
-          <p className="hero-points t-title-m">{t.flasksDone(p.completedFlasks)}</p>
+          <p className="hero-points t-title-m">{lc.levels(p.completedFlasks)}</p>
         ) : (
           <>
             <p className="hero-points t-title-m">
               {/* A new flask starts its count from its own remainder, not from the old flask's points. */}
               <CountUp key={p.currentFlask} value={p.pointsInCurrentFlask} /> <span className="hero-capacity">/ {formatNumber(p.currentCapacity)}</span>
             </p>
-            <p className="t-caption hint">{t.toNext(percent, left, p.currentFlask + 1)}</p>
+            <p className="t-caption hint">{lc.toNext(percent, left, p.currentFlask + 1)}</p>
           </>
         )}
         <span className="hero-total">{t.total(p.totalPoints)}</span>
@@ -515,13 +534,14 @@ function ActionsCard({ details: { skill, steps, hiddenSteps, todayCounts } }: { 
 }
 
 /**
- * «Засечки»: every mark of the skill, newest first: the title, «Колба N» under it and the
+ * «Засечки»: every mark of the skill, newest first: the title, «Колба N» (the theme's noun) under it and the
  * date. An active skill without marks gets a short invitation instead, once it has an action:
  * on a brand-new skill the first action is the one thing to do (the ⋯ menu still adds a
  * mark). A read-only skill without marks shows nothing.
  */
 function MarksCard({ details: { skill, marks, steps, hiddenSteps }, onOpen, onAdd }: { details: SkillDetails; onOpen(id: string): void; onAdd(): void }) {
   const t = copy.marks;
+  const lc: LevelCopy = copyForSkill(skill);
   const active = skill.status === 'ACTIVE';
   if (marks.length === 0 && (!active || steps.length + hiddenSteps.length === 0)) return null;
 
@@ -545,7 +565,7 @@ function MarksCard({ details: { skill, marks, steps, hiddenSteps }, onOpen, onAd
                   <Icon name="pennant" size={20} className="mark-row-icon" />
                   <span className="mark-row-main">
                     <span className="mark-row-title">{mark.title}</span>
-                    <span className="mark-row-flask">{t.rowFlask(mark.flaskNumber)}</span>
+                    <span className="mark-row-flask">{lc.noun(mark.flaskNumber)}</span>
                   </span>
                   <span className="mark-row-date">{formatDate(mark.date)}</span>
                 </button>

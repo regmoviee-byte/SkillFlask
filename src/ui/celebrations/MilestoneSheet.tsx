@@ -7,6 +7,7 @@ import { errorMessage } from '../completionFeedback';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { copyForSkill } from '../progress/registry';
 import type { CelebrationEvent } from './orderCelebrations';
 
 // The milestone moment: a sheet, not a toast and not a native popup — it has room for the
@@ -45,7 +46,7 @@ export function MilestoneSheet({ event, onClose, onCompleted, actions = SERVICE_
   }, [event]);
 
   if (!shown) return <Sheet open={false} onClose={onClose} />;
-  const { skillId, skillName, milestoneName, flasks, totalPoints, days } = shown;
+  const { skillId, skillName, milestoneName, flasks, totalPoints, days, theme } = shown;
 
   async function finish() {
     // Rule: dialogs.confirm runs synchronously in the click handler, before any await.
@@ -107,7 +108,7 @@ export function MilestoneSheet({ event, onClose, onCompleted, actions = SERVICE_
       <ul className="milestone-tiles">
         <li>
           <span className="t-title-m">{formatNumber(flasks)}</span>
-          <span className="t-caption hint">{t.tileFlasks(flasks)}</span>
+          <span className="t-caption hint">{copyForSkill({ theme }).levelsCaption(flasks)}</span>
         </li>
         <li>
           <span className="t-title-m">{formatNumber(totalPoints)}</span>

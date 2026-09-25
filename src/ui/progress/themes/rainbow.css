@@ -1,0 +1,308 @@
+/* «Радуга» (progress/themes/rainbow.tsx). Colour choice (README rule 3): the arcs are the skill
+   colour, fully — a TONAL ramp from --liquid-light (outermost, with a faint warm glint of
+   --gold-1) to --liquid-deep deepened with --color-fg (innermost), not a literal spectrum, so
+   the owner recognises "their" colour and the gold of a completed skill stays special. Clouds
+   (silver-white) and the sun (warm yellow) keep their natural colours. Everything else is ink:
+   --color-fg outlines, the --color-bg-sunken paper. Literal values first; the color-mix()
+   versions only where color-mix(in oklch) parses (see tokens.css for why not in one rule).
+   Only transform, opacity and stroke-dashoffset move; the left cloud's 2 px drift is the one
+   idle loop (.anim-decor). */
+
+.rainbow {
+  --rb-0: #b9e4ff;
+  --rb-1: #8fd3ff;
+  --rb-2: #6fc5f5;
+  --rb-3: #4fb8ec;
+  --rb-4: #3ca3de;
+  --rb-5: #2a8fcf;
+  --rb-6: #256f9f;
+  --rb-gold-0: #fae29a;
+  --rb-gold-1: #f6cf5f;
+  --rb-gold-2: #ebbc44;
+  --rb-gold-3: #e0a92a;
+  --rb-gold-4: #cb901e;
+  --rb-gold-5: #b57712;
+  --rb-gold-6: #8f5f14;
+  --rb-cloud: #fbfcfd;
+  --rb-cloud-shade: #d3d8e1;
+  --rb-sun: #ffd95c;
+  --rb-sun-rim: #e8a92c;
+  --rb-sun-glint: #fff4c7;
+}
+
+@supports (color: color-mix(in oklch, red, blue)) {
+  .rainbow {
+    --rb-0: color-mix(in oklch, var(--liquid-light) 82%, var(--gold-1));
+    --rb-1: var(--liquid-light);
+    --rb-2: color-mix(in oklch, var(--liquid-light) 50%, var(--liquid-mid));
+    --rb-3: var(--liquid-mid);
+    --rb-4: color-mix(in oklch, var(--liquid-mid) 45%, var(--liquid-deep));
+    --rb-5: var(--liquid-deep);
+    --rb-6: color-mix(in oklch, var(--liquid-deep) 72%, var(--color-fg));
+    --rb-gold-0: color-mix(in oklch, var(--gold-1) 65%, white);
+    --rb-gold-1: var(--gold-1);
+    --rb-gold-2: color-mix(in oklch, var(--gold-1) 50%, var(--gold-2));
+    --rb-gold-3: var(--gold-2);
+    --rb-gold-4: color-mix(in oklch, var(--gold-2) 50%, var(--gold-3));
+    --rb-gold-5: var(--gold-3);
+    --rb-gold-6: color-mix(in oklch, var(--gold-3) 78%, var(--color-fg));
+    --rb-cloud: color-mix(in oklch, var(--silver-1) 25%, white);
+    --rb-cloud-shade: color-mix(in oklch, var(--silver-1) 62%, var(--silver-2));
+    --rb-sun: color-mix(in oklch, var(--gold-1) 85%, white);
+    --rb-sun-rim: var(--gold-2);
+    --rb-sun-glint: color-mix(in oklch, var(--gold-1) 25%, white);
+  }
+}
+
+/* In the dark the innermost arc lifts towards the text colour (white); a touch less of it. */
+@supports (color: color-mix(in oklch, red, blue)) {
+  :root[data-theme='dark'] .rainbow {
+    --rb-6: color-mix(in oklch, var(--liquid-deep) 85%, var(--color-fg));
+    --rb-gold-6: color-mix(in oklch, var(--gold-3) 88%, var(--color-fg));
+  }
+}
+
+.rainbow {
+  position: relative;
+  flex: none;
+}
+
+.rainbow--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.rainbow-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.rainbow-mini {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+/* The coloring book: paper under the bands, ink lines over them. */
+.rainbow-paper {
+  fill: none;
+  stroke: var(--color-bg-sunken);
+}
+
+.rainbow-paper--mini {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.12;
+}
+
+.rainbow-arc {
+  fill: none;
+  stroke-linecap: butt;
+}
+
+.rainbow-mini .rainbow-arc {
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+.rainbow-arc--0 {
+  stroke: var(--rb-0);
+}
+.rainbow-arc--1 {
+  stroke: var(--rb-1);
+}
+.rainbow-arc--2 {
+  stroke: var(--rb-2);
+}
+.rainbow-arc--3 {
+  stroke: var(--rb-3);
+}
+.rainbow-arc--4 {
+  stroke: var(--rb-4);
+}
+.rainbow-arc--5 {
+  stroke: var(--rb-5);
+}
+.rainbow-arc--6 {
+  stroke: var(--rb-6);
+}
+
+.rainbow--complete .rainbow-arc--0 {
+  stroke: var(--rb-gold-0);
+}
+.rainbow--complete .rainbow-arc--1 {
+  stroke: var(--rb-gold-1);
+}
+.rainbow--complete .rainbow-arc--2 {
+  stroke: var(--rb-gold-2);
+}
+.rainbow--complete .rainbow-arc--3 {
+  stroke: var(--rb-gold-3);
+}
+.rainbow--complete .rainbow-arc--4 {
+  stroke: var(--rb-gold-4);
+}
+.rainbow--complete .rainbow-arc--5 {
+  stroke: var(--rb-gold-5);
+}
+.rainbow--complete .rainbow-arc--6 {
+  stroke: var(--rb-gold-6);
+}
+
+.rainbow-edge {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.16;
+  stroke-width: 0.8;
+}
+
+.rainbow-edge--rim {
+  stroke-opacity: 0.4;
+  stroke-width: 1.6;
+}
+
+.rainbow-cloud {
+  fill: var(--rb-cloud);
+}
+
+.rainbow-cloud-shade {
+  fill: var(--rb-cloud-shade);
+}
+
+.rainbow-cloud-line {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.3;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.rainbow-cloud--mini {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+}
+
+.rainbow-sun-disc {
+  fill: var(--rb-sun);
+  stroke: var(--rb-sun-rim);
+  stroke-width: 1.5;
+}
+
+.rainbow-sun-glint {
+  fill: var(--rb-sun-glint);
+  opacity: 0.8;
+}
+
+.rainbow-rays {
+  fill: none;
+  stroke: var(--rb-sun-rim);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.rainbow-sparks path {
+  fill: var(--rb-gold-1);
+  stroke: var(--rb-sun-rim);
+  stroke-width: 0.6;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.rainbow-drift.anim-decor {
+  animation: rainbow-drift 6s ease-in-out infinite alternate;
+}
+
+@keyframes rainbow-drift {
+  to {
+    transform: translateX(2px);
+  }
+}
+
+/* Marks («засечки»): pennants standing outward on the outer edge, captions to the right, each
+   tied to its flag by a dotted leader. The caption column starts inside the 140 px box, just past
+   the arch's right leg (133 px); at 11 px a caption holds its 12 characters in 88 px (76 px under
+   375 px) and the hero reserves 78 / 66 px: like the flask's, a caption at its full width runs a
+   few px into the gap after the hero. A caption moved right past a pennant near the right foot
+   (--rb-shift, set in rainbow.tsx) gives up as much width, so it ends where the others do. */
+.rainbow--hero.rainbow--marked {
+  margin-right: 78px;
+}
+
+.rainbow-leaders path {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 0.1 2.2;
+  stroke-linecap: round;
+}
+
+.rainbow-mark {
+  cursor: pointer;
+}
+
+.rainbow-mark-hit {
+  fill: transparent;
+}
+
+.rainbow-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.75;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.rainbow-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.75;
+}
+
+.rainbow-mark-caption {
+  position: absolute;
+  max-width: calc(88px - var(--rb-shift, 0px));
+  min-height: 24px;
+  margin: 0;
+  /* The vertical padding comes from rainbow.tsx (captionPad): up to a 44 px tap area. */
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* After the base rule, so the narrower column wins on 320–374 px phones. */
+@media (max-width: 374px) {
+  .rainbow--hero.rainbow--marked {
+    margin-right: 66px;
+  }
+
+  .rainbow-mark-caption {
+    max-width: calc(76px - var(--rb-shift, 0px));
+  }
+}
+
+.rainbow-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+html[data-motion='reduced'] .rainbow-arc,
+.rainbow-mini--reduced .rainbow-arc {
+  transition: none;
+}

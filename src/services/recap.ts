@@ -14,6 +14,8 @@ export interface RecapView {
   /** The records of the whole journal (the values of the ones set this week). */
   records: Records;
   skillNames: Record<string, string>;
+  /** Stored progress themes of the skills, for the fastest level's name. */
+  skillThemes: Record<string, string>;
   /** The Monday of the earliest week the switcher goes back to. */
   firstWeek: string;
   /** The Monday of the current week: the switcher goes no further. */
@@ -41,6 +43,7 @@ export async function getRecapView(week: string, today: string = localDate()): P
       recap,
       records,
       skillNames: Object.fromEntries(snapshot.skills.map((s) => [s.id, s.name])),
+      skillThemes: Object.fromEntries(snapshot.skills.map((s) => [s.id, s.theme])),
       firstWeek: first !== null && weekStart(first) < fallback ? weekStart(first) : fallback,
       currentWeek: weekStart(today),
     };

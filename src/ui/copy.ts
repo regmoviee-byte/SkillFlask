@@ -1,18 +1,22 @@
 // Every user-facing string of the UI, grouped by screen. Tone rules (proposal v0.3, appendix Б):
-// 1. Terms: навык, действие, очки, колба, веха, ачивка. Never «баллы».
+// 1. Terms: навык, действие, очки, колба, веха, ачивка. Never «баллы». A skill's level speaks
+//    its progress theme's nouns (levelCopy below: «Пицца 2 съедена»); places that count the
+//    levels of every skill together say «уровни».
 // 2. Forbidden: просрочено, пропущено, штраф, долг, провал, сгорела, потеряна, «не сдавайтесь»,
 //    countdowns, red for days without activity.
 // 3. The past is described by what happened («В этот день отметок нет», «Активных дней: 9»),
 //    never by what did not.
 // 4. Quotas are progress towards a goal («1 из 3 на неделе»); «осталось» only about today's plan.
 // 5. Comparisons only when they favour the user.
-// 6. A level rollback is «Возврат к колбе N» in toasts and history.
+// 6. A level rollback is «Возврат к колбе N» (the theme's noun) in toasts and history.
 // 7. Exclamation marks and emoji only in the «Навык достигнут 🎉» toast (the milestone has
 //    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
 import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate } from '../lib/dates';
-import { FLASKS, FLASKS_OF, formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
+import { formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
+import type { SkillColor } from '../domain/appearance';
+import type { LevelText } from './progress/texts';
 
 /** The native bottom button's limit (MAX_BUTTON_TEXT in platform/buttons.ts; copy.test.ts keeps them equal). */
 export const BUTTON_TEXT_MAX = 24;
@@ -23,6 +27,8 @@ const ACTIONS: [string, string, string] = ['действие', 'действия
 const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
 const ACHIEVEMENTS: [string, string, string] = ['ачивка', 'ачивки', 'ачивок'];
 const ACTIVE_DAYS: [string, string, string] = ['активный день', 'активных дня', 'активных дней'];
+/** Levels of every skill together, whatever their themes: «Пройдено 7 уровней». */
+const LEVELS: [string, string, string] = ['уровень', 'уровня', 'уровней'];
 
 /** Genitive after «из»: «из 1 очка», «из 10 очков», «из 21 очка». */
 const POINTS_OF: [string, string, string] = ['очка', 'очков', 'очков'];
@@ -37,10 +43,6 @@ const MONTHS_IN = ['январе', 'феврале', 'марте', 'апреле
  * at its dash («14–20»): a narrow row wraps between the parts of a text, not inside a date.
  */
 const keepNumbers = (text: string) => text.replace(/(\d) /g, '$1\u00a0').replace(/(\d)–(?=\d)/g, '$1–\u2060');
-
-/** «Колба 2: 45/150» — the flask state after an operation, as in the history. */
-const flaskState = (flask: number, points: number, capacity: number) =>
-  `Колба ${flask}: ${formatNumber(points)}/${formatNumber(capacity)}`;
 
 export const copy = Object.freeze({
   tabs: {
@@ -59,15 +61,13 @@ export const copy = Object.freeze({
     optional: 'Необязательно',
     skill: 'Навык',
     skillNotFound: 'Навык не найден',
-    flaskFilled: (percent: number) => `Колба заполнена на ${percent}%`,
-    flaskNumber: (n: number) => `Колба ${n}`,
-    flasksCount: (n: number) => `${n} ${plural(n, FLASKS)}`,
   },
   home: {
     title: 'Навыки',
     newSkill: 'Новый навык',
-    tileFlasks: 'Заполнено',
-    flasksCaption: (n: number) => plural(n, FLASKS),
+    /** The levels of every skill together: neutral, whatever the themes. */
+    tileLevels: 'Пройдено',
+    levelsCaption: (n: number) => plural(n, LEVELS),
     /** The wide tile: the last achievement, or the closest next one with its progress. */
     // The date never breaks inside («24 / сентября» on a 320 px tile).
     achievementLastOn: (date: string) => `Последняя ачивка · ${formatDate(date).replace(/ /g, '\u00a0')}`,
@@ -82,17 +82,11 @@ export const copy = Object.freeze({
     filterCompleted: 'Достигнутые',
     filterArchived: 'Архив',
     pointsOfCapacity: (points: number, capacity: number) => `${formatNumber(points)} / ${formatNumber(capacity)}`,
-    flasksDone: (n: number) => `${formatNumber(n)} ${plural(n, FLASKS)}`,
     archivedSince: (date: string) => `в архиве с ${formatDate(date)}`,
-    /** Above 12 flasks the milestone is a count instead of dots: «7 / 20 колб». */
-    milestoneCount: (done: number, target: number) => `${formatNumber(done)} / ${formatNumber(target)} ${plural(target, FLASKS_OF)}`,
     milestoneReached: 'веха достигнута',
     todayPoints: (points: number) => `+${formatNumber(points)} сегодня`,
-    /** Accessible name of a skill card's ring. */
-    ringLabel: (flask: number, percent: number) => `Колба ${flask}, заполнена на ${percent}%`,
-    ringCompleted: (flasks: number) => `Навык достигнут: ${flasks} ${plural(flasks, FLASKS)}`,
     emptyTitle: 'Первый навык',
-    emptyText: 'Создайте навык, добавьте действия и заполняйте колбы очками.',
+    emptyText: 'Создайте навык, добавьте действия и набирайте очки за каждое.',
     create: 'Создать навык',
     example: 'Пример: Английский B1 → C1',
   },
@@ -141,9 +135,9 @@ export const copy = Object.freeze({
     donePast: 'Сделано в этот день',
     doneEmptyPast: 'В этот день отметок нет',
     /** The only coach hint of the app, shown once above the first button. */
-    coach: 'Нажмите на кнопку с очками — они сразу упадут в колбу. Ошиблись? «Отменить» в подсказке снизу.',
+    coach: 'Нажмите на кнопку с очками — они сразу достанутся навыку. Ошиблись? «Отменить» в подсказке снизу.',
     /** The chip is one button: its name says it is a hint and that a tap closes it. */
-    coachLabel: 'Подсказка: нажмите на кнопку с очками — они сразу упадут в колбу. Ошиблись? «Отменить» в подсказке снизу. Закрыть подсказку',
+    coachLabel: 'Подсказка: нажмите на кнопку с очками — они сразу достанутся навыку. Ошиблись? «Отменить» в подсказке снизу. Закрыть подсказку',
   },
   lifecycle: {
     archivedSince: (date: string) => `В архиве с ${formatDate(date)}`,
@@ -152,7 +146,7 @@ export const copy = Object.freeze({
     restored: 'Навык снова в работе',
     restart: 'Начать заново',
     confirmRestart: (name: string, archived: boolean) =>
-      `Создадим копию «${name}» с теми же действиями и вехой, но с пустой колбой. Этот навык останется ${archived ? 'в архиве' : 'в достигнутых'}.`,
+      `Создадим копию «${name}» с теми же действиями и вехой, но без очков. Этот навык останется ${archived ? 'в архиве' : 'в достигнутых'}.`,
     restarted: 'Копия создана',
     archive: 'Архивировать навык',
     confirmArchive: (name: string) =>
@@ -164,28 +158,15 @@ export const copy = Object.freeze({
     edit: 'Изменить навык',
     /** The header ⋯ button that opens the skill's context menu. */
     menu: 'Меню навыка',
-    flask: 'Колба',
     reached: 'Достигнут',
     milestoneReachedIcon: 'Веха достигнута',
-    /** The hero flask's accessible name (FR-XP-007). */
-    flaskLabel: (flask: number, points: number, capacity: number, percent: number) =>
-      `Колба ${flask}: ${formatNumber(points)} из ${formatNumber(capacity)}, ${percent}%`,
-    completedFlaskLabel: (flasks: number) => `Навык достигнут: ${flasks} ${plural(flasks, FLASKS)}`,
-    /** «42% · ещё 58 до колбы 4» */
-    // Non-breaking spaces: a narrow hero column (marks beside the flask) wraps as «66% · ещё 5 /
-    // до колбы 3», never inside «ещё 5» or «до колбы 3».
-    toNext: (percent: number, left: number, next: number) => `${percent}% · ещё\u00a0${formatNumber(left)} до\u00a0колбы\u00a0${next}`,
     total: (points: number) => `Всего ${formatPoints(points)}`,
-    flasksDone: (n: number) => `${formatNumber(n)} ${plural(n, FLASKS)}`,
-    /** aria-live announcement when a flask fills on screen. */
-    flaskFilledLive: (flask: number) => `Колба ${flask} заполнена`,
-    levelPill: (flask: number) => `Колба ${flask}`,
     notFoundTitle: 'Навык не найден',
     notFoundText: 'Возможно, он удалён.',
     toSkills: 'К навыкам',
     history: 'История',
     historyEmptyTitle: 'Здесь появится история',
-    historyEmptyActive: 'Отметьте первое действие — очки начнут заполнять колбу.',
+    historyEmptyActive: 'Отметьте первое действие — здесь появятся очки и уровни.',
     historyEmptyInactive: 'Выполнений нет.',
     showMore: 'Показать ещё',
     actions: 'Действия',
@@ -194,7 +175,7 @@ export const copy = Object.freeze({
     newAction: 'Новое действие',
     firstAction: 'Создать первое действие',
     backdate: 'Задним числом',
-    actionsIntro: 'Действие — это то, что вы отмечаете: «Чтение», «Тренировка». За каждое — очки в колбу.',
+    actionsIntro: 'Действие — это то, что вы отмечаете: «Чтение», «Тренировка». За каждое — очки.',
     examplesLabel: 'Примеры действий',
     examples: [
       { name: 'Разговорная практика', points: 5 },
@@ -226,13 +207,6 @@ export const copy = Object.freeze({
     added: 'Засечка добавлена',
     saved: 'Засечка сохранена',
     removed: 'Засечка удалена',
-    /** Where the mark sits, against the flask's capacity as it is now. */
-    position: (flask: number, points: number, capacity: number) =>
-      `Колба ${flask}, ${formatNumber(points)} из ${formatNumber(capacity)} ${plural(capacity, POINTS_OF)}`,
-    /** A row of the «Засечки» list. */
-    rowFlask: (flask: number) => `Колба ${flask}`,
-    /** The history row's caption. */
-    historyPosition: (flask: number, points: number) => `Колба ${flask} · ${formatPoints(points)}`,
     empty: 'Отмечайте важные события на пути: экзамен, конкурс, новый проект.',
     /** The accessible name of a caption on the hero flask. */
     onFlask: (title: string) => `Засечка: ${title}`,
@@ -264,12 +238,9 @@ export const copy = Object.freeze({
     added: (points: number, stepName: string) => `+${formatNumber(points)} · ${stepName}`,
     durationChanged: (delta: number) => `Длительность изменена: ${formatDelta(delta)} ${plural(Math.abs(delta), POINTS)}`,
     undo: 'Отменить',
-    cancelled: (flask: number, points: number, capacity: number) => `Отменено · ${flaskState(flask, points, capacity)}`,
     restored: 'Возвращено',
   },
   completionSheet: {
-    meta: (date: string, points: number, flask: number, inFlask: number, capacity: number) =>
-      `${formatDate(date)} · +${formatNumber(points)} · ${flaskState(flask, inFlask, capacity)}`,
     /** A TIMED completion: minutes and the rate it was recorded at. */
     timedMeta: (minutes: number, rate: number) => `${formatMinutes(minutes)} · ${formatRate(rate)}`,
     minutes: 'Минуты',
@@ -298,10 +269,6 @@ export const copy = Object.freeze({
     /** A correction of the minutes that did not change the points (and whose minutes cannot be told from them). */
     minutesChanged: 'Минуты изменены',
     cancelledBadge: 'Отменено',
-    flaskState,
-    /** LEVEL_UP separator; `levels` > 1 when one operation filled several flasks. */
-    flaskFilled: (flask: number, levels = 1) => (levels > 1 ? `Колбы ${flask - levels + 1}–${flask} заполнены` : `Колба ${flask} заполнена`),
-    flaskRollback: (flask: number) => `Возврат к колбе ${flask}`,
     milestoneReached: (name: string) => `Веха «${name}» достигнута`,
     milestoneAgain: (name: string) => `Веха «${name}» снова впереди`,
     skillCreated: 'Навык создан',
@@ -312,9 +279,6 @@ export const copy = Object.freeze({
     minutes: (n: number) => formatMinutes(n),
   },
   milestone: {
-    completedAt: (date: string, flasks: number, points: number) =>
-      `Навык достигнут ${formatDate(date)} · ${flasks} ${plural(flasks, FLASKS)} · ${formatPoints(points)}`,
-    progress: (done: number, target: number) => `${done} из ${target} ${plural(target, FLASKS_OF)}`,
     reachedAt: (date: string) => `Веха достигнута ${formatDate(date)}.`,
     continuing: 'Вы продолжаете развитие.',
     decide: 'Завершить навык или продолжить развитие? Решать сейчас не обязательно.',
@@ -349,8 +313,6 @@ export const copy = Object.freeze({
     namePlaceholder: 'Например, разговорная практика',
     skill: 'Навык, к которому относится действие',
     points: 'Очки за выполнение',
-    preview: (perFlask: number, perMilestone: number) =>
-      `≈ ${perFlask} ${plural(perFlask, COMPLETIONS)} до первой колбы · веха через ≈ ${perMilestone}`,
     typeSection: 'Тип',
     typeBoolean: 'Выполнено / нет',
     typeTimed: 'По времени',
@@ -398,19 +360,17 @@ export const copy = Object.freeze({
     targetPlaceholder: 'C1',
     milestoneSection: 'Веха',
     milestoneName: 'Название вехи',
-    milestoneFlasks: 'Колб',
     defaultMilestoneName: (target: string) => (target ? `Достичь ${target}` : 'Главная цель'),
-    capacitySection: 'Ёмкость колб',
-    capacityBase: 'Первая колба',
+    // Capacities are the same numbers whatever the theme: «уровни».
+    capacitySection: 'Ёмкость уровней',
+    capacityBase: 'Первый уровень',
     capacityIncrement: 'Прирост за уровень',
-    manualCapacities: 'Свои значения по колбам',
+    manualCapacities: 'Свои значения по уровням',
     manualPlaceholder: 'Необязательно, например: 50, 80, 120',
     manualHint: 'После последнего значения ёмкость растёт на «прирост за уровень».',
     manualInvalid: 'Свои ёмкости: целые положительные числа через запятую',
     advanced: 'Дополнительно',
     capacityHint: 'Изменение ёмкости пересчитает уровни по всей истории',
-    preview: (target: number, capacities: string, points: number) =>
-      `Веха: ${target} ${plural(target, FLASKS)} · ${capacities} · всего ${formatPoints(points)}`,
     templates: {
       english: { name: 'Английский', startLabel: 'B1', targetLabel: 'C1', milestoneName: 'Достичь C1', milestoneTarget: 10 },
     },
@@ -472,8 +432,8 @@ export const copy = Object.freeze({
     daysCaption: (n: number) => plural(n, DAYS),
     tileCompletions: 'Выполнено',
     completionsCaption: (n: number) => plural(n, ACTIONS),
-    tileFlasks: 'Заполнено',
-    flasksCaption: (n: number) => plural(n, FLASKS),
+    tileLevels: 'Пройдено',
+    levelsCaption: (n: number) => plural(n, LEVELS),
     // «Неделей раньше», not «на прошлой неделе»: a browsed past week compares with the one before it.
     morePoints: 'Больше очков, чем неделей раньше',
     moreDays: 'Больше активных дней, чем неделей раньше',
@@ -488,7 +448,7 @@ export const copy = Object.freeze({
     recordMeta: (detail: string) => `Рекорд\u00a0· ${detail}`,
     achievements: 'Ачивки недели',
     emptyTitle: 'В эту неделю отметок нет',
-    emptyText: 'Итоги собираются из отметок: очки, активные дни, колбы и рекорды.',
+    emptyText: 'Итоги собираются из отметок: очки, активные дни, уровни и рекорды.',
     emptyCurrentTitle: 'Отметки этой недели появятся здесь',
   },
   records: {
@@ -499,12 +459,12 @@ export const copy = Object.freeze({
     bestStreak: 'Лучшая серия',
     // «Самое длинное», not «долгое»: the tone test rejects every word starting with «долг».
     longestSession: 'Самое длинное занятие',
-    fastestFlask: 'Самая быстрая колба',
+    fastestFlask: 'Самый быстрый уровень',
     points: (n: number) => formatPoints(n),
     completions: (n: number) => count(n, ACTIONS),
     streak: (days: number) => `${count(days, DAYS)} подряд`,
     minutes: (n: number) => formatMinutes(n),
-    /** Days between the fills of two flasks: 0 — «в тот же день», 2 — «за 2 дня». */
+    /** Days between two completed levels: 0 — «в тот же день», 2 — «за 2 дня». */
     flaskDays: (days: number) => (days === 0 ? 'в тот же день' : `за ${count(days, DAYS)}`),
     date: (date: string) => keepNumbers(formatDate(date)),
     week: (monday: string) => keepNumbers(formatWeek(monday)),
@@ -512,7 +472,6 @@ export const copy = Object.freeze({
     streakDates: (start: string, days: number) => keepNumbers(formatDaySpan(start, days)),
     // A no-break space before each «·», so a wrapped line never starts with the dot.
     withSkill: (skillName: string, detail: string) => `${skillName}\u00a0· ${detail}`,
-    flask: (skillName: string, flask: number, date: string) => `${skillName}\u00a0· Колба\u00a0${flask}\u00a0· ${keepNumbers(formatDate(date))}`,
     bySkill: (n: number) => `Лучший день по навыкам · ${n}`,
   },
   settings: {
@@ -644,18 +603,35 @@ export const copy = Object.freeze({
     skillCompleted: 'Навык достигнут 🎉',
   },
   celebration: {
-    /** TopCard: a flask filled while the skill's own flask is not on screen. */
-    /** Names the flask that filled, the one the ring shows; the caption is the skill. */
-    topTitle: (flask: number) => `Колба ${flask} заполнена`,
     milestoneTitle: 'Веха достигнута',
     milestoneLabel: (name: string) => `Веха достигнута: ${name}`,
-    tileFlasks: (n: number) => plural(n, FLASKS),
     tilePoints: (n: number) => plural(n, POINTS),
     tileDays: (n: number) => plural(n, DAYS),
     finishSkill: 'Завершить навык',
     keepGoing: 'Продолжить развитие',
     later: 'Решу позже',
     continued: 'Продолжаем — уровни без ограничений',
+  },
+  appearance: {
+    /** The skill form's section and the ⋯ menu item. */
+    title: 'Оформление',
+    theme: 'Образ',
+    color: 'Цвет',
+    /** The picker's live preview: the chosen theme at 45 %. */
+    previewLabel: (themeName: string, colorName: string) => `Предпросмотр: ${themeName}, ${`${colorName}`.toLowerCase()}`,
+    themeLabel: (name: string, hint: string) => `${name}. ${hint}`,
+    colorAuto: 'Как в теме',
+    colors: {
+      sky: 'Голубой',
+      teal: 'Бирюзовый',
+      green: 'Зелёный',
+      amber: 'Янтарный',
+      coral: 'Коралловый',
+      rose: 'Розовый',
+      violet: 'Фиолетовый',
+      graphite: 'Графитовый',
+    } satisfies Record<SkillColor, string>,
+    saved: 'Оформление сохранено',
   },
   errors: {
     save: 'Не сохранилось. Данные на месте — попробуйте ещё раз',
@@ -668,3 +644,63 @@ export const copy = Object.freeze({
 });
 
 export type Copy = typeof copy;
+
+/**
+ * The strings that name a skill's level, in the nouns of its progress theme: «Колба 3»,
+ * «ещё 58 до пиццы 4», «Книга 2 прочитана», «Возврат к полёту 1», «2 из 10 цветков».
+ * One frozen object per theme (registry.ts levelCopyOf caches them); copy.test.ts runs the tone
+ * checks over every theme.
+ */
+export function levelCopy(lv: LevelText) {
+  const noun = (level: number) => `${lv.levelNoun} ${level}`;
+  const levels = (n: number) => `${formatNumber(n)} ${plural(n, lv.levelForms)}`;
+  /** «Колба 2: 45/150» — the level after an operation, as in the history. */
+  const state = (level: number, points: number, capacity: number) => `${noun(level)}: ${formatNumber(points)}/${formatNumber(capacity)}`;
+  const levelsOf = (n: number) => plural(n, lv.levelFormsOf);
+  return Object.freeze({
+    /** The hero's eyebrow over the big number: «Колба», «Поездка». */
+    name: lv.levelNoun,
+    /** «Колба 3»: the pill of a level-up, the marks list, rows. */
+    noun,
+    /** «3 колбы». */
+    levels,
+    /** The count word alone, for a tile: «колбы». */
+    levelsCaption: (n: number) => plural(n, lv.levelForms),
+    state,
+    /** A level completed (history, the aria-live, the TopCard); `count` > 1 when one write completed several. */
+    completed: (level: number, count = 1) => (count > 1 ? lv.completedRange(level - count + 1, level) : lv.completed(level)),
+    rollback: (level: number) => `Возврат к ${lv.levelDative} ${level}`,
+    /** «42% · ещё 58 до колбы 4» */
+    // Non-breaking spaces: a narrow hero column (marks beside the hero) wraps as «66% · ещё 5 /
+    // до колбы 3», never inside «ещё 5» or «до колбы 3».
+    toNext: (percent: number, left: number, next: number) => `${percent}% · ещё ${formatNumber(left)} до ${lv.levelGenitive} ${next}`,
+    /** The hero's accessible name (FR-XP-007). */
+    heroLabel: (level: number, points: number, capacity: number, percent: number) =>
+      `${noun(level)}: ${formatNumber(points)} из ${formatNumber(capacity)}, ${percent}%`,
+    completedLabel: (count: number) => `Навык достигнут: ${levels(count)}`,
+    /** Accessible name of a skill card's level picture. */
+    cardLabel: (level: number, percent: number) => `${noun(level)}, ${percent}%`,
+    /** The milestone: «2 из 10 колб»; above 12 levels the card shows «7 / 20 колб». */
+    milestoneProgress: (done: number, target: number) => `${done} из ${target} ${levelsOf(target)}`,
+    milestoneCount: (done: number, target: number) => `${formatNumber(done)} / ${formatNumber(target)} ${levelsOf(target)}`,
+    completedAt: (date: string, count: number, points: number) => `Навык достигнут ${formatDate(date)} · ${levels(count)} · ${formatPoints(points)}`,
+    /** Where a mark sits, against its level's capacity as it is now. */
+    markPosition: (level: number, points: number, capacity: number) =>
+      `${noun(level)}, ${formatNumber(points)} из ${formatNumber(capacity)} ${plural(capacity, POINTS_OF)}`,
+    /** The history row of a mark. */
+    markHistory: (level: number, points: number) => `${noun(level)} · ${formatPoints(points)}`,
+    cancelled: (level: number, points: number, capacity: number) => `Отменено · ${state(level, points, capacity)}`,
+    completionMeta: (date: string, points: number, level: number, inLevel: number, capacity: number) =>
+      `${formatDate(date)} · +${formatNumber(points)} · ${state(level, inLevel, capacity)}`,
+    stepPreview: (perLevel: number, perMilestone: number) =>
+      `≈ ${perLevel} ${plural(perLevel, COMPLETIONS)} до ${lv.levelGenitive} 1 · веха через ≈ ${perMilestone}`,
+    /** The milestone target field: «Колб», «Поездок». */
+    formMilestoneLevels: lv.levelForms[2].charAt(0).toUpperCase() + lv.levelForms[2].slice(1),
+    formPreview: (target: number, capacities: string, points: number) => `Веха: ${levels(target)} · ${capacities} · всего ${formatPoints(points)}`,
+    /** «Английский · Пицца 3 · 17 сентября» — the fastest level of the records. */
+    record: (skillName: string, level: number, date: string) =>
+      `${skillName} · ${lv.levelNoun} ${level} · ${keepNumbers(formatDate(date))}`,
+  });
+}
+
+export type LevelCopy = ReturnType<typeof levelCopy>;

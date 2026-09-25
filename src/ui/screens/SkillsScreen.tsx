@@ -7,7 +7,6 @@ import type { LastWeekLine } from '../../services/recap';
 import { haptics } from '../../platform/haptics';
 import { EmptyState } from '../components/EmptyState';
 import { Badge } from '../components/Badge';
-import { Flask } from '../components/Flask';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { SkillCard } from '../components/SkillCard';
@@ -15,9 +14,12 @@ import { Skeleton } from '../components/Skeleton';
 import { Tile, TileNumber, TodayTile } from '../components/Tile';
 import { copy } from '../copy';
 import { useToday } from '../hooks/useToday';
+import type { ProgressThemeKey } from '../progress/contract';
+import { ProgressMini } from '../progress/ProgressHero';
+import { skillTheme } from '../progress/registry';
 
 // Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
-// dots, the flasks filled so far, the last achievement (or the next one), «Итоги недели» for
+// dots, the levels completed so far (all skills, whatever their themes: «Пройдено»), the last achievement (or the next one), «Итоги недели» for
 // the week before — then the skill cards. Facts only: no charts, no targets, nothing about
 // days without activity.
 
@@ -30,10 +32,22 @@ const SEGMENTS: { status: SkillStatus; param: string; label: string }[] = [
 ];
 
 /**
- * Filled flasks drawn in the «Заполнено» tile, at most (four fit the tile on a 320 px phone).
+ * Completed levels drawn in the «Пройдено» tile, at most (four fit the tile on a 320 px phone).
  * Past that, one fewer and «+N» for the rest: the picture always adds up to the number.
  */
 const TILE_FLASKS = 4;
+
+/**
+ * The themes (and numbers) of the first `count` completed levels, skill by skill in the list's order: each
+ * drawing in the tile is a real level of a real skill, in that skill's theme.
+ */
+function tileLevels(home: HomeView, count: number): { theme: ProgressThemeKey; level: number }[] {
+  const out: { theme: ProgressThemeKey; level: number }[] = [];
+  for (const { skill, progress } of home.summaries) {
+    for (let i = 0; i < progress.completedFlasks && out.length < count; i++) out.push({ theme: skillTheme(skill.theme), level: i + 1 });
+  }
+  return out;
+}
 
 export function SkillsScreen() {
   const today = useToday();
@@ -101,12 +115,12 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
     <>
       <div className="bento">
         <TodayTile points={home.todayPoints} week={home.weekActivity} today={today} to="/today" />
-        <Tile label={t.tileFlasks} className="tile--flasks">
-          <TileNumber value={home.totalFlasks} caption={t.flasksCaption(home.totalFlasks)} />
+        <Tile label={t.tileLevels} className="tile--flasks">
+          <TileNumber value={home.totalFlasks} caption={t.levelsCaption(home.totalFlasks)} />
           {home.totalFlasks > 0 && (
             <span className="tile-flasks" aria-hidden="true">
-              {Array.from({ length: home.totalFlasks > TILE_FLASKS ? TILE_FLASKS - 1 : home.totalFlasks }, (_, i) => (
-                <Flask key={i} size="mini" fill={1} state="complete" />
+              {tileLevels(home, home.totalFlasks > TILE_FLASKS ? TILE_FLASKS - 1 : home.totalFlasks).map(({ theme, level }, i) => (
+                <ProgressMini key={i} theme={theme} fill={1} state="complete" size={26} level={level} />
               ))}
               {home.totalFlasks > TILE_FLASKS && <span className="tile-flasks-more">+{formatNumber(home.totalFlasks - TILE_FLASKS + 1)}</span>}
             </span>

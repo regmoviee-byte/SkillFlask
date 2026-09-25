@@ -5,6 +5,7 @@ import { getSkillFormData } from '../../services/queries';
 import { archiveSkill } from '../../services/lifecycle';
 import { createSkill, deleteSkill, updateSkill, ValidationError, type SkillInput } from '../../services/skills';
 import type { SkillStatus } from '../../domain/types';
+import { DEFAULT_PROGRESS_THEME, isProgressTheme, isSkillColor, normalizeColor } from '../../domain/appearance';
 import { DEFAULT_MILESTONE_FLASKS } from '../../domain/milestone';
 import { DEFAULT_CAPACITY_BASE, DEFAULT_CAPACITY_INCREMENT, flaskCapacity, pointsToFill } from '../../domain/progression';
 import { formatNumber } from '../../lib/format';
@@ -16,6 +17,8 @@ import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { AppearancePicker, type Appearance } from '../progress/AppearancePicker';
+import { levelCopyOf, skillTheme } from '../progress/registry';
 
 const t = copy.skillForm;
 
@@ -29,6 +32,10 @@ interface FormState {
   capacityBase: string;
   capacityIncrement: string;
   manualCapacities: string;
+  /** The stored progress theme key (a key this build does not know is kept until another is picked). */
+  theme: string;
+  /** The colour key, '' for «Как в теме». */
+  color: string;
 }
 
 const emptyForm: FormState = {
@@ -41,6 +48,8 @@ const emptyForm: FormState = {
   capacityBase: String(DEFAULT_CAPACITY_BASE),
   capacityIncrement: String(DEFAULT_CAPACITY_INCREMENT),
   manualCapacities: '',
+  theme: DEFAULT_PROGRESS_THEME,
+  color: '',
 };
 
 function parseManual(value: string): number[] | null {
@@ -62,6 +71,10 @@ function toInput(form: FormState): SkillInput {
     capacityBase: Number(form.capacityBase || NaN),
     capacityIncrement: Number(form.capacityIncrement || NaN),
     manualCapacities: manual,
+    // A stored key this build does not know (a newer release's backup) is omitted, so the
+    // update keeps it until the owner picks another theme or colour.
+    theme: isProgressTheme(form.theme) ? form.theme : undefined,
+    color: form.color === '' ? null : isSkillColor(form.color) ? form.color : undefined,
   };
 }
 
@@ -107,6 +120,8 @@ export function SkillFormScreen() {
         capacityBase: String(existing.skill.capacityBase),
         capacityIncrement: String(existing.skill.capacityIncrement),
         manualCapacities: existing.manual.join(', '),
+        theme: typeof existing.skill.theme === 'string' ? existing.skill.theme : DEFAULT_PROGRESS_THEME,
+        color: typeof existing.skill.color === 'string' ? existing.skill.color : '',
       }
     : editing
       ? undefined
@@ -150,6 +165,10 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
     const value = e.target.value.replace(/\D/g, '');
     setEdits((prev) => ({ ...prev, [key]: value }));
   };
+  // The picker shows what this build draws; the level words follow the chosen theme.
+  const appearance: Appearance = { theme: skillTheme(form.theme), color: normalizeColor(form.color) };
+  const setAppearance = (next: Appearance) => setEdits((prev) => ({ ...prev, theme: next.theme, color: next.color ?? '' }));
+  const lc = levelCopyOf(appearance.theme);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -245,6 +264,13 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
           </div>
           <CapacityPreview form={form} />
 
+          <section className="form-section" aria-labelledby="appearance-title">
+            <h2 className="section-title" id="appearance-title">
+              {copy.appearance.title}
+            </h2>
+            <AppearancePicker value={appearance} onChange={setAppearance} disabled={busy} />
+          </section>
+
           {/* Defaults live in the form state, so the skill can be created with this closed. */}
           <details className="disclosure" open={skillId !== undefined}>
             <summary>
@@ -270,7 +296,7 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
                   />
                 </label>
                 <label className="field field-narrow">
-                  <span className="field-label">{t.milestoneFlasks}</span>
+                  <span className="field-label">{lc.formMilestoneLevels}</span>
                   <input className="input" inputMode="numeric" value={form.milestoneTarget} onChange={digits('milestoneTarget')} required />
                 </label>
               </div>
@@ -329,7 +355,7 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
   );
 }
 
-/** «Веха: 10 колб · 100 · 150 · … · 550 · всего 3 250 очков», always visible under the labels. */
+/** «Веха: 10 колб · 100 · 150 · … · 550 · всего 3 250 очков» (the chosen theme's noun), always visible under the labels. */
 function CapacityPreview({ form }: { form: FormState }) {
   const manual = parseManual(form.manualCapacities);
   const base = Number(form.capacityBase);
@@ -342,5 +368,5 @@ function CapacityPreview({ form }: { form: FormState }) {
   const capacities = Array.from({ length: shown }, (_, i) => formatNumber(flaskCapacity(i + 1, config)));
   if (target > shown) capacities.push('…', formatNumber(flaskCapacity(target, config)));
 
-  return <p className="preview">{t.preview(target, capacities.join(' · '), pointsToFill(target, config))}</p>;
+  return <p className="preview">{levelCopyOf(skillTheme(form.theme)).formPreview(target, capacities.join(' · '), pointsToFill(target, config))}</p>;
 }

@@ -1,0 +1,504 @@
+/* «Книжка» (themes/book.tsx). Natural colours for the paper, the ink and the shelf; the cover is
+   the one detail in the skill colour (--liquid-*); gold for a finished book. Only transform and
+   opacity move; the page-corner lift is the one decorative loop (.anim-decor).
+
+   The natural colours are literals here and color-mix() of tokens in the @supports blocks below
+   (a custom property never fails at parse time, so only @supports keeps the literal on an old
+   WebView, as in tokens.css). Paper stays light in every theme, a little dimmer in the dark. */
+
+.book {
+  --book-paper: #fbf6e9;
+  --book-paper-back: #eee4cb;
+  --book-edge: #eadfc4;
+  --book-edge-line: #c2ac80;
+  --book-ink: #b9ab8f;
+  --book-wood: #9e6a3c;
+  --book-wood-dark: #74481f;
+  --book-outline: rgba(28, 28, 30, 0.38);
+  /* Covers of the finished books: maroon, slate, ochre, olive, brown, linen. */
+  --book-t0: #9c3a2b;
+  --book-t1: #646b74;
+  --book-t2: #c8932a;
+  --book-t3: #577435;
+  --book-t4: #7c5127;
+  --book-t5: #e3bc98;
+  --book-title: #f3dfa4;
+}
+
+:root[data-theme='dark'] .book {
+  --book-paper: #e8dfc8;
+  --book-paper-back: #d3c7aa;
+  --book-edge: #d2c4a2;
+  --book-edge-line: #9f8a60;
+  --book-ink: #a39478;
+  --book-wood: #8f6036;
+  --book-wood-dark: #5f3c1b;
+  --book-outline: rgba(0, 0, 0, 0.5);
+  --book-t0: #8e3a2d;
+  --book-t1: #5d6570;
+  --book-t2: #a97a24;
+  --book-t3: #4f6a31;
+  --book-t4: #6f4a25;
+  --book-t5: #b99a7c;
+  --book-title: #d9c28a;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .book {
+    --book-paper: color-mix(in srgb, var(--gold-1) 12%, #fffdf8);
+    --book-paper-back: color-mix(in srgb, var(--gold-2) 22%, var(--book-paper));
+    --book-edge: color-mix(in srgb, var(--gold-2) 24%, var(--book-paper));
+    --book-edge-line: color-mix(in srgb, var(--bronze-2) 50%, var(--book-paper));
+    --book-ink: color-mix(in srgb, var(--bronze-2) 38%, var(--book-paper));
+    --book-wood: color-mix(in srgb, var(--bronze-2) 78%, var(--bronze-1));
+    --book-wood-dark: color-mix(in srgb, var(--bronze-2) 80%, black);
+    --book-outline: color-mix(in srgb, var(--color-fg) 38%, transparent);
+    --book-t0: color-mix(in srgb, color-mix(in srgb, var(--color-danger) 58%, var(--bronze-2)) 82%, black);
+    --book-t1: color-mix(in srgb, var(--silver-2) 70%, black);
+    --book-t2: color-mix(in srgb, var(--gold-2) 72%, var(--bronze-2));
+    --book-t3: color-mix(in srgb, color-mix(in srgb, var(--color-positive) 42%, var(--bronze-2)) 85%, black);
+    --book-t4: color-mix(in srgb, var(--bronze-2) 90%, black);
+    --book-t5: color-mix(in srgb, var(--bronze-1) 70%, var(--book-paper));
+    --book-title: color-mix(in srgb, var(--gold-1) 45%, var(--book-paper));
+  }
+
+  /* The dark literals above outrank the plain .book rule, so the mixes are repeated here. */
+  :root[data-theme='dark'] .book {
+    --book-paper: color-mix(in srgb, var(--gold-1) 16%, #ece6d8);
+    --book-paper-back: color-mix(in srgb, var(--gold-2) 26%, var(--book-paper));
+    --book-edge: color-mix(in srgb, var(--gold-2) 28%, var(--book-paper));
+    --book-edge-line: color-mix(in srgb, var(--bronze-2) 58%, var(--book-paper));
+    --book-ink: color-mix(in srgb, var(--bronze-2) 44%, var(--book-paper));
+    --book-wood: color-mix(in srgb, var(--bronze-2) 88%, var(--bronze-1));
+    --book-wood-dark: color-mix(in srgb, var(--bronze-2) 60%, black);
+    --book-outline: color-mix(in srgb, black 50%, transparent);
+    --book-t0: color-mix(in srgb, color-mix(in srgb, var(--color-danger) 50%, var(--bronze-2)) 70%, black);
+    --book-t1: color-mix(in srgb, var(--silver-2) 64%, black);
+    --book-t2: color-mix(in srgb, color-mix(in srgb, var(--gold-2) 72%, var(--bronze-2)) 82%, black);
+    --book-t3: color-mix(in srgb, color-mix(in srgb, var(--color-positive) 36%, var(--bronze-2)) 76%, black);
+    --book-t4: color-mix(in srgb, var(--bronze-2) 80%, black);
+    --book-t5: color-mix(in srgb, var(--bronze-1) 64%, var(--book-paper-back));
+    --book-title: color-mix(in srgb, var(--gold-1) 40%, var(--book-paper));
+  }
+}
+
+.book {
+  position: relative;
+  flex: none;
+}
+
+.book--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.book--mini {
+  display: block;
+  overflow: visible;
+}
+
+.book-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ---- Cover: the skill colour ---- */
+
+.book-cover {
+  fill: var(--liquid-mid);
+  stroke: var(--liquid-deep);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.book-board {
+  fill: var(--liquid-deep);
+}
+
+.book-mini-cover {
+  stroke-width: 1.2;
+}
+
+/* ---- Pages ---- */
+
+.book-page {
+  fill: var(--book-paper);
+  stroke: var(--book-outline);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.book-band {
+  fill: var(--book-edge);
+  stroke: var(--book-outline);
+  stroke-width: 1.4;
+}
+
+.book-edge-line {
+  fill: none;
+  stroke: var(--book-edge-line);
+  stroke-width: 1;
+}
+
+.book-ink {
+  fill: none;
+  stroke: var(--book-ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.book-mini-page {
+  stroke-width: 1;
+}
+
+.book-mini-line {
+  stroke-width: 0.8;
+}
+
+.book-mini-ink {
+  stroke-width: 1.6;
+}
+
+.book-gutter-from {
+  stop-color: var(--book-edge-line);
+  stop-opacity: 0;
+}
+
+.book-gutter-to {
+  stop-color: var(--book-edge-line);
+  stop-opacity: 0.55;
+}
+
+/* Each stack glides to its new height when points arrive (a page turns meanwhile). */
+.book-stack {
+  transition: transform var(--dur-hero) var(--ease-spring);
+}
+
+.book--scripted .book-stack,
+.book--mini .book-stack {
+  transition: none;
+}
+
+/* The idle lift of the top-right page corner. */
+.book-curl {
+  fill: var(--book-paper-back);
+  stroke: var(--book-edge-line);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: 100% 0;
+}
+
+.book-curl.anim-decor {
+  animation: book-curl 3.6s ease-in-out infinite alternate;
+}
+
+@keyframes book-curl {
+  from {
+    transform: scale(0.55);
+  }
+  to {
+    transform: scale(1.1);
+  }
+}
+
+/* ---- The level-up layers (book.tsx playLevelUp) ---- */
+
+.book-body {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+.book-half,
+.book-turn,
+.book-closed {
+  transform-box: view-box;
+  transform-origin: 80px 0;
+}
+
+.book-turn,
+.book-closed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.book-turn-shade {
+  fill: var(--book-edge-line);
+  opacity: 0;
+}
+
+.book-closed-hinge {
+  stroke: var(--liquid-deep);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.book-closed-plate {
+  fill: var(--book-paper);
+  opacity: 0.9;
+}
+
+.book-closed-title {
+  stroke: var(--book-ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* The closed book takes on its spine's colour as it flies to the shelf. */
+.book-closed-tint {
+  opacity: 0;
+}
+
+/* ---- The bookcase: a book per finished level, quieter than the open book ---- */
+
+.book-plank {
+  fill: var(--book-wood);
+}
+
+.book-bracket {
+  fill: var(--book-wood-dark);
+}
+
+/* The bookcase above the book: its sides and top, and a faint back behind everything. */
+.book-case-wood {
+  fill: var(--book-wood);
+  opacity: 0.6;
+}
+
+.book-case-back {
+  fill: var(--book-wood);
+  opacity: 0.07;
+}
+
+:root[data-theme='dark'] .book-case-wood {
+  opacity: 0.75;
+}
+
+:root[data-theme='dark'] .book-case-back {
+  opacity: 0.12;
+}
+
+.book-row--0 {
+  opacity: 0.9;
+}
+
+.book-row--1 {
+  opacity: 0.72;
+}
+
+.book-row--2 {
+  opacity: 0.6;
+}
+
+.book-row--3 {
+  opacity: 0.5;
+}
+
+:root[data-theme='dark'] .book-row--1 {
+  opacity: 0.82;
+}
+
+:root[data-theme='dark'] .book-row--2 {
+  opacity: 0.7;
+}
+
+:root[data-theme='dark'] .book-row--3 {
+  opacity: 0.6;
+}
+
+.book-tone-0 {
+  fill: var(--book-t0);
+}
+
+.book-tone-1 {
+  fill: var(--book-t1);
+}
+
+.book-tone-2 {
+  fill: var(--book-t2);
+}
+
+.book-tone-3 {
+  fill: var(--book-t3);
+}
+
+.book-tone-4 {
+  fill: var(--book-t4);
+}
+
+.book-tone-5 {
+  fill: var(--book-t5);
+}
+
+/* Every third or fourth book is in the skill colour: the reader's own. */
+.book-tone-6 {
+  fill: var(--liquid-mid);
+}
+
+.book-tone-7 {
+  fill: var(--liquid-deep);
+}
+
+.book-title {
+  fill: none;
+  stroke: var(--book-title);
+  opacity: 0.8;
+}
+
+.book-tone-5 + .book-title,
+.book-tone-2 + .book-title {
+  stroke: var(--book-wood-dark);
+  opacity: 0.55;
+}
+
+.book-end {
+  fill: var(--silver-2);
+}
+
+/* ---- Label under the book ---- */
+
+.book-label {
+  fill: var(--color-fg-secondary);
+  /* 12 px on screen: the hero draws 160 units in 140 px. */
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Finished: a closed golden book ---- */
+
+.book-gold {
+  transform-box: view-box;
+  transform-origin: 80px 110px;
+}
+
+.book-gold-from {
+  stop-color: var(--gold-1);
+}
+
+.book-gold-to {
+  stop-color: var(--gold-2);
+}
+
+.book-glow-from {
+  stop-color: var(--gold-1);
+  stop-opacity: 0.45;
+}
+
+.book-glow-to {
+  stop-color: var(--gold-1);
+  stop-opacity: 0;
+}
+
+.book-gold-cover {
+  stroke: var(--gold-3);
+  stroke-width: 1.5;
+}
+
+.book-mini-gold {
+  fill: var(--gold-1);
+  stroke-width: 1.2;
+}
+
+.book-gold-spine {
+  fill: var(--gold-3);
+  opacity: 0.85;
+}
+
+.book-gold-frame {
+  fill: none;
+  stroke: var(--gold-3);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.book-gold-star {
+  fill: var(--gold-3);
+}
+
+.book-gold-title {
+  stroke: var(--gold-3);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+/* The ribbon of a finished book keeps the skill colour. */
+.book-ribbon {
+  fill: var(--liquid-deep);
+}
+
+/* ---- Marks: bookmark ribbons on the fore-edge, captions to the right ---- */
+
+.book--hero.book--marked {
+  margin-right: 98px;
+}
+
+.book-mark {
+  cursor: pointer;
+}
+
+.book-mark-hit {
+  fill: transparent;
+}
+
+.book-mark-ribbon {
+  fill: var(--color-fg-secondary);
+  fill-opacity: 0.6;
+}
+
+/* A mark the reading has passed is in the skill colour; the ones ahead stay muted. */
+.book-mark--reached .book-mark-ribbon {
+  fill: var(--liquid-deep);
+  fill-opacity: 1;
+}
+
+.book-mark-caption {
+  position: absolute;
+  max-width: 96px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.book-mark-caption--reached {
+  color: var(--color-fg);
+}
+
+@media (max-width: 374px) {
+  .book--hero.book--marked {
+    margin-right: 82px;
+  }
+
+  .book-mark-caption {
+    max-width: 80px;
+  }
+}
+
+.book-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+html[data-motion='reduced'] .book-stack {
+  transition: none;
+}

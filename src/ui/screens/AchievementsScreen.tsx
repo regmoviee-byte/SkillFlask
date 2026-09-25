@@ -92,7 +92,7 @@ function Content({ view, filter, focus, onFilter, onOpen }: ContentProps) {
     <>
       <Summary view={view} onOpen={onOpen} />
 
-      <RecordsSection records={view.records} skillNames={view.skillNames} />
+      <RecordsSection records={view.records} skillNames={view.skillNames} skillThemes={view.skillThemes} />
 
       <div className="filter-chips" role="group" aria-label={t.filterLabel}>
         {FILTERS.map((f) => (

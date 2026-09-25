@@ -18,6 +18,7 @@ import { Sheet } from '../components/Sheet';
 import { Stepper } from '../components/Stepper';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { copyForSkill } from '../progress/registry';
 
 // «Выполнение»: opened from a history row. The note is editable for every completion (it is
 // not progress, decision 14.8); cancel and restore only while the skill is active (14.9).
@@ -137,7 +138,7 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
       const { after } = await cancelCompletion(completion.id);
       forgetUndo(completion.id);
       haptics.warning();
-      return copy.completion.cancelled(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity);
+      return copyForSkill(skill).cancelled(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity);
     });
   }
 
@@ -215,7 +216,7 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
       }
     >
       <p className="completion-meta hint">
-        {t.meta(completion.date, completion.pointsAwarded, progressAfter.currentFlask, progressAfter.pointsInCurrentFlask, progressAfter.currentCapacity)}
+        {copyForSkill(skill).completionMeta(completion.date, completion.pointsAwarded, progressAfter.currentFlask, progressAfter.pointsInCurrentFlask, progressAfter.currentCapacity)}
       </p>
       {cancelled && completion.cancelledAt && <p className="completion-meta hint">{t.cancelledAt(completion.cancelledAt)}</p>}
       {timed && <p className="completion-meta hint">{t.timedMeta(storedMinutes, completion.pointsSnapshot)}</p>}

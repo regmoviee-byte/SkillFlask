@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router';
 import type { AchievementState } from '../../domain/achievements/types';
 import type { Progress } from '../../domain/progression';
@@ -8,17 +9,19 @@ import type { MutationResult } from '../../services/completions';
 import { getSkillWithMilestone } from '../../services/queries';
 import { haptics } from '../../platform/haptics';
 import { logError } from '../../platform/errorLog';
-import type { FlaskHandle } from '../components/Flask';
 import { openSheetCount } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { copy } from '../copy';
+import { copy, type LevelCopy } from '../copy';
+import type { ProgressHeroHandle } from '../progress/contract';
+import { copyForSkill } from '../progress/registry';
 import { flyPoints, onScreen } from '../hooks/usePointsFly';
 import { AchievementCard, type AchievementCardContent } from './AchievementCard';
 import { MilestoneSheet } from './MilestoneSheet';
 import { levelUpPlace, orderCelebrations, type CelebrationEvent, type LevelUpPlay } from './orderCelebrations';
 import { TopCard, type TopCardContent } from './TopCard';
 
-// One place for reward moments. Screens that show a skill's flask register a stage; mutations
+// One place for reward moments. Screens that show a skill's hero (its progress theme — the
+// flask by default; «flask» below names that hero whatever it draws) register a stage; mutations
 // hold that stage before they write (so the live query cannot move the flask first) and hand
 // the service result over. Then, in order: the points fly into the glass, the flask plays its
 // level-up (or, for a write made away from it, the pill on the hero it returns to; or a TopCard
@@ -30,14 +33,30 @@ import { TopCard, type TopCardContent } from './TopCard';
 // arrive through onAchievementsEarned.
 // Never an overlay, never confetti; nothing plays unless this session wrote something.
 
+export type FlaskHandle = ProgressHeroHandle;
+
+/** The hero's props while a level-up plays: the level being filled after the write, at `toFill`. */
+export interface HeroLevelUp {
+  level: number;
+  fill: number;
+}
+
 export interface CelebrationStage {
   flask(): FlaskHandle | null;
+  /**
+   * What the hero draws during a level-up: the new level together with the new fill (toFill),
+   * committed synchronously (flushSync) before the choreography starts, as the theme contract
+   * asks; null hands both back to the progress on display.
+   */
+  levelUp(hero: HeroLevelUp | null): void;
+  /** The progress on display now (frozen while a celebration holds it). */
+  displayed(): Progress | undefined;
   /** Freeze the displayed progress at what is on screen now (nested holds are counted). */
   hold(): void;
   release(): void;
   /** Update the frozen progress, e.g. the flask number at the overflow beat. */
   show(progress: Progress): void;
-  /** Pill «Колба N» above the rim and the aria-live «Колба N заполнена». */
+  /** Pill «Колба N» above the rim and the aria-live «Колба N заполнена» (in the skill's theme). */
   announce(filled: number, newFlask: number): void;
 }
 
@@ -55,6 +74,9 @@ export interface CelebrateContext {
   skillName?: string;
   /** Progress after the write, shown at the overflow beat of a level-up. */
   after?: Progress;
+  /** The skill's stored theme and colour, for the TopCard (celebrateResult reads them). */
+  theme?: unknown;
+  color?: unknown;
   /**
    * The caller navigates right after the write («Задним числом» goes back): play once the
    * route has changed, so the milestone sheet's history entry lands on the new screen.
@@ -240,7 +262,11 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playLevelUp = useCallback(async (play: LevelUpPlay, ctx: CelebrateContext, stage: CelebrationStage | undefined, flask: FlaskHandle | null, withTopCard: boolean) => {
+    let beat = false;
     const overflow = () => {
+      // Once per write: a theme may mark the beat of every level of a multi-level play.
+      if (beat) return;
+      beat = true;
       haptics.levelUp(play.levels);
       if (ctx.after) stage?.show(ctx.after);
       if (stage) pillUntil.current = performance.now() + PILL_MS;
@@ -250,7 +276,17 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     const hero = flask ? null : await heroStage(ctx.skillId, patient);
     const place = levelUpPlace({ flask: !flask ? 'none' : onScreen(flask.element()) ? 'on-screen' : 'off-screen', heroOnScreen: hero !== null });
     if (place === 'flask') {
-      await flask!.playLevelUp({ fromFill: play.fromFill, toFill: play.toFill, levels: play.levels, onOverflow: overflow });
+      // Overlapping writes: the stage may still show an earlier snapshot of the same level below
+      // `fromFill`; the choreography starts from what is on screen instead of jumping up to it.
+      const onDisplay = stage?.displayed();
+      const fromFill = onDisplay && onDisplay.currentFlask === play.newFlask - play.levels ? Math.min(play.fromFill, onDisplay.fill) : play.fromFill;
+      // The contract's rule: the new level and toFill are rendered first, then the theme plays.
+      stage?.levelUp({ level: play.newFlask, fill: play.toFill });
+      try {
+        await flask!.playLevelUp({ fromFill, toFill: play.toFill, levels: play.levels, onOverflow: overflow });
+      } finally {
+        stage?.levelUp(null);
+      }
       return;
     }
     haptics.levelUp(play.levels);
@@ -266,7 +302,14 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     if (withTopCard) {
       topKey.current += 1;
       topCardShown.current = true;
-      setTopCard({ key: topKey.current, fromFill: play.fromFill, flask: play.newFlask - 1, skillName: ctx.skillName ?? '' });
+      setTopCard({
+        key: topKey.current,
+        fromFill: play.fromFill,
+        flask: play.newFlask - 1,
+        skillName: ctx.skillName ?? '',
+        theme: ctx.theme,
+        color: ctx.color,
+      });
     }
   }, [heroStage]);
 
@@ -329,16 +372,18 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
       const navigated = ctx.afterNavigation ? nextNavigation() : null;
       let events: CelebrationEvent[] = [];
       let skillName = ctx.skillName;
+      let appearance: Pick<CelebrateContext, 'theme' | 'color'> = {};
       try {
         const loaded = await getSkillWithMilestone(ctx.skillId);
         if (loaded) {
           events = orderCelebrations(result, loaded.skill, loaded.milestone);
           skillName ??= loaded.skill.name;
+          appearance = { theme: loaded.skill.theme, color: loaded.skill.color };
         }
       } catch (error) {
         logError(error, 'celebrate');
       }
-      await enqueue(events, { after: result.after, ...ctx, skillName }, navigated);
+      await enqueue(events, { after: result.after, ...appearance, ...ctx, skillName }, navigated);
     },
     [enqueue, nextNavigation],
   );
@@ -386,16 +431,27 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
 const PILL_MS = 2000;
 
 /**
- * A screen that shows the skill's flask: registers the stage and returns what to render —
- * the progress on display (frozen while a celebration holds it), the flask ref, the level
- * pill and the aria-live announcement.
+ * A screen that shows the skill's hero: registers the stage and returns what to render —
+ * the progress on display (frozen while a celebration holds it), the hero ref, the level and
+ * fill the hero draws during a level-up, the level pill and the aria-live announcement. `levels` names
+ * the levels in the skill's theme (the flask's when omitted).
  */
 export function useCelebrationStage(
   skillId: string | undefined,
   live: Progress | undefined,
-): { shown: Progress | undefined; flaskRef: RefObject<FlaskHandle | null>; pill: { key: number; flask: number } | null; announcement: string } {
+  levels?: LevelCopy,
+): {
+  shown: Progress | undefined;
+  flaskRef: RefObject<FlaskHandle | null>;
+  hero: HeroLevelUp | null;
+  pill: { key: number; flask: number } | null;
+  announcement: string;
+} {
   const { register } = useCelebrations();
   const flaskRef = useRef<FlaskHandle | null>(null);
+  const levelsRef = useRef(levels ?? copyForSkill({}));
+  levelsRef.current = levels ?? copyForSkill({});
+  const [hero, setHero] = useState<HeroLevelUp | null>(null);
   const [held, setHeld] = useState<Progress | null>(null);
   const [pill, setPill] = useState<{ key: number; flask: number } | null>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -416,12 +472,18 @@ export function useCelebrationStage(
         holds.current = Math.max(0, holds.current - 1);
         if (holds.current === 0) setHeld(null);
       },
+      levelUp: (next) => {
+        // Committed before the choreography reads it (a no-op when nothing changes). Without
+        // flushSync React would batch it and the theme would get its new props mid-flight.
+        flushSync(() => setHero(next));
+      },
+      displayed: () => shownRef.current,
       show: (progress) => {
         if (holds.current > 0) setHeld(progress);
       },
       announce: (filled, newFlask) => {
         setPill({ key: Date.now(), flask: newFlask });
-        setAnnouncement(copy.skill.flaskFilledLive(filled));
+        setAnnouncement(levelsRef.current.completed(filled));
         window.clearTimeout(pillTimer.current);
         pillTimer.current = window.setTimeout(() => setPill(null), PILL_MS);
       },
@@ -433,5 +495,5 @@ export function useCelebrationStage(
     };
   }, [skillId, register]);
 
-  return { shown, flaskRef, pill, announcement };
+  return { shown, flaskRef, hero, pill, announcement };
 }

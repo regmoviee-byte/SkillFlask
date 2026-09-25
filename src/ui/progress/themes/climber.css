@@ -1,0 +1,370 @@
+/* «Альпинист» (themes/climber.tsx). Natural colours for the mountain, the meadow and the
+   climber; the skill colour (--liquid-*) only on his backpack and the summit flag; gold when
+   the skill is complete. Every natural colour is a literal first and a color-mix() with the
+   surface inside @supports, so it settles into light, dark and any Telegram theme. Only
+   transform, opacity and stroke-dashoffset move; the drifting cloud is the one idle loop. */
+
+.climber,
+.climber-mini {
+  --cl-rock: #a4aab3;
+  --cl-rock-shade: #7a828e;
+  --cl-crag: #6c737e;
+  --cl-snow: #f6f9fc;
+  --cl-snow-shade: #d6e0ec;
+  --cl-meadow: #74b35a;
+  --cl-far: #cbd6e2;
+  --cl-cloud: #dfe8f1;
+  --cl-path: #f8f0dd;
+  --cl-path-edge: #7c5b34;
+  --cl-jacket: #e2573b;
+  --cl-trousers: #3b4250;
+  --cl-skin: #f1c29c;
+  --cl-pole: #4b515c;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .climber,
+  .climber-mini {
+    --cl-rock: color-mix(in srgb, #9aa1ab 88%, var(--color-bg-elevated));
+    --cl-rock-shade: color-mix(in srgb, #717a86 90%, var(--color-bg-elevated));
+    --cl-crag: color-mix(in srgb, #5f6772 90%, var(--color-bg-elevated));
+    --cl-snow: color-mix(in srgb, #f7fafd 92%, var(--color-bg-elevated));
+    --cl-snow-shade: color-mix(in srgb, #cfdae8 92%, var(--color-bg-elevated));
+    --cl-meadow: color-mix(in srgb, #6aad4f 88%, var(--color-bg-elevated));
+    --cl-far: color-mix(in srgb, #93a9c1 42%, var(--color-bg-elevated));
+    --cl-cloud: color-mix(in srgb, #c9d8e8 58%, var(--color-bg-elevated));
+    --cl-path: color-mix(in srgb, #f8f0dd 94%, var(--color-bg-elevated));
+    --cl-path-edge: color-mix(in srgb, #7c5b34 90%, var(--color-bg-elevated));
+    --cl-jacket: color-mix(in srgb, #e2573b 94%, var(--color-bg-elevated));
+    --cl-trousers: color-mix(in srgb, #3b4250 94%, var(--color-bg-elevated));
+    --cl-skin: color-mix(in srgb, #f1c29c 94%, var(--color-bg-elevated));
+    --cl-pole: color-mix(in srgb, #4b515c 90%, var(--color-bg-elevated));
+  }
+}
+
+.climber {
+  position: relative;
+  flex: none;
+}
+
+.climber--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.climber-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.climber-mini {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+/* ---- The mountain ---- */
+
+.cl-rock {
+  fill: var(--cl-rock);
+}
+
+.cl-rock-shade {
+  fill: var(--cl-rock-shade);
+}
+
+.cl-crags {
+  fill: none;
+  stroke: var(--cl-crag);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+}
+
+.cl-snow {
+  fill: var(--cl-snow);
+}
+
+.cl-snow-shade {
+  fill: var(--cl-snow-shade);
+}
+
+.cl-outline {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.3;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.climber-mini .cl-outline {
+  stroke-width: 1;
+  stroke-opacity: 0.35;
+}
+
+.cl-meadow {
+  fill: var(--cl-meadow);
+}
+
+.cl-far {
+  fill: var(--cl-far);
+}
+
+.cl-cloud {
+  fill: var(--cl-cloud);
+}
+
+.cl-cloud.anim-decor {
+  animation: cl-cloud 9s ease-in-out infinite alternate;
+}
+
+@keyframes cl-cloud {
+  from {
+    transform: translateX(-10px);
+  }
+  to {
+    transform: translateX(8px);
+  }
+}
+
+/* The level-up sinks the scene and grows the next mountain from its foot. */
+.cl-world {
+  transform-origin: 66px 252px;
+}
+
+/* The conquered peak, shrinking back onto the far ridge during the reset. */
+.cl-ghost {
+  transform-origin: 0 0;
+}
+
+/* ---- The trail: the route ahead dashed, the trodden part a light path with a dark edge ---- */
+
+.cl-route {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.5;
+  stroke-width: 1.6;
+  stroke-dasharray: 3 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.climber-mini .cl-route {
+  stroke-width: 1;
+  stroke-dasharray: 1.6 1.8;
+  stroke-opacity: 0.45;
+}
+
+.cl-trodden-edge,
+.cl-trodden {
+  fill: none;
+  stroke-linejoin: round;
+  /* Butt caps: an empty trail shows nothing at the foot. */
+  stroke-linecap: butt;
+}
+
+.cl-trodden-edge {
+  stroke: var(--cl-path-edge);
+  stroke-width: 4.6;
+}
+
+.cl-trodden {
+  stroke: var(--cl-path);
+  stroke-width: 2.4;
+}
+
+.climber-mini .cl-trodden {
+  stroke: var(--cl-path);
+  stroke-width: 2;
+}
+
+/* ---- The climber ---- */
+
+.cl-legs {
+  fill: none;
+  stroke: var(--cl-trousers);
+  stroke-width: 2.8;
+  stroke-linecap: round;
+}
+
+.cl-pack {
+  fill: var(--liquid-mid);
+  stroke: var(--liquid-deep);
+  stroke-width: 0.9;
+}
+
+.cl-pack-roll {
+  fill: var(--liquid-light);
+  stroke: var(--liquid-deep);
+  stroke-width: 0.7;
+}
+
+.cl-strap {
+  fill: none;
+  stroke: var(--liquid-deep);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.cl-jacket {
+  fill: var(--cl-jacket);
+}
+
+.cl-skin {
+  fill: var(--cl-skin);
+}
+
+.cl-hat {
+  fill: var(--cl-trousers);
+}
+
+.cl-sleeve {
+  fill: none;
+  stroke: var(--cl-jacket);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.cl-pole {
+  fill: none;
+  stroke: var(--cl-pole);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+/* ---- The summit flag: the skill colour, gold when the skill is complete ---- */
+
+.cl-flag-pole {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.cl-flag-cloth {
+  fill: var(--liquid-mid);
+  stroke: var(--liquid-deep);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.climber--complete .cl-flag-cloth {
+  fill: var(--gold-1);
+  stroke: var(--gold-3);
+}
+
+.climber-mini .cl-flag-pole {
+  stroke-width: 1.2;
+}
+
+.cl-halo-in {
+  stop-color: var(--gold-1);
+  stop-opacity: 0.55;
+}
+
+.cl-halo-out {
+  stop-color: var(--gold-1);
+  stop-opacity: 0;
+}
+
+.cl-dot {
+  fill: var(--liquid-mid);
+  stroke: var(--color-bg-elevated);
+  stroke-width: 1.2;
+}
+
+/* ---- The capacity scale on the right edge: an altimeter ---- */
+
+.cl-tick line {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.cl-tick text {
+  fill: var(--color-fg-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Marks («засечки»): a pennant on the trail, a dotted leader, a caption to the right ---- */
+
+.climber--hero.climber--marked {
+  /* Captions start at 119 px and take up to 96 px: a full 12-character caption fits. */
+  margin-right: 78px;
+}
+
+.cl-mark,
+.cl-mark-hit {
+  cursor: pointer;
+}
+
+.cl-mark-hit {
+  fill: transparent;
+}
+
+.cl-mark-pole {
+  stroke: var(--color-fg);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.cl-mark-flag {
+  fill: var(--color-fg);
+  stroke: var(--color-bg-elevated);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.cl-mark-leader {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 1 2.5;
+  stroke-linecap: round;
+}
+
+.cl-mark-caption {
+  position: absolute;
+  max-width: 96px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .climber--hero.climber--marked {
+    margin-right: 70px;
+  }
+
+  /* 11 px, like the scale's numbers, so 12 characters still fit on a 320 px phone. */
+  .cl-mark-caption {
+    max-width: 88px;
+    font-size: 11px;
+  }
+}
+
+.cl-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}

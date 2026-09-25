@@ -130,7 +130,7 @@ await shot('skill-form');
 // Milestone and capacities sit in the «Дополнительно» disclosure.
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('3');
-await page.getByLabel('Первая колба').fill('10');
+await page.getByLabel('Первый уровень', { exact: true }).fill('10');
 await page.getByLabel('Прирост за уровень', { exact: true }).fill('5');
 await settled();
 await shot('skill-form-advanced');
@@ -402,19 +402,18 @@ await page.goto(`${baseUrl}#/skills`);
 await page.locator('.skill-card.is-completed').waitFor();
 if (await filterGroup().count()) errors.push('a filter with a single segment is offered');
 await shot('skills-completed');
-// The completed card's ring: gold with the check in its centre (the ring's own rotated svg
-// must not take the icon along).
-const ringCheck = await page.locator('.skill-card.is-completed .ring').first().evaluate((ring) => {
-  const r = ring.getBoundingClientRect();
-  const icon = ring.querySelector('.ring-label svg')?.getBoundingClientRect();
-  if (!icon) return 'no check icon';
+// The completed card's mini: the theme's gold, the check centred on the level chip.
+const ringCheck = await page.locator('.skill-card.is-completed .skill-card-mini').first().evaluate((mini) => {
+  if (!mini.querySelector('.is-complete, [class*="--complete"]')) return 'the mini is not drawn complete';
+  const chip = mini.querySelector('.skill-card-level');
+  const icon = chip?.querySelector('svg')?.getBoundingClientRect();
+  if (!chip || !icon) return 'no check icon';
+  const r = chip.getBoundingClientRect();
   const dx = icon.left + icon.width / 2 - (r.left + r.width / 2);
   const dy = icon.top + icon.height / 2 - (r.top + r.height / 2);
-  return Math.abs(dx) > 2 || Math.abs(dy) > 2 || getComputedStyle(ring.querySelector('.ring-label svg')).transform !== 'none'
-    ? `the check is off the ring's centre by ${dx.toFixed(1)}, ${dy.toFixed(1)}`
-    : null;
+  return Math.abs(dx) > 2 || Math.abs(dy) > 2 ? `the check is off the chip's centre by ${dx.toFixed(1)}, ${dy.toFixed(1)}` : null;
 });
-if (ringCheck) errors.push(`completed card ring: ${ringCheck}`);
+if (ringCheck) errors.push(`completed card mini: ${ringCheck}`);
 await page.locator('.skill-card.is-completed').first().screenshot({ path: `${outDir}/${String(++n).padStart(2, '0')}-skill-card-completed.png` });
 
 // A second skill whose single 25-point action fills flasks 1 (10) and 2 (15) at once:
@@ -423,12 +422,12 @@ await page.getByRole('link', { name: 'Новый навык' }).first().click();
 await page.getByLabel('Название', { exact: true }).fill('Тренировки');
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('5');
-await page.getByLabel('Первая колба').fill('10');
+await page.getByLabel('Первый уровень', { exact: true }).fill('10');
 await page.getByLabel('Прирост за уровень', { exact: true }).fill('5');
 await page.getByRole('button', { name: 'Создать навык' }).click();
 await page.getByRole('link', { name: 'Тренировка · 20' }).click();
 await page.getByLabel('Очки за выполнение').fill('25');
-await page.getByText('≈ 1 выполнение до первой колбы', { exact: false }).waitFor();
+await page.getByText(/≈ 1 выполнение до\s+колбы\s+1/).waitFor();
 await settled();
 await shot('step-form-chip');
 await page.getByRole('button', { name: 'Создать действие' }).click();
@@ -452,7 +451,11 @@ await shot('backdate');
 await page.getByRole('button', { name: 'Отметить выполненным' }).click();
 await page.locator('.level-pill', { hasText: /Колба \d+/ }).waitFor();
 await shot('backdate-levelup');
-if (await page.locator('.top-card:not(.ach-card)').count()) errors.push('a backdated fill covered the hero flask with the level-up card');
+// Watched for as long as the celebration could take, not at one instant.
+await page
+  .locator('.top-card:not(.ach-card)')
+  .waitFor({ state: 'attached', timeout: 1500 })
+  .then(() => errors.push('a backdated fill covered the hero flask with the level-up card'), () => {});
 await page.locator('.level-pill').waitFor({ state: 'detached' });
 
 // Edit form (through the ⋯ menu): the delete confirmation is a danger sheet; cancel it.
@@ -945,7 +948,7 @@ await page.goto(`${baseUrl}#/skills/new`);
 await page.getByLabel('Название', { exact: true }).fill('Очень длинное название навыка для проверки');
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('3');
-await page.getByLabel('Первая колба').fill('5000');
+await page.getByLabel('Первый уровень', { exact: true }).fill('5000');
 await page.getByRole('button', { name: 'Создать навык' }).click();
 // A fresh start: the first skill earns «Первый навык»; a tap on its card opens it on the tab.
 await achCard('Первый навык').waitFor();
@@ -1005,7 +1008,7 @@ await bigContext.close();
 
   await page.getByLabel('Название', { exact: true }).fill('Английский');
   await page.getByText('Дополнительно').click();
-  await page.getByLabel('Первая колба').fill('20');
+  await page.getByLabel('Первый уровень', { exact: true }).fill('20');
   await page.getByLabel('Прирост за уровень', { exact: true }).fill('10');
   await page.getByRole('button', { name: 'Создать навык' }).click();
   await page.getByRole('button', { name: 'Создать первое действие' }).click();
@@ -1030,9 +1033,13 @@ await bigContext.close();
     await page.waitForTimeout(1000);
     await page.getByRole('button', { name: minutes ? /^Записать / : 'Отметить выполненным' }).click();
     await page.waitForURL((url) => url.hash === `#${skillPath}`);
-    // Let a filled flask be told on the hero before the next write.
+    // Let a filled flask be told on the hero before the next write; the level-up card must
+    // never cover it meanwhile (watched for 1.5 s, not at one instant).
     await page.locator('.hero').waitFor();
-    await page.waitForTimeout(600);
+    await page
+      .locator('.top-card:not(.ach-card)')
+      .waitFor({ state: 'attached', timeout: 1500 })
+      .then(() => errors.push(`a backdated fill (${date}) covered the hero flask with the level-up card`), () => {});
   };
   /** Scrolls a section's heading to just under the sticky header. */
   const scrollToHeading = (locator) =>
@@ -1079,7 +1086,7 @@ await bigContext.close();
   await page.goto(`${baseUrl}#/achievements`);
   const records = page.getByRole('heading', { name: 'Рекорды' });
   await records.waitFor();
-  for (const title of ['Лучший день', 'Лучшая неделя', 'Больше всего действий за день', 'Лучшая серия', 'Самое длинное занятие', 'Самая быстрая колба']) {
+  for (const title of ['Лучший день', 'Лучшая неделя', 'Больше всего действий за день', 'Лучшая серия', 'Самое длинное занятие', 'Самый быстрый уровень']) {
     if (!(await page.locator('.records .info-row', { hasText: title }).count())) errors.push(`the records miss «${title}»`);
   }
   await scrollToHeading(records);
@@ -1108,6 +1115,182 @@ await bigContext.close();
   await recapTile.waitFor();
   await shot('home-recap-320');
   await recapContext.close();
+}
+
+// «Образы прогресса и цвет» (package 11), in their own context: the picker in the skill form,
+// every theme this build ships on the hero at 60 % (switched through the ⋯ sheet), each one's
+// level-up caught mid-flight, the rack of minis, the home card, and the skill in a colour.
+{
+  const themeContext = await browser.newContext(contextOptions);
+  await setupContext(themeContext);
+  page = await openPage(themeContext);
+  // The hero at the top of the page, clear of the sticky header (taller with Telegram's safe
+  // areas): a clip of the page scrolled to the top rather than an element shot, which may
+  // leave the hero under the header after a tap scrolled the page.
+  const shotHero = async (name) => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const box = await page.locator('.hero').boundingBox();
+    await page.screenshot({ path: `${outDir}/${String(++n).padStart(2, '0')}-${name}.png`, clip: box });
+  };
+  // The picker's colour swatches just above the bottom bar (the form's footer).
+  const swatchesInView = () =>
+    page.evaluate(() => {
+      const groups = document.querySelectorAll('.appearance .appearance-group');
+      const colors = groups[groups.length - 1].getBoundingClientRect();
+      const footer = document.querySelector('.screen-footer');
+      const bottom = footer ? footer.getBoundingClientRect().top : window.innerHeight;
+      window.scrollBy(0, colors.bottom + 12 - bottom);
+    });
+  const cardsGone = async () => {
+    await page.locator('.ach-card').waitFor({ state: 'detached', timeout: 15000 });
+    await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  };
+  await page.goto(`${baseUrl}#/skills/new`);
+  await page.getByLabel('Название', { exact: true }).fill('Гитара');
+  const themeGroup = page.getByRole('group', { name: 'Образ' });
+  const colorGroup = page.getByRole('group', { name: 'Цвет' });
+  await themeGroup.waitFor();
+  if (!(await themeGroup.getByRole('radio', { name: /^Колба\./ }).isChecked())) errors.push('a new skill does not start as a flask');
+  if (!(await colorGroup.getByRole('radio', { name: 'Как в теме' }).isChecked())) errors.push('a new skill does not start «Как в теме»');
+  const themes = await themeGroup.getByRole('radio').evaluateAll((els) => els.map((el) => ({ key: el.value, name: el.getAttribute('aria-label').split('.')[0] })));
+  if (themes[0]?.key !== 'flask') errors.push(`the picker does not start with the flask: ${JSON.stringify(themes)}`);
+  const themeCard = (scope, key) => scope.locator('label.theme-card').filter({ has: page.locator(`input[value="${key}"]`) });
+  const swatch = (scope, name) => scope.locator('label.swatch').filter({ has: page.getByRole('radio', { name, exact: true }) });
+  await settled(); // the focused name field scrolls itself into view first
+  await page.getByRole('heading', { name: 'Оформление' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  await page.waitForTimeout(1200); // the cards' minis fill to 60 % once
+  await shot('appearance-picker');
+  await swatchesInView();
+  await page.waitForTimeout(200);
+  await shot('appearance-picker-colors');
+  const last = themes[themes.length - 1];
+  await themeCard(themeGroup, last.key).click();
+  await swatch(colorGroup, 'Коралловый').click();
+  await page.getByRole('img', { name: `Предпросмотр: ${last.name}, коралловый` }).waitFor();
+  await page.waitForTimeout(700);
+  await shot('appearance-picker-chosen');
+  const pickerOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (pickerOverflow > 0) errors.push(`the skill form scrolls sideways by ${pickerOverflow}px with the picker`);
+  // Capacity 20 for every level and a milestone of 16, so the rack keeps its minis and the
+  // milestone (with its banner, which pushes the actions below the fold) stays ahead of the
+  // thirteen level-ups.
+  await page.getByText('Дополнительно').click();
+  await page.locator('.field-narrow input').fill('16');
+  await page.getByLabel('Первый уровень', { exact: true }).fill('20');
+  await page.getByLabel('Прирост за уровень', { exact: true }).fill('0');
+  await page.getByRole('button', { name: 'Создать навык' }).click();
+  await page.getByRole('button', { name: 'Создать первое действие' }).click();
+  await page.getByLabel('Название', { exact: true }).fill('Гаммы');
+  await page.getByLabel('Очки за выполнение').fill('12');
+  await page.getByRole('button', { name: 'Создать действие' }).click();
+  await page.getByRole('link', { name: 'Новое действие' }).click();
+  await page.getByLabel('Название', { exact: true }).fill('Концерт');
+  await page.getByLabel('Очки за выполнение').fill('20');
+  await page.getByRole('button', { name: 'Создать действие' }).click();
+  // 12 of 20: every theme is shown at 60 %; «Концерт» (20) then completes exactly one level.
+  await page.getByRole('button', { name: /^Отметить: Гаммы/ }).click();
+  await cardsGone();
+
+  for (const theme of themes) {
+    await cardsGone();
+    await skillMenu('Оформление');
+    const sheet = page.locator('.appearance-sheet');
+    await sheet.getByRole('radio', { name: /^Колба\./ }).waitFor();
+    if (theme === themes[0]) {
+      await page.waitForTimeout(1200);
+      await shot('appearance-sheet');
+    }
+    if (!(await sheet.getByRole('radio', { name: new RegExp(`^${theme.name}\\.`) }).isChecked())) {
+      await themeCard(sheet, theme.key).click();
+      await page.getByRole('status').getByText('Оформление сохранено').waitFor();
+    }
+    await page.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    // The theme's chunk, then its idle state.
+    await page.locator('.hero .progress-hero-placeholder').waitFor({ state: 'detached' });
+    await page.waitForTimeout(700);
+    await shotHero(`theme-${theme.key}`);
+    // A level-up mid-flight (the points fly for about half a second, then the choreography
+    // starts: caught about 0.4 s into it), then its end.
+    await cardsGone();
+    // The pill «<Noun> N» shows for 2 s at the beat; a slow screenshot may outlast it, so the
+    // page notes that it appeared.
+    await page.evaluate(() => {
+      window.__pillSeen = false;
+      const seen = new MutationObserver(() => {
+        if (!document.querySelector('.level-pill')) return;
+        window.__pillSeen = true;
+        seen.disconnect();
+      });
+      seen.observe(document.body, { childList: true, subtree: true });
+    });
+    await page.getByRole('button', { name: /^Отметить: Концерт/ }).click();
+    await page.waitForTimeout(950);
+    await shotHero(`theme-${theme.key}-levelup`);
+    await page.waitForFunction(() => window.__pillSeen, null, { timeout: 10000 });
+    await page.locator('.level-pill').waitFor({ state: 'detached', timeout: 5000 });
+    if (await page.locator('.top-card:not(.ach-card)').count()) errors.push(`the «${theme.name}» level-up went to the card, not the hero`);
+    // Should a milestone be reached after all: its sheet, decided later.
+    const later = page.getByRole('button', { name: 'Решу позже' });
+    if (await later.count()) {
+      await later.click();
+      await later.waitFor({ state: 'detached' });
+    }
+  }
+
+  // The last theme again, in coral: the rack of minis, the history in its nouns, the home card.
+  await cardsGone();
+  await skillMenu('Оформление');
+  const sheet = page.locator('.appearance-sheet');
+  await sheet.getByRole('radio', { name: /^Колба\./ }).waitFor();
+  if (!(await sheet.locator(`input[value="${last.key}"]`).isChecked())) {
+    await themeCard(sheet, last.key).click();
+    await page.getByRole('status').getByText('Оформление сохранено').waitFor();
+  }
+  // Created in coral: the sheet shows it chosen.
+  if (!(await sheet.getByRole('radio', { name: 'Коралловый', exact: true }).isChecked())) errors.push('the ⋯ sheet does not show the skill’s colour');
+  await page.waitForTimeout(600);
+  await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('[data-liquid-color="coral"] .hero').waitFor();
+  await page.waitForTimeout(700);
+  await shot('theme-colored');
+  // The rack draws minis for a milestone of up to 12 levels: moved to 12 (reached, quietly by
+  // the edit), it shows the thirteen filled levels' minis in the theme and colour.
+  await skillMenu('Изменить навык');
+  await page.getByLabel('Название', { exact: true }).waitFor();
+  // The edit form may open «Дополнительно» already (the skill has non-default capacities).
+  if (!(await page.locator('.field-narrow input').isVisible())) await page.getByText('Дополнительно').click();
+  await page.locator('.field-narrow input').fill('12');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.locator('.rack').waitFor();
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  await page.locator('.rack').evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  await page.waitForTimeout(600);
+  await shot('theme-rack');
+  await page.getByRole('heading', { name: 'История' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  // «<Noun> N <completed>» in the skill's theme on the history's level separators.
+  await page.locator('.timeline-chip.tone-accent').first().waitFor();
+  await page.waitForTimeout(300);
+  await shot('theme-history');
+  await page.goto(`${baseUrl}#/skills`);
+  await page.locator('.skill-card[data-liquid-color="coral"]').waitFor();
+  await page.waitForTimeout(700);
+  await shot('theme-home');
+  // A 320 px phone: the picker's grid and swatches still fit.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto(`${baseUrl}#/skills/new`);
+  await page.getByRole('heading', { name: 'Оформление' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  await page.waitForTimeout(1200);
+  const narrowPicker = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (narrowPicker > 0) errors.push(`the picker scrolls sideways by ${narrowPicker}px at 320 px`);
+  await shot('appearance-picker-320');
+  await swatchesInView();
+  await page.waitForTimeout(200);
+  await shot('appearance-picker-320-colors');
+  await themeContext.close();
 }
 
 const tgContext = await browser.newContext(contextOptions);

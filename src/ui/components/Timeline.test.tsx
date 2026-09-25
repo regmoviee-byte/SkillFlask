@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryEvent } from '../../domain/events';
 import { computeProgress } from '../../domain/progression';
 import type { Mark, StepCompletion } from '../../domain/types';
+import { levelCopyOf } from '../progress/registry';
 import { Timeline } from './Timeline';
 
 afterEach(cleanup);
@@ -38,7 +39,7 @@ const mark: Mark = {
 function renderTimeline(events: HistoryEvent[]) {
   const onOpen = vi.fn();
   const onOpenMark = vi.fn();
-  render(<Timeline events={events} today={date} hasMore={false} onMore={() => {}} onOpen={onOpen} onOpenMark={onOpenMark} />);
+  render(<Timeline events={events} levels={levelCopyOf('flask')} today={date} hasMore={false} onMore={() => {}} onOpen={onOpen} onOpenMark={onOpenMark} />);
   return { onOpen, onOpenMark };
 }
 

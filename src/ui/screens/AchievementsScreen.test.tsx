@@ -103,7 +103,7 @@ describe('AchievementsScreen', () => {
     expect(screen.getAllByRole('article')).toHaveLength(8);
     expect(document.querySelectorAll('.ach-tile')).toHaveLength(10);
     // A locked tile tells how to get it; a tile on its way shows the progress.
-    expect(screen.getByRole('button', { name: 'Первая колба: впереди' }).textContent).toContain('Наберите очки на целую колбу в любом…');
+    expect(screen.getByRole('button', { name: 'Первый уровень: впереди' }).textContent).toContain('Наберите очки на целый уровень');
     expect(screen.getByRole('button', { name: 'Большой день: 1 из 5' }).textContent).toContain('1 из 5');
   });
 

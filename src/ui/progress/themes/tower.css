@@ -1,0 +1,531 @@
+/* «Башня» (themes/tower.tsx). The blocks carry the skill colour (--liquid-*); the ground,
+   flag, rope, bird and the city behind are natural colours mixed from tokens, with literal
+   fallbacks for WebViews without color-mix(). Only transform and opacity move; the idle loop
+   (.anim-decor) is either the bird or the waving flag, never both, plus the city's lamps: by
+   day (the light theme) a few warm ones among panes that reflect the sky, at night (the dark
+   theme, the purple Telegram one included) many, switching on and off slowly. */
+
+.tower,
+.tower-mini {
+  --tower-earth: #b08a66;
+  --tower-grass: #58b04a;
+  --tower-pebble: #8c8478;
+  --tower-flag: #e4543c;
+  --tower-metal: #7e8794;
+  --tower-rope: #8a8a90;
+  --tower-gold-top: #fbe6a6;
+  --tower-ghost: rgba(60, 60, 67, 0.28);
+  /* The city by day: pale walls, panes that reflect the sky, a few soft lamps. */
+  --tower-bld-near: #b9cddb;
+  --tower-bld-far: #dbe5eb;
+  --tower-pane-near: #cdebff;
+  --tower-pane-far: #def1fd;
+  --tower-haze: #e6ebef;
+  --tower-lamp: #f8d97f;
+  --tower-lamp-pale: #fae3a3;
+}
+
+/* The city at night: dark walls tinted by the skill colour, warm windows. */
+html[data-theme='dark'] .tower,
+html[data-theme='dark'] .tower-mini {
+  --tower-bld-near: #2e5168;
+  --tower-bld-far: #283742;
+  --tower-pane-near: #263947;
+  --tower-pane-far: #232c34;
+  --tower-haze: #242b32;
+  --tower-lamp: #d6b457;
+  --tower-lamp-pale: #fae3a7;
+  --tower-moon: #f5edd4;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .tower,
+  .tower-mini {
+    --tower-earth: color-mix(in srgb, var(--bronze-2) 62%, var(--color-bg-elevated));
+    --tower-grass: color-mix(in srgb, var(--color-positive) 80%, var(--bronze-2));
+    --tower-pebble: color-mix(in srgb, var(--silver-2) 70%, var(--bronze-2));
+    --tower-flag: color-mix(in srgb, var(--color-danger) 85%, var(--gold-2));
+    --tower-metal: color-mix(in srgb, var(--silver-2) 75%, var(--color-fg));
+    --tower-rope: color-mix(in srgb, var(--color-fg) 45%, var(--color-bg-elevated));
+    --tower-gold-top: color-mix(in srgb, var(--gold-1) 50%, white);
+    --tower-ghost: color-mix(in srgb, var(--color-fg) 30%, transparent);
+    --tower-bld-near: color-mix(in srgb, var(--liquid-deep) 22%, color-mix(in srgb, var(--color-fg) 14%, var(--color-bg-elevated)));
+    --tower-bld-far: color-mix(in srgb, var(--liquid-deep) 10%, color-mix(in srgb, var(--color-fg) 7%, var(--color-bg-elevated)));
+    --tower-pane-near: color-mix(in srgb, var(--liquid-light) 45%, var(--color-bg-elevated));
+    --tower-pane-far: color-mix(in srgb, var(--liquid-light) 30%, var(--color-bg-elevated));
+    --tower-haze: color-mix(in srgb, var(--liquid-deep) 6%, color-mix(in srgb, var(--color-fg) 5%, var(--color-bg-elevated)));
+    --tower-lamp: color-mix(in srgb, var(--gold-1) 80%, var(--color-bg-elevated));
+    --tower-lamp-pale: color-mix(in srgb, var(--gold-1) 55%, var(--color-bg-elevated));
+  }
+
+  html[data-theme='dark'] .tower,
+  html[data-theme='dark'] .tower-mini {
+    --tower-bld-near: color-mix(in srgb, var(--liquid-deep) 34%, color-mix(in srgb, var(--color-fg) 9%, var(--color-bg-elevated)));
+    --tower-bld-far: color-mix(in srgb, var(--liquid-deep) 15%, color-mix(in srgb, var(--color-fg) 5%, var(--color-bg-elevated)));
+    --tower-pane-near: color-mix(in srgb, var(--tower-bld-near) 55%, var(--color-bg-elevated));
+    --tower-pane-far: color-mix(in srgb, var(--tower-bld-far) 60%, var(--color-bg-elevated));
+    --tower-haze: color-mix(in srgb, var(--liquid-deep) 7%, color-mix(in srgb, var(--color-fg) 3.5%, var(--color-bg-elevated)));
+    --tower-lamp: color-mix(in srgb, var(--gold-1) 85%, var(--color-bg-elevated));
+    --tower-lamp-pale: color-mix(in srgb, var(--gold-1) 55%, var(--color-fg));
+    --tower-moon: color-mix(in srgb, var(--gold-1) 22%, var(--color-fg));
+  }
+}
+
+.tower {
+  position: relative;
+  flex: none;
+}
+
+.tower--hero {
+  width: 140px;
+  height: 228px;
+}
+
+.tower-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The crane rope comes from above the box, and the bird flies in from its sides. */
+  overflow: hidden;
+}
+
+/* ---- The city: finished towers of past levels, behind the ground line ---- */
+
+.tower-bld--near .tower-bld-wall {
+  fill: var(--tower-bld-near);
+}
+
+.tower-bld--far .tower-bld-wall,
+.tower-mini-city .tower-bld-wall {
+  fill: var(--tower-bld-far);
+}
+
+.tower-bld--near .tower-bld-panes {
+  fill: var(--tower-pane-near);
+}
+
+.tower-bld--far .tower-bld-panes {
+  fill: var(--tower-pane-far);
+}
+
+.tower-haze-wall {
+  fill: var(--tower-haze);
+}
+
+.tower-haze-lights {
+  fill: var(--tower-lamp);
+  opacity: 0.45;
+}
+
+.tower-lamp,
+.tower-mini-lamps {
+  fill: var(--tower-lamp);
+}
+
+.tower-lamp--pale {
+  fill: var(--tower-lamp-pale);
+}
+
+.tower-bld--far .tower-lamp {
+  fill-opacity: 0.72;
+}
+
+.tower-beacon {
+  fill: var(--tower-flag);
+}
+
+/* A live lamp's state when nothing moves (reduced motion): a steady mix of lit and dark flats. */
+.tower-lamp--rest-off {
+  opacity: 0;
+}
+
+/* Slow and calm: each flat has its own period (32–72 s) and phase (inline style); a lamp fades
+   over 3.5 % of it (1.1–2.5 s). The keyframe spans match LAMP_PATTERNS and LAMP_FADE in tower.tsx. */
+.tower-lamp.anim-decor {
+  animation: tower-lamp-0 60s ease-in-out infinite;
+}
+
+.tower-lamp--p1.anim-decor {
+  animation-name: tower-lamp-1;
+}
+
+.tower-lamp--p2.anim-decor {
+  animation-name: tower-lamp-2;
+}
+
+@keyframes tower-lamp-0 {
+  0%,
+  58.5%,
+  100% {
+    opacity: 0;
+  }
+  3.5%,
+  55% {
+    opacity: 1;
+  }
+}
+
+@keyframes tower-lamp-1 {
+  0%,
+  31.5%,
+  100% {
+    opacity: 0;
+  }
+  3.5%,
+  28% {
+    opacity: 1;
+  }
+}
+
+@keyframes tower-lamp-2 {
+  0%,
+  23.5%,
+  48%,
+  75.5%,
+  100% {
+    opacity: 0;
+  }
+  3.5%,
+  20%,
+  51.5%,
+  72% {
+    opacity: 1;
+  }
+}
+
+/* By day only a few flats have a lamp on, softer; no far lights, no beacons, sky in the panes. */
+html:not([data-theme='dark']) .tower-lamp:not(.tower-lamp--day),
+html:not([data-theme='dark']) .tower-haze-lights,
+html:not([data-theme='dark']) .tower-beacon {
+  display: none;
+}
+
+html:not([data-theme='dark']) .tower-lamp {
+  fill-opacity: 0.8;
+}
+
+html:not([data-theme='dark']) .tower-mini-lamps {
+  fill: var(--tower-pane-near);
+}
+
+/* No birds at night; the moon and the stars come out instead. */
+html[data-theme='dark'] .tower-bird,
+html:not([data-theme='dark']) .tower-sky {
+  display: none;
+}
+
+.tower-moon {
+  fill: var(--tower-moon);
+}
+
+.tower-stars {
+  fill: var(--color-fg);
+  opacity: 0.4;
+}
+
+/* ---- Ground ---- */
+
+.tower-earth {
+  fill: var(--tower-earth);
+}
+
+.tower-grass {
+  fill: var(--tower-grass);
+}
+
+.tower-pebble {
+  fill: var(--tower-pebble);
+}
+
+/* ---- Blocks: two shades of the skill colour, a lighter top edge, an inset face ---- */
+
+.tower-block--a .tower-block-body,
+.tower-mini-block.tower-block--a {
+  fill: var(--liquid-mid);
+}
+
+.tower-block--b .tower-block-body,
+.tower-mini-block.tower-block--b {
+  fill: var(--liquid-deep);
+}
+
+.tower-block-top {
+  fill: var(--liquid-light);
+  fill-opacity: 0.85;
+}
+
+.tower-block-face {
+  fill: none;
+  stroke: var(--liquid-light);
+  stroke-opacity: 0.5;
+  stroke-width: 1.5;
+}
+
+.tower--complete .tower-block--a .tower-block-body,
+.tower--complete .tower-mini-block.tower-block--a {
+  fill: var(--gold-1);
+}
+
+.tower--complete .tower-block--b .tower-block-body,
+.tower--complete .tower-mini-block.tower-block--b {
+  fill: var(--gold-2);
+}
+
+.tower--complete .tower-block-top {
+  fill: var(--tower-gold-top);
+}
+
+.tower--complete .tower-block-face {
+  stroke: var(--tower-gold-top);
+}
+
+/* The slot where the next block goes. */
+.tower-ghost {
+  fill: none;
+  stroke: var(--tower-ghost);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+/* ---- The stack and the crane block ---- */
+
+.tower-stack {
+  /* Squash at the beat and the move into the city pivot on the tower's foot. */
+  transform-origin: 80px 238px;
+}
+
+.tower-next {
+  transition: transform var(--dur-hero) var(--ease-spring);
+}
+
+.tower--scripted .tower-next {
+  transition: none;
+}
+
+.tower-rope {
+  stroke: var(--tower-rope);
+  stroke-width: 1.5;
+}
+
+.tower-sling {
+  fill: none;
+  stroke: var(--tower-metal);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.tower-hook {
+  fill: var(--color-bg-elevated);
+  stroke: var(--tower-metal);
+  stroke-width: 2;
+}
+
+/* ---- Flag ---- */
+
+.tower-flag-pole {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.tower-flag-pole line {
+  stroke: var(--color-fg-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tower-flag-knob {
+  fill: var(--gold-2);
+}
+
+.tower-flag-cloth {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+}
+
+.tower-flag-cloth path {
+  fill: var(--tower-flag);
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+}
+
+.tower-flag-cloth path.anim-decor {
+  animation: tower-flag-wave 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes tower-flag-wave {
+  from {
+    transform: skewY(-5deg) scaleX(0.94);
+  }
+  to {
+    transform: skewY(5deg) scaleX(1.04);
+  }
+}
+
+.tower-sparks circle {
+  fill: var(--gold-1);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* ---- Idle bird: glides across the sky now and then (off-box when not animated) ---- */
+
+.tower-bird path {
+  fill: none;
+  stroke: var(--color-fg-secondary);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tower-bird.anim-decor {
+  animation: tower-bird 16s linear infinite;
+}
+
+/* Waits off the box for half the cycle, then glides across in about seven seconds. */
+@keyframes tower-bird {
+  0%,
+  50% {
+    transform: translate(0, 40px);
+  }
+  95%,
+  100% {
+    transform: translate(230px, 26px);
+  }
+}
+
+/* ---- Capacity ticks ---- */
+
+.tower-tick line {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tower-tick text {
+  fill: var(--color-fg-tertiary);
+  /* 11px on screen: the hero draws 160 units in 140px. */
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The same marks, in the mask that cuts them out of the city: a clear halo on any background. */
+.tower-tick--knock line {
+  stroke: #000;
+  stroke-width: 5px;
+}
+
+.tower-tick--knock text {
+  fill: #000;
+  stroke: #000;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+/* ---- Marks: pennants on the right side, captions beside the box ---- */
+
+.tower--hero.tower--marked {
+  margin-right: 62px;
+}
+
+.tower-mark {
+  cursor: pointer;
+}
+
+.tower-mark-hit {
+  fill: transparent;
+}
+
+.tower-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tower-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}
+
+.tower-mark-caption {
+  position: absolute;
+  max-width: 90px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Clear over the lamps of the city behind. */
+  text-shadow: 0 0 2px var(--color-bg-elevated), 0 0 4px var(--color-bg-elevated);
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .tower--hero.tower--marked {
+    margin-right: 52px;
+  }
+
+  .tower-mark-caption {
+    max-width: 78px;
+  }
+}
+
+.tower-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---- Mini ---- */
+
+.tower-mini {
+  display: block;
+  flex: none;
+}
+
+.tower-mini-slot {
+  fill: var(--color-bg-sunken);
+  stroke: var(--tower-ghost);
+  stroke-width: 0.8;
+}
+
+.tower-mini-pole {
+  stroke: var(--color-fg-secondary);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.tower-mini-flag {
+  fill: var(--tower-flag);
+}
+
+html[data-motion='reduced'] .tower-next {
+  transition: none;
+}
+
+/* Marks hang on a thin mast beside the tower, so a mark above the blocks is not left in the air. */
+.tower-mark-mast {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.22;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.tower-mark-knot {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}

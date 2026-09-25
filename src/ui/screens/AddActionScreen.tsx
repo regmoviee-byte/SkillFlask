@@ -9,6 +9,7 @@ import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
 import { announceCompletion, errorMessage } from '../completionFeedback';
 import { EmptyState } from '../components/EmptyState';
+import { copyForSkill } from '../progress/registry';
 import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { Stepper } from '../components/Stepper';
@@ -59,7 +60,7 @@ export function AddActionScreen() {
       // The toast carries «Отменить» and outlives the navigation back to the skill; a filled
       // flask is told on the skill's hero once it is back on screen (the pill «Колба N»), by the
       // TopCard when it is not (the flask itself is not on this screen).
-      announceCompletion(result, selectedStep.name, showToast);
+      announceCompletion(result, selectedStep.name, showToast, copyForSkill(details?.skill ?? {}));
       void celebrateResult(result, { skillId, flaskRef: null, afterNavigation: true });
       goBack();
     } catch (e) {

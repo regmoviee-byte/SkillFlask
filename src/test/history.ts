@@ -49,6 +49,8 @@ export class History {
       completedAt: null,
       archivedAt: null,
       originSkillId: null,
+      theme: 'flask',
+      color: null,
       createdAt: at,
       updatedAt: at,
     });

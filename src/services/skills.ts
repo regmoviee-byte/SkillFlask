@@ -1,6 +1,7 @@
 import { db } from '../data/db';
 import { newId } from '../lib/ids';
 import { nowIso } from '../lib/dates';
+import { DEFAULT_PROGRESS_THEME, isProgressTheme, isSkillColor, type ProgressThemeKey, type SkillColor } from '../domain/appearance';
 import { canCompleteSkill } from '../domain/milestone';
 import type { Milestone, Skill } from '../domain/types';
 import { publishEarned } from './achievements';
@@ -35,6 +36,21 @@ export interface SkillInput {
   capacityIncrement: number;
   /** Optional manual capacities of flasks 1..n; the formula continues after them. */
   manualCapacities: number[];
+  /** The progress theme; the flask for a new skill, unchanged on an update when omitted. */
+  theme?: ProgressThemeKey;
+  /** The skill colour, null «Как в теме»; null for a new skill, unchanged on an update when omitted. */
+  color?: SkillColor | null;
+}
+
+export interface SkillAppearance {
+  theme: ProgressThemeKey;
+  color: SkillColor | null;
+}
+
+function validateAppearance<T extends Partial<SkillAppearance>>(input: T): T {
+  if (input.theme !== undefined && !isProgressTheme(input.theme)) throw new ValidationError('Неизвестный образ прогресса');
+  if (input.color !== undefined && input.color !== null && !isSkillColor(input.color)) throw new ValidationError('Неизвестный цвет');
+  return input;
 }
 
 function validateSkillInput(input: SkillInput): SkillInput {
@@ -44,10 +60,11 @@ function validateSkillInput(input: SkillInput): SkillInput {
     startLabel: input.startLabel.trim(),
     targetLabel: input.targetLabel.trim(),
     milestoneName: requireName(input.milestoneName, 'название вехи'),
-    milestoneTarget: requireInt(input.milestoneTarget, 1, 'Количество колб до вехи'),
-    capacityBase: requireInt(input.capacityBase, 1, 'Ёмкость первой колбы'),
+    milestoneTarget: requireInt(input.milestoneTarget, 1, 'Количество уровней до вехи'),
+    capacityBase: requireInt(input.capacityBase, 1, 'Ёмкость первого уровня'),
     capacityIncrement: requireInt(input.capacityIncrement, 0, 'Прирост ёмкости'),
-    manualCapacities: input.manualCapacities.map((c) => requireInt(c, 1, 'Ёмкость колбы')),
+    manualCapacities: input.manualCapacities.map((c) => requireInt(c, 1, 'Ёмкость уровня')),
+    ...validateAppearance({ theme: input.theme, color: input.color }),
   };
 }
 
@@ -73,6 +90,8 @@ export async function createSkill(raw: SkillInput): Promise<string> {
     completedAt: null,
     archivedAt: null,
     originSkillId: null,
+    theme: input.theme ?? DEFAULT_PROGRESS_THEME,
+    color: input.color ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -112,6 +131,8 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
       targetLabel: input.targetLabel,
       capacityBase: input.capacityBase,
       capacityIncrement: input.capacityIncrement,
+      ...(input.theme !== undefined && { theme: input.theme }),
+      ...(input.color !== undefined && { color: input.color }),
       updatedAt: now,
     };
     await db.skills.update(id, patch);
@@ -131,6 +152,22 @@ export async function updateSkill(id: string, raw: SkillInput): Promise<void> {
   });
   await afterWrite();
   publishEarned(earned);
+}
+
+/**
+ * «Оформление» from the skill's ⋯ menu: the theme and the colour, saved at once. Presentation
+ * only — no journal row, nothing to re-evaluate; the backup picks the change up (afterWrite).
+ * Like every setting of the skill, only while it is active (an archived or completed skill is
+ * read-only, decision 14.9).
+ */
+export async function setSkillAppearance(id: string, appearance: Partial<SkillAppearance>): Promise<void> {
+  // An omitted field stays as stored (a theme key of a newer release survives a colour change).
+  const { theme, color } = validateAppearance(appearance);
+  await db.transaction('rw', db.skills, async () => {
+    requireActiveSkill(await requireSkill(id));
+    await db.skills.update(id, { ...(theme !== undefined && { theme }), ...(color !== undefined && { color }), updatedAt: nowIso() });
+  });
+  await afterWrite();
 }
 
 /**

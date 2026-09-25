@@ -34,6 +34,9 @@ jobs:
           TZ: America/Sao_Paulo
       - run: npm run build
       - run: npm run check-bundle
+      # The Vite manifest is only for check-bundle; it is not published with the app.
+      - name: Drop the build manifest
+        run: rm -rf dist/.vite
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

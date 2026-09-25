@@ -11,6 +11,7 @@ import { CoachChip } from '../components/CoachChip';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
 import { Ring } from '../components/Ring';
+import { colorScope } from '../progress/registry';
 import { Screen } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { BUSY_TAIL_MS, StepRow } from '../components/StepRow';
@@ -305,7 +306,8 @@ function SkillGroup({ group: { summary, steps }, order, date, coach, onResult }:
   const sorted = [...steps].sort((a, b) => (order.get(a.step.id) ?? 0) - (order.get(b.step.id) ?? 0));
   const headingId = `today-${skill.id}`;
   return (
-    <section className="today-group" aria-labelledby={headingId}>
+    // The group is painted in the skill's colour: its ring and the step rows' accents.
+    <section className="today-group" aria-labelledby={headingId} {...colorScope(skill.color)}>
       <div className="today-group-head">
         <Link to={`/skills/${skill.id}`} className="today-group-skill">
           <Ring value={progress.fill} size={32} stroke={3}>

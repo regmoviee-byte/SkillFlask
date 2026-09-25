@@ -10,7 +10,7 @@ import { errorMessage } from '../completionFeedback';
 import { Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { copy } from '../copy';
+import { copy, type LevelCopy } from '../copy';
 
 // «Засечка»: one sheet for a new mark, for looking at one and for editing it. The position
 // (flask, points) is shown but never edited: it is a fact of the moment the mark was written.
@@ -22,6 +22,8 @@ export type MarkSheetTarget = { kind: 'new' } | { kind: 'mark'; id: string };
 interface MarkSheetProps {
   target: MarkSheetTarget | null;
   skillId: string;
+  /** The skill's level strings, for «Колба 2, 12 из 21 очка» in its theme's nouns. */
+  levels: LevelCopy;
   /** The skill's marks (the live query), to look the target up in. */
   marks: readonly Mark[];
   /** Capacity of a flask number as it is now. */
@@ -31,7 +33,7 @@ interface MarkSheetProps {
   onClose(): void;
 }
 
-export function MarkSheet({ target, skillId, marks, capacityOf, editable, onClose }: MarkSheetProps) {
+export function MarkSheet({ target, skillId, levels, marks, capacityOf, editable, onClose }: MarkSheetProps) {
   // Keep the last target on screen while the sheet animates out.
   const [shown, setShown] = useState<MarkSheetTarget | null>(target);
   if (target !== null && target !== shown) setShown(target);
@@ -48,6 +50,7 @@ export function MarkSheet({ target, skillId, marks, capacityOf, editable, onClos
       key={key}
       open={target !== null && !missing}
       skillId={skillId}
+      levels={levels}
       mark={mark}
       capacity={mark ? capacityOf(mark.flaskNumber) : undefined}
       editable={editable}
@@ -59,6 +62,7 @@ export function MarkSheet({ target, skillId, marks, capacityOf, editable, onClos
 interface ViewProps {
   open: boolean;
   skillId: string;
+  levels: LevelCopy;
   mark: Mark | undefined;
   capacity: number | undefined;
   editable: boolean;
@@ -67,7 +71,7 @@ interface ViewProps {
 
 type Draft = { title: string; description: string; date: string };
 
-function MarkSheetView({ open, skillId, mark, capacity, editable, onClose }: ViewProps) {
+function MarkSheetView({ open, skillId, levels, mark, capacity, editable, onClose }: ViewProps) {
   const t = copy.marks;
   const { showToast } = useToast();
   const closeRef = useRef<() => void>(() => {});
@@ -195,12 +199,12 @@ function MarkSheetView({ open, skillId, mark, capacity, editable, onClose }: Vie
             <Icon name="pennant" size={18} />
             <span>{formatDate(mark.date)}</span>
           </p>
-          {capacity !== undefined && <p className="mark-view-position">{t.position(mark.flaskNumber, mark.pointsInFlask, capacity)}</p>}
+          {capacity !== undefined && <p className="mark-view-position">{levels.markPosition(mark.flaskNumber, mark.pointsInFlask, capacity)}</p>}
           {mark.description && <p className="mark-view-description">{mark.description}</p>}
         </div>
       ) : (
         <form ref={formRef} className="form mark-form" onSubmit={save} noValidate>
-          {mark && capacity !== undefined && <p className="hint mark-form-position">{t.position(mark.flaskNumber, mark.pointsInFlask, capacity)}</p>}
+          {mark && capacity !== undefined && <p className="hint mark-form-position">{levels.markPosition(mark.flaskNumber, mark.pointsInFlask, capacity)}</p>}
           <div className="field">
             <label className="field-label" htmlFor={titleId}>
               {t.name}

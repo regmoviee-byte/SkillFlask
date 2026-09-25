@@ -22,6 +22,7 @@ import { getSkillDetails, listSkillSummaries } from '../services/queries';
 import { getSetting, setSetting } from '../services/settings';
 import { completeSkill, continueAfterMilestone, createSkill, deleteSkill, updateSkill, type SkillInput } from '../services/skills';
 import { createStep, setStepActive, updateStep } from '../services/steps';
+import { setSkillAppearance } from '../services/skills';
 import { createMark, deleteMark, updateMark } from '../services/marks';
 import { addDays, localDate } from '../lib/dates';
 
@@ -81,7 +82,7 @@ describe('export → wipe → import', () => {
     expect(await db.transactions.count()).toBe(0);
 
     // Through text, as a file or a pasted copy would arrive.
-    expect(file.schemaVersion).toBe(3);
+    expect(file.schemaVersion).toBe(4);
     expect(file.tables.marks).toHaveLength(1);
     const stats = await importBackup(parseBackupText(JSON.stringify(file)));
     expect(stats).toMatchObject({ skills: 2, completions: 3 });
@@ -170,7 +171,7 @@ describe('older files', () => {
     expect(step.pointsPerMinute).toBeNull();
     expect(step.scheduleFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect((file.tables.completions[0] as Record<string, unknown>).cancelledAt).toBeNull();
-    expect((file.tables.skills[0] as Record<string, unknown>).originSkillId).toBeNull();
+    expect(file.tables.skills[0]).toMatchObject({ originSkillId: null, theme: 'flask', color: null });
     // The fixture object itself is untouched.
     expect(Object.keys(fixture.tables.steps[0])).not.toContain('scheduleFrom');
 
@@ -197,11 +198,72 @@ describe('schema-v2 files', () => {
     expect(await verifyJournal()).toEqual([]);
   });
 
-  it('are told apart from a damaged v3 file, which must have the table', async () => {
+  it('are told apart from a damaged v4 file, which must have the table', async () => {
     await seed();
     const file = clone(await exportBackup()) as BackupFile;
     delete (file.tables as Record<string, unknown>).marks;
     expect(() => migrateBackup(file)).toThrow('Файл повреждён: tables.marks');
+  });
+});
+
+describe('schema-v3 files and the appearance', () => {
+  it('import a v3 file with the flask and «Как в теме» for every skill', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    // What package 10 wrote: schemaVersion 3, skills without theme and colour.
+    file.schemaVersion = 3;
+    for (const skill of file.tables.skills as Record<string, unknown>[]) {
+      delete skill.theme;
+      delete skill.color;
+    }
+    const migrated = migrateBackup(file);
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+    expect((migrated.tables.skills as Record<string, unknown>[]).map((s) => [s.theme, s.color])).toEqual([
+      ['flask', null],
+      ['flask', null],
+    ]);
+    await importBackup(migrated);
+    expect((await db.skills.toArray()).map((s) => [s.theme, s.color])).toEqual([
+      ['flask', null],
+      ['flask', null],
+    ]);
+    expect(await verifyJournal()).toEqual([]);
+  });
+
+  it('round-trips a v4 file: theme and colour come back as they were', async () => {
+    const [english, sport] = await seed();
+    await setSkillAppearance(english, { theme: 'pizza', color: 'coral' });
+    await setSkillAppearance(sport, { theme: 'rocket', color: null });
+    const file = await exportBackup();
+    await wipeAllData();
+    await importBackup(parseBackupText(JSON.stringify(file)));
+    expect(await db.skills.get(english)).toMatchObject({ theme: 'pizza', color: 'coral' });
+    expect(await db.skills.get(sport)).toMatchObject({ theme: 'rocket', color: null });
+  });
+
+  it('accepts a theme or colour key this build does not know (a newer release’s) and keeps it', async () => {
+    const [english] = await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    const row = (file.tables.skills as Record<string, unknown>[]).find((s) => s.id === english)!;
+    Object.assign(row, { theme: 'comet', color: 'ultramarine' });
+    await importBackup(migrateBackup(file));
+    // Stored as is; the UI reads it as the flask and «Как в теме» (domain/appearance.ts).
+    expect(await db.skills.get(english)).toMatchObject({ theme: 'comet', color: 'ultramarine' });
+  });
+
+  it('rejects an appearance that is not a key', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    const reject = (field: string, value: unknown) => {
+      const copy = clone(file);
+      (copy.tables.skills as Record<string, unknown>[])[0]![field] = value;
+      return () => migrateBackup(copy);
+    };
+    expect(reject('theme', null)).toThrow('Файл повреждён: skills[0].theme');
+    expect(reject('theme', '')).toThrow('Файл повреждён: skills[0].theme');
+    expect(reject('theme', 'x'.repeat(40))).toThrow('Файл повреждён: skills[0].theme');
+    expect(reject('color', 42)).toThrow('Файл повреждён: skills[0].color');
+    expect(reject('color', null)).not.toThrow();
   });
 });
 

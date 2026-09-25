@@ -1,0 +1,630 @@
+/* The flower theme (progress/themes/flower.tsx). Only transform, opacity and stroke-dashoffset
+   move; the decorative loops (.anim-decor: the lowest leaf's sway, the butterfly over the garden)
+   stop under html.paused and reduced motion.
+
+   Colour (README rule 3): the plants, the pot, the soil, the garden and its furniture keep their
+   natural colours, mixed from tokens (greens from --color-positive, --bronze-2 and --silver-*,
+   the terracotta pot from --bronze-1, --gold-3 and --bronze-2, earth from --bronze-2, white
+   petals from --silver-1, a poppy red from --color-danger and --gold-2). About every other
+   species (.fsp--skill) wears the skill colour (--liquid-*) on its petals; a completed skill's
+   current flower blooms golden (--gold-*). The garden sits back in contrast: its rows fade with
+   depth. Literal fallbacks sit in the plain rules; the color-mix() versions only where they
+   parse (see tokens.css for why not in one rule). */
+
+.flower {
+  position: relative;
+  flex: none;
+  --flower-green: #45ae4a;
+  --flower-green-deep: #25863c;
+  --flower-green-light: #a9d96a;
+  --flower-sage: #7fa68a;
+  --flower-blue-green: #5ea77e;
+  --flower-pot: #c07a4c;
+  --flower-pot-rim: #cf8a5a;
+  --flower-pot-edge: #8f5530;
+  --flower-soil: #5b3b1f;
+  --flower-seed: #b27a47;
+  --flower-white: #fdfbf4;
+  --flower-white-shade: #e7e9ee;
+  --flower-white-edge: #a4abb6;
+  --flower-cream: #fdf1d2;
+  --flower-red: #e24a2c;
+  --flower-red-deep: #a8321e;
+  --flower-pink: #f07f94;
+  --flower-pink-deep: #d35d73;
+  --flower-brown: #6f4a24;
+  --flower-brown-dark: #4a3016;
+  --flower-ink: #2a1c10;
+  --flower-grass: #d7eed0;
+  --flower-grass-far: #e4f1dc;
+  --flower-leaf-dark: #33924a;
+  --flower-wood: #d8b48c;
+  --flower-stone: #cfd2d8;
+  --flower-can: #8fb0c4;
+  /* Petal roles (overridden per species below). */
+  --fa: var(--flower-white);
+  --fb: var(--flower-white-shade);
+  --fc: var(--gold-2);
+  --fd: var(--gold-1);
+  --fe: var(--flower-white-edge);
+  --fk: var(--flower-ink);
+  --fx: var(--flower-brown);
+}
+
+:root[data-theme='dark'] .flower {
+  --flower-white-edge: #7d8591;
+  --flower-grass: #243726;
+  --flower-grass-far: #1f2c21;
+  --flower-wood: #7a5d40;
+  --flower-stone: #4a4d53;
+  --flower-can: #5d7d91;
+}
+
+@supports (color: color-mix(in oklch, red, blue)) {
+  .flower,
+  :root[data-theme='dark'] .flower {
+    --flower-green: color-mix(in oklch, var(--color-positive) 84%, var(--bronze-2));
+    --flower-green-deep: color-mix(in oklch, var(--color-positive) 70%, black);
+    --flower-green-light: color-mix(in oklch, var(--color-positive) 55%, var(--gold-1));
+    --flower-sage: color-mix(in srgb, var(--flower-green) 50%, var(--silver-2));
+    --flower-blue-green: color-mix(in srgb, var(--flower-green) 70%, var(--silver-2));
+    --flower-leaf-dark: color-mix(in oklch, var(--flower-green) 55%, var(--flower-green-deep));
+    --flower-pot: color-mix(in oklch, color-mix(in oklch, var(--bronze-1) 62%, var(--gold-3)) 78%, var(--bronze-2));
+    --flower-pot-rim: color-mix(in oklch, var(--flower-pot) 75%, var(--bronze-1));
+    --flower-pot-edge: color-mix(in oklch, var(--flower-pot) 45%, var(--bronze-2));
+    --flower-soil: color-mix(in oklch, var(--bronze-2) 72%, black);
+    --flower-seed: color-mix(in oklch, var(--bronze-1) 55%, var(--bronze-2));
+    --flower-white: color-mix(in oklch, white 94%, var(--gold-1));
+    --flower-white-shade: color-mix(in oklch, var(--silver-1) 85%, var(--silver-2));
+    --flower-white-edge: color-mix(in oklch, var(--silver-2) 80%, var(--color-bg-elevated));
+    --flower-cream: color-mix(in oklch, white 78%, var(--gold-1));
+    --flower-red: color-mix(in oklch, var(--color-danger) 82%, var(--gold-2));
+    --flower-red-deep: color-mix(in oklch, var(--flower-red) 72%, black);
+    --flower-pink: color-mix(in oklch, var(--color-danger) 58%, white);
+    --flower-pink-deep: color-mix(in oklch, var(--color-danger) 78%, white);
+    --flower-brown: color-mix(in oklch, var(--bronze-2) 80%, black);
+    --flower-brown-dark: color-mix(in oklch, var(--bronze-2) 52%, black);
+    --flower-ink: color-mix(in oklch, var(--bronze-2) 28%, black);
+    --flower-grass: color-mix(in srgb, var(--color-positive) 22%, var(--color-bg-elevated));
+    --flower-grass-far: color-mix(in srgb, var(--color-positive) 14%, var(--color-bg-elevated));
+    --flower-wood: color-mix(in oklch, var(--bronze-1) 55%, var(--color-bg-elevated));
+    --flower-stone: color-mix(in oklch, var(--silver-2) 42%, var(--color-bg-elevated));
+    --flower-can: color-mix(in oklch, var(--silver-2) 75%, var(--color-bg-elevated));
+  }
+}
+
+/* ---- Species: natural petals, or the skill colour ---- */
+
+.fsp--skill {
+  --fa: var(--liquid-mid);
+  --fb: var(--liquid-light);
+  --fe: var(--liquid-deep);
+  --fd: var(--liquid-deep);
+  --fc: var(--gold-1);
+}
+
+@supports (color: color-mix(in oklch, red, blue)) {
+  .fsp--skill {
+    --fd: color-mix(in oklch, var(--liquid-mid) 55%, var(--liquid-deep));
+  }
+}
+
+.fsp-sunflower {
+  --fa: var(--gold-1);
+  --fb: var(--gold-2);
+  --fe: var(--gold-3);
+  --fc: var(--flower-brown);
+  --fd: var(--flower-brown-dark);
+  --fx: var(--gold-3);
+}
+
+.fsp-poppy {
+  --fa: var(--flower-red);
+  --fb: var(--flower-red);
+  --fd: var(--flower-red-deep);
+  --fe: var(--flower-red-deep);
+}
+
+.fsp-dandelion {
+  --fa: var(--gold-1);
+  --fb: var(--gold-2);
+  --fc: var(--gold-2);
+  --fe: var(--gold-3);
+}
+
+.fsp-gerbera {
+  --fa: var(--flower-pink);
+  --fb: var(--flower-pink-deep);
+  --fe: var(--flower-pink-deep);
+}
+
+.fsp-lily {
+  --fa: var(--flower-cream);
+  --fb: var(--flower-white-shade);
+  --fc: var(--gold-1);
+  --fk: var(--flower-brown);
+  --fx: var(--bronze-1);
+}
+
+/* A completed skill: its flower blooms golden (the garden keeps its colours). */
+.flower--complete .flower-plant.fsp,
+.flower--complete .flower-plant .fsp {
+  --fa: var(--gold-1);
+  --fb: var(--gold-2);
+  --fe: var(--gold-3);
+  --fc: var(--gold-3);
+  --fd: var(--gold-2);
+  --fx: var(--gold-3);
+}
+
+.fl-a {
+  fill: var(--fa);
+  stroke: var(--fe);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+
+.fl-b {
+  fill: var(--fb);
+  stroke: var(--fe);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+
+.fl-c {
+  fill: var(--fc);
+}
+
+.fl-d {
+  fill: var(--fd);
+}
+
+.fl-e {
+  fill: var(--fe);
+}
+
+.fl-k {
+  fill: var(--fk);
+}
+
+.fl-x {
+  fill: var(--fx);
+}
+
+.fl-y {
+  fill: var(--gold-1);
+}
+
+.fl-w {
+  fill: var(--flower-white);
+}
+
+.fl-g {
+  fill: var(--flower-green-deep);
+}
+
+.fl-l {
+  fill: var(--flower-green-light);
+}
+
+.fl-s,
+.fl-v,
+.fl-n {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.fl-s {
+  stroke: var(--flower-green-deep);
+  stroke-width: 2;
+}
+
+.fl-v {
+  stroke: var(--fe);
+  stroke-width: 0.8;
+}
+
+.fl-n {
+  stroke: var(--flower-green-light);
+  stroke-width: 0.9;
+}
+
+.flower--hero {
+  width: 140px;
+  height: 228px;
+}
+
+/* Captions overflow the 140 px box to the right; the hero leaves room for them. */
+.flower--hero.flower--marked {
+  margin-right: 62px;
+}
+
+.flower--mini {
+  display: block;
+}
+
+.flower-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Static glow behind the flower head; its opacity follows the fill (set inline). */
+.flower-glow {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--color-accent-glow), transparent);
+  filter: blur(8px);
+  pointer-events: none;
+  transition: opacity var(--dur-hero) var(--ease-out);
+}
+
+.flower--complete .flower-glow {
+  background: radial-gradient(closest-side, rgba(224, 169, 42, 0.5), transparent);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .flower--complete .flower-glow {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--gold-2) 50%, transparent), transparent);
+  }
+}
+
+/* ---- Pot and soil ---- */
+
+.flower-pot {
+  fill: var(--flower-pot);
+  stroke: var(--flower-pot-edge);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.flower-pot-rim {
+  fill: var(--flower-pot-rim);
+  stroke: var(--flower-pot-edge);
+  stroke-width: 2;
+}
+
+.flower-pot-shine {
+  fill: var(--bronze-1);
+  fill-opacity: 0.45;
+}
+
+.flower--mini .flower-pot,
+.flower--mini .flower-pot-rim {
+  stroke-width: 1.2;
+}
+
+.flower-soil {
+  fill: var(--flower-soil);
+}
+
+.flower-seed {
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.flower-seed-body {
+  fill: var(--flower-seed);
+}
+
+.flower-seed-shine {
+  fill: var(--bronze-1);
+}
+
+/* ---- Stem, leaves, bud, bloom ---- */
+
+.flower-stem {
+  fill: none;
+  stroke: var(--flower-green-deep);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke-dashoffset var(--dur-hero) var(--ease-out);
+}
+
+.flower-leaf-grow {
+  transform-origin: 0 0;
+  transition: transform var(--dur-hero) var(--ease-spring);
+}
+
+.flower-leaf-sway {
+  transform-origin: 0 0;
+}
+
+.flower-leaf-sway.anim-decor {
+  animation: flower-sway 4.4s ease-in-out infinite;
+}
+
+@keyframes flower-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+
+.flower-leaf {
+  fill: var(--flower-green);
+}
+
+.fsp--sage .flower-leaf {
+  fill: var(--flower-sage);
+}
+
+.fsp--blue .flower-leaf {
+  fill: var(--flower-blue-green);
+}
+
+.fsp--deep .flower-leaf {
+  fill: var(--flower-leaf-dark);
+}
+
+.flower-leaf-vein {
+  fill: none;
+  stroke: var(--flower-green-light);
+  stroke-width: 1.2;
+  stroke-opacity: 0.85;
+  stroke-linecap: round;
+}
+
+.flower-bud {
+  transform-origin: 0 0;
+  transition: transform var(--dur-hero) var(--ease-spring);
+}
+
+.flower-bloom {
+  pointer-events: none;
+}
+
+.flower-petals {
+  transform-origin: 0 0;
+}
+
+/* A scripted choreography (playLevelUp) owns every transform; transitions would fight it. */
+.flower--scripted .flower-stem,
+.flower--scripted .flower-leaf-grow,
+.flower--scripted .flower-bud,
+.flower--scripted .flower-seed,
+.flower--scripted .flower-glow {
+  transition: none;
+}
+
+/* ---- The garden: rows fade with depth, the furniture stays soft ---- */
+
+.flower-garden {
+  pointer-events: none;
+}
+
+.flower-grass {
+  stop-color: var(--flower-grass);
+}
+
+.flower-grass-far {
+  stop-color: var(--flower-grass-far);
+}
+
+.flower-row--0 {
+  opacity: 0.84;
+}
+
+.flower-row--1 {
+  opacity: 0.68;
+}
+
+.flower-row--2 {
+  opacity: 0.52;
+}
+
+.flower-row .flower-stem {
+  transition: none;
+}
+
+.flower-row .flower-leaf-vein {
+  display: none;
+}
+
+.flower-meadow {
+  opacity: 0.7;
+}
+
+.flower-meadow-dot {
+  stroke-width: 0.5;
+}
+
+.flower-fence {
+  fill: var(--flower-wood);
+  opacity: 0.7;
+}
+
+.flower-stone {
+  fill: var(--flower-stone);
+}
+
+.flower-can-body {
+  fill: var(--flower-can);
+}
+
+.flower-can-rose {
+  fill: var(--flower-can);
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 0.6;
+  stroke-opacity: 0.5;
+}
+
+.flower-can-handle {
+  fill: none;
+  stroke: var(--flower-can);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.flower-can-shine {
+  fill: var(--color-bg-elevated);
+  opacity: 0.45;
+}
+
+/* The butterfly: a slow drift over the garden with a rest on the first flower, wings beating. */
+.flower-butterfly.anim-decor {
+  animation: flower-drift 18s ease-in-out infinite;
+}
+
+.flower-wings.anim-decor {
+  animation: flower-flap 0.7s ease-in-out infinite alternate;
+}
+
+.flower-wing {
+  fill: var(--gold-1);
+  stroke: var(--gold-3);
+  stroke-width: 0.6;
+}
+
+.flower-butterfly-body {
+  fill: var(--flower-ink);
+}
+
+@keyframes flower-drift {
+  0%,
+  14% {
+    transform: translate(0, 0);
+  }
+  30% {
+    transform: translate(26px, -34px);
+  }
+  46% {
+    transform: translate(70px, -22px);
+  }
+  60% {
+    transform: translate(98px, -40px);
+  }
+  76% {
+    transform: translate(52px, -52px);
+  }
+  90% {
+    transform: translate(12px, -20px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes flower-flap {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0.35);
+  }
+}
+
+/* ---- Capacity scale on the left ---- */
+
+.flower-tick line {
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.flower-tick text {
+  fill: var(--color-fg-tertiary);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Marks: a pennant in a column right of the leaves, a leader to the stem, a caption ---- */
+
+.flower-mark {
+  cursor: pointer;
+}
+
+.flower-mark-hit {
+  fill: transparent;
+}
+
+.flower-mark-tick {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.45;
+  stroke-width: 1.3;
+  stroke-dasharray: 1.5 2.5;
+  stroke-linecap: round;
+}
+
+.flower-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.flower-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}
+
+.flower-mark-caption {
+  position: absolute;
+  max-width: 90px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .flower--hero.flower--marked {
+    margin-right: 52px;
+  }
+
+  .flower-mark-caption {
+    max-width: 78px;
+  }
+}
+
+.flower-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---- Mini ---- */
+
+.flower--mini .flower-stem {
+  transition: none;
+}
+
+.flower--mini .fl-a,
+.flower--mini .fl-b {
+  stroke-width: 1;
+}
+
+/* ---- Reduced motion: no transitions, the crossfade in the component does the rest ---- */
+
+html[data-motion='reduced'] .flower-stem,
+html[data-motion='reduced'] .flower-leaf-grow,
+html[data-motion='reduced'] .flower-bud,
+html[data-motion='reduced'] .flower-seed,
+html[data-motion='reduced'] .flower-glow {
+  transition: none;
+}

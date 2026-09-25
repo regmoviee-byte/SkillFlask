@@ -79,11 +79,12 @@ describe('fixture', () => {
 });
 
 describe('Dexie v2 upgrade', () => {
-  it('is followed by version 3, the current schema version', () => {
-    expect(SCHEMA_VERSION).toBe(3);
-    expect(createDb(dbName()).verno).toBe(3);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([2, 3]);
+  it('is followed by versions 3 and 4, the current schema version', () => {
+    expect(SCHEMA_VERSION).toBe(4);
+    expect(createDb(dbName()).verno).toBe(4);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([2, 3, 4]);
     expect(MIGRATIONS[3]).toEqual({});
+    expect(Object.keys(MIGRATIONS[4]!)).toEqual(['skills']);
   });
 
   it('upgrades a v1 database with defaults and keeps the journal valid', async () => {
@@ -92,7 +93,7 @@ describe('Dexie v2 upgrade', () => {
 
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(3);
+    expect(upgraded.verno).toBe(4);
     expect(upgraded.tables.map((t) => t.name)).toEqual(
       expect.arrayContaining(['settings', 'achievementUnlocks', 'marks', 'skills', 'completions', 'transactions']),
     );
@@ -109,7 +110,7 @@ describe('Dexie v2 upgrade', () => {
       points: 5,
     });
     for (const completion of await upgraded.completions.toArray()) expect(completion.cancelledAt).toBeNull();
-    for (const skill of await upgraded.skills.toArray()) expect(skill.originSkillId).toBeNull();
+    for (const skill of await upgraded.skills.toArray()) expect(skill).toMatchObject({ originSkillId: null, theme: 'flask', color: null });
 
     // New compound indexes are queryable.
     expect(await upgraded.completions.where('[skillId+date]').equals(['skill-english', '2026-08-07']).count()).toBe(2);
@@ -194,10 +195,16 @@ describe('Dexie v3 upgrade', () => {
 
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(3);
+    expect(upgraded.verno).toBe(4);
     const after = await dump(upgraded);
     expect(after.marks).toEqual([]);
     delete after.marks;
+    // Version 4 then gives every skill its appearance; nothing else changes.
+    for (const skill of after.skills!) {
+      expect(skill).toMatchObject({ theme: 'flask', color: null });
+      delete skill.theme;
+      delete skill.color;
+    }
     expect(after).toEqual(before);
     // The new indexes are queryable.
     expect(await upgraded.marks.where('[skillId+date]').between(['skill-english', ''], ['skill-english', '\uffff']).count()).toBe(0);
@@ -208,5 +215,77 @@ describe('Dexie v3 upgrade', () => {
     expect((await getSkillDetails('skill-english'))?.marks).toEqual([]);
     setDb(previous);
     upgraded.close();
+  });
+});
+
+/** The stores of schema version 3 (= version 4's: the appearance is not indexed). */
+const V3_STORES = { ...V2_STORES, marks: 'id, skillId, [skillId+date]' };
+
+describe('Dexie v4 upgrade', () => {
+  async function writeV3(name: string, mutate?: (rows: Tables) => void): Promise<Tables> {
+    const v3 = new Dexie(name);
+    v3.version(1).stores(V1_STORES);
+    v3.version(2).stores(V2_STORES);
+    v3.version(3).stores(V3_STORES);
+    await v3.open();
+    const rows = structuredClone(tables);
+    for (const [table, fn] of Object.entries(MIGRATIONS[2]!)) for (const row of rows[table]!) fn(row as never);
+    mutate?.(rows);
+    await v3.transaction('rw', v3.tables, async () => {
+      for (const [table, list] of Object.entries(rows)) await v3.table(table).bulkAdd(list);
+    });
+    expect(v3.verno).toBe(3);
+    const before = await dump(v3);
+    v3.close();
+    return before;
+  }
+
+  it('gives every skill the flask and «Как в теме», and leaves every other row as it was', async () => {
+    const name = dbName();
+    const before = await writeV3(name);
+    const upgraded = createDb(name);
+    await upgraded.open();
+    expect(upgraded.verno).toBe(4);
+    const after = await dump(upgraded);
+    expect(after.skills!.map((s) => [s.theme, s.color])).toEqual(before.skills!.map(() => ['flask', null]));
+    for (const skill of after.skills!) {
+      delete skill.theme;
+      delete skill.color;
+    }
+    expect(after).toEqual(before);
+
+    const previous = db;
+    setDb(upgraded);
+    expect(await verifyJournal()).toEqual([]);
+    expect((await getSkillDetails('skill-english'))?.skill).toMatchObject({ theme: 'flask', color: null });
+    setDb(previous);
+    upgraded.close();
+  });
+
+  it('is idempotent and keeps a stored appearance, even a theme this build does not know', async () => {
+    const name = dbName();
+    await writeV3(name, (rows) => {
+      Object.assign(rows.skills![0]!, { theme: 'pizza', color: 'coral' });
+      Object.assign(rows.skills![1]!, { theme: 'comet' });
+    });
+    const first = createDb(name);
+    await first.open();
+    const afterFirst = await dump(first);
+    first.close();
+    const second = createDb(name);
+    await second.open();
+    expect(await dump(second)).toEqual(afterFirst);
+    second.close();
+    expect(afterFirst.skills!.map((s) => [s.theme, s.color])).toEqual([
+      ['pizza', 'coral'],
+      ['comet', null],
+    ]);
+
+    const once = structuredClone(tables.skills!);
+    const twice = structuredClone(tables.skills!);
+    for (const row of once) MIGRATIONS[4]!.skills!(row as never);
+    for (let i = 0; i < 2; i++) for (const row of twice) MIGRATIONS[4]!.skills!(row as never);
+    expect(twice).toEqual(once);
+    expect(once[0]).toMatchObject({ theme: 'flask', color: null });
   });
 });

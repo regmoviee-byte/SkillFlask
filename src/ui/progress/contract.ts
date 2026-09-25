@@ -44,7 +44,10 @@ export interface LevelUpOptions {
   toFill: number;
   /** Levels completed by the write (≥ 1); above 3 the choreography compresses. */
   levels: number;
-  /** Called at the beat of completion (the flask overflows, the rocket lands…) — haptics fire here. */
+  /**
+   * Called at the beat of completion (the flask overflows, the rocket lands…) — haptics fire here.
+   * A theme may call it once per played level; the app acts on the first call.
+   */
   onOverflow?(): void;
 }
 
@@ -62,6 +65,13 @@ export interface ProgressHeroProps {
   /** Capacity of the current level in points, for absolute labels (ticks, «стр. 45 из 100»). */
   capacity?: number;
   state?: ProgressState;
+  /**
+   * Number of the current level (1-based): the level being filled now. Themes may use it to show
+   * past levels (a skyline of finished towers, a shelf of read books). Omitted → 1.
+   * When playLevelUp runs it already names the NEW level, rendered together with `toFill`
+   * (README.md, «level during a level-up»).
+   */
+  level?: number;
   /** 'reduced': no choreography, only short crossfades; no idle motion. */
   motion?: MotionMode;
   /** Accessible name; the theme's `text.fillLabel(percent)` by default. */
@@ -76,6 +86,11 @@ export interface ProgressHeroProps {
 export interface ProgressMiniProps {
   fill: number;
   state?: ProgressState;
+  /**
+   * Number of the current level (1-based): the level being filled now. Themes may use it to show
+   * past levels (a skyline of finished towers, a shelf of read books). Omitted → 1.
+   */
+  level?: number;
   motion?: MotionMode;
   /** Rendered size in px; default 32. */
   size?: number;

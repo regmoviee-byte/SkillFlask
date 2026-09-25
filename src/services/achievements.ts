@@ -229,6 +229,8 @@ export interface AchievementsView {
   unseenCount: number;
   /** Names of the skills, for the unlocks and the records credited to them. */
   skillNames: Record<string, string>;
+  /** Stored progress themes of the skills (the UI names a level in its skill's nouns). */
+  skillThemes: Record<string, string>;
   /** Personal records («Рекорды»). */
   records: Records;
 }
@@ -259,17 +261,17 @@ function nextOf(states: readonly AchievementState[]): AchievementState | null {
   return best;
 }
 
-async function skillNames(): Promise<Record<string, string>> {
+async function skillLabels(): Promise<{ names: Record<string, string>; themes: Record<string, string> }> {
   const skills = await db.skills.toArray();
-  return Object.fromEntries(skills.map((s) => [s.id, s.name]));
+  return { names: Object.fromEntries(skills.map((s) => [s.id, s.name])), themes: Object.fromEntries(skills.map((s) => [s.id, s.theme])) };
 }
 
 export async function getAchievementsView(): Promise<AchievementsView> {
   return db.transaction('r', achievementTables(), async () => {
-    const [history, unseenCount, names] = await Promise.all([
+    const [history, unseenCount, labels] = await Promise.all([
       readHistory(),
       db.achievementUnlocks.filter((row) => row.seenAt === null).count(),
-      skillNames(),
+      skillLabels(),
     ]);
     const { states, stats } = history.evaluation;
     const ladders = LADDERS.map((def): LadderView => {
@@ -286,7 +288,8 @@ export async function getAchievementsView(): Promise<AchievementsView> {
       total: CATALOG.length,
       lastUnlocked: lastOf(states),
       unseenCount,
-      skillNames: names,
+      skillNames: labels.names,
+      skillThemes: labels.themes,
       records: history.records(),
     };
   });

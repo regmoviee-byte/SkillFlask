@@ -1,4 +1,4 @@
-/* The flask (components/Flask.tsx). Only transform and opacity move; the idle wave is the one
+/* The flask theme (progress/themes/flask.tsx). Only transform and opacity move; the idle wave is the one
    decorative loop (.anim-decor), paused by html.paused and removed under reduced motion. */
 
 .flask {
@@ -9,11 +9,6 @@
 .flask--hero {
   width: 140px;
   height: 228px;
-}
-
-.flask--mini {
-  width: 24px;
-  height: 40px;
 }
 
 .flask-svg {
@@ -33,7 +28,8 @@
   height: 240px;
   margin: -120px 0 0 -120px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, var(--color-accent-glow), transparent);
+  /* The skill colour's glow when it has one (progress/palette.css), the accent's otherwise. */
+  background: radial-gradient(closest-side, var(--liquid-glow, var(--color-accent-glow)), transparent);
   filter: blur(20px);
   pointer-events: none;
   transition: opacity var(--dur-hero) var(--ease-out);
@@ -59,11 +55,6 @@
   stroke: var(--color-fg);
   stroke-opacity: 0.45;
   stroke-width: 3;
-}
-
-.flask--mini .flask-outline,
-.flask--mini .flask-rim {
-  stroke-width: 8;
 }
 
 .liquid {
@@ -299,7 +290,7 @@ html[data-motion='reduced'] .flask-bubbles {
 
 .ring-track {
   fill: none;
-  stroke: var(--color-accent-soft);
+  stroke: var(--liquid-soft, var(--color-accent-soft));
 }
 
 .ring-value {
@@ -343,12 +334,10 @@ html[data-motion='reduced'] .ring-value {
   transition: none;
 }
 
-/* ---- Mini flask of the milestone rack ---- */
+/* ---- The flask theme's mini (the rack, skill cards, the home tile); sized by its `size` ---- */
 
 .mini-flask {
   display: block;
-  width: 18px;
-  height: 30px;
   flex: none;
 }
 
@@ -364,4 +353,12 @@ html[data-motion='reduced'] .ring-value {
 
 .mini-flask.is-full .mini-flask-glass {
   stroke: var(--liquid-deep);
+}
+
+.mini-flask.is-complete .mini-flask-liquid {
+  fill: var(--gold-2);
+}
+
+.mini-flask.is-complete .mini-flask-glass {
+  stroke: var(--gold-3);
 }

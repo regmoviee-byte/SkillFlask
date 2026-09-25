@@ -9,7 +9,7 @@ import { ValidationError } from '../services/core';
 import { haptics } from '../platform/haptics';
 import { logError } from '../platform/errorLog';
 import type { ShowToast } from './components/Toast';
-import { copy } from './copy';
+import { copy, type LevelCopy } from './copy';
 
 // Only the latest completion toast is on screen (a new toast replaces the old), so one
 // pending undo is enough. Keyed by completion id: an action left over from an earlier toast
@@ -33,25 +33,25 @@ export function errorMessage(error: unknown): string {
   return copy.errors.save;
 }
 
-/** Haptics and the toast for a fresh completion, with «Отменить». */
-export function announceCompletion(result: MutationResult, stepName: string, showToast: ShowToast): void {
+/** Haptics and the toast for a fresh completion, with «Отменить»; `levels` names the skill's levels after an undo. */
+export function announceCompletion(result: MutationResult, stepName: string, showToast: ShowToast, levels: LevelCopy): void {
   // A level-up vibrates at the flask's overflow beat, a milestone when its sheet opens.
   if (!isCelebrated(result)) haptics.success();
   const completionId = result.completionId;
   pendingUndo = completionId;
   showToast(completionMessage(result, stepName), {
-    action: { label: copy.completion.undo, onClick: () => void undoCompletion(completionId, showToast) },
+    action: { label: copy.completion.undo, onClick: () => void undoCompletion(completionId, showToast, levels) },
   });
 }
 
 /** The toast's «Отменить»: cancels exactly the completion the toast announced, once. */
-export async function undoCompletion(completionId: string, showToast: ShowToast): Promise<void> {
+export async function undoCompletion(completionId: string, showToast: ShowToast, levels: LevelCopy): Promise<void> {
   if (pendingUndo !== completionId) return;
   pendingUndo = null;
   try {
     const { after } = await cancelCompletion(completionId);
     haptics.warning();
-    showToast(copy.completion.cancelled(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity));
+    showToast(levels.cancelled(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity));
   } catch (error) {
     haptics.error();
     showToast(errorMessage(error));

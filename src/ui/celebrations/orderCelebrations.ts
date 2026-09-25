@@ -27,6 +27,8 @@ export type CelebrationEvent =
       flasks: number;
       totalPoints: number;
       days: number;
+      /** The skill's stored theme: the sheet counts the levels in its nouns. */
+      theme?: unknown;
       /** A level-up of the same operation, folded in: the flask still plays it first. */
       levelUp: LevelUpPlay | null;
     }
@@ -60,7 +62,7 @@ export function daysSince(createdAt: string, at: string): number {
  */
 export function orderCelebrations(
   result: MutationResult,
-  skill: Pick<Skill, 'id' | 'name' | 'createdAt'>,
+  skill: Pick<Skill, 'id' | 'name' | 'createdAt'> & Partial<Pick<Skill, 'theme'>>,
   milestone: Pick<Milestone, 'name' | 'reachedAt'> | undefined,
 ): CelebrationEvent[] {
   const events: CelebrationEvent[] = [];
@@ -84,6 +86,7 @@ export function orderCelebrations(
       flasks: result.after.completedFlasks,
       totalPoints: result.after.totalPoints,
       days: daysSince(skill.createdAt, milestone.reachedAt ?? nowIso()),
+      theme: skill.theme,
       levelUp,
     });
   } else if (levelUp) {

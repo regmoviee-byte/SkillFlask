@@ -17,9 +17,10 @@ import { Skeleton } from '../components/Skeleton';
 import { Stepper } from '../components/Stepper';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
+import { copyForSkill } from '../progress/registry';
 
 // The step form: name, type (fixed once created), what one completion is worth and the
-// schedule. Every value previews what it means — «≈ 12 выполнений до первой колбы»,
+// schedule. Every value previews what it means — «≈ 12 выполнений до колбы 1»,
 // «30 мин → 15 очков» — against the skill's own flask capacities.
 
 const t = copy.stepForm;
@@ -330,13 +331,13 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-/** «≈ N выполнений до первой колбы · веха через ≈ M» for `perCompletion` points, or null. */
-function useEstimate(skillId: string, perCompletion: number | null): { perFlask: number; perMilestone: number } | null {
+/** «≈ N выполнений до колбы 1 · веха через ≈ M» (the skill theme's noun) for `perCompletion` points, or null. */
+function useEstimate(skillId: string, perCompletion: number | null): string | null {
   const form = useLiveQuery(() => (skillId ? getSkillFormData(skillId) : null), [skillId]);
   if (!form || perCompletion === null || perCompletion <= 0) return null;
   const config = { base: form.skill.capacityBase, increment: form.skill.capacityIncrement, manual: form.manual };
   const target = form.milestone?.targetFlaskNumber ?? 1;
-  return { perFlask: Math.ceil(flaskCapacity(1, config) / perCompletion), perMilestone: Math.ceil(pointsToFill(target, config) / perCompletion) };
+  return copyForSkill(form.skill).stepPreview(Math.ceil(flaskCapacity(1, config) / perCompletion), Math.ceil(pointsToFill(target, config) / perCompletion));
 }
 
 interface ValueFieldsProps {
@@ -360,7 +361,7 @@ function PointsFields({ draft, set, skillId }: ValueFieldsProps) {
         describedBy={previewId}
       />
       <span id={previewId} className="hint small field-hint" aria-live="polite">
-        {estimate && t.preview(estimate.perFlask, estimate.perMilestone)}
+        {estimate}
       </span>
     </>
   );
@@ -407,7 +408,7 @@ function TimedFields({ draft, set, skillId }: ValueFieldsProps) {
         {perCompletion !== null ? (
           <>
             <span className="timed-preview">{t.timedPreview(minutes, perCompletion)}</span>
-            {estimate && <> · {t.preview(estimate.perFlask, estimate.perMilestone)}</>}
+            {estimate && <> · {estimate}</>}
           </>
         ) : (
           t.usualMinutesHint

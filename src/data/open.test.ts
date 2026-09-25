@@ -23,14 +23,14 @@ describe('openDb', () => {
     setDb(createDb(fresh()));
     expect(await openDb()).toEqual({ ok: true });
     expect(db.isOpen()).toBe(true);
-    expect(db.verno).toBe(3);
+    expect(db.verno).toBe(4);
     db.close();
   });
 
   it('explains a database written by a newer app version', async () => {
     const name = fresh();
     const future = new Dexie(name);
-    future.version(3).stores({ skills: 'id', settings: 'key', achievementUnlocks: 'id' });
+    future.version(5).stores({ skills: 'id', settings: 'key', achievementUnlocks: 'id' });
     await future.open();
     future.close();
 

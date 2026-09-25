@@ -92,7 +92,7 @@ function RecapContent({ view, isCurrent, today }: { view: RecapView; isCurrent: 
     best.push({ key: `ms:${m.skillId}`, icon: 'flag', title: t.milestone(m.name), meta: t.milestoneMeta(name(m.skillId), m.date), to: `/skills/${m.skillId}` });
   }
   for (const kind of recap.records) {
-    const row = recordRow(kind, view.records, skillNames, false);
+    const row = recordRow(kind, view.records, skillNames, view.skillThemes, false);
     if (row) best.push({ ...row, key: `rec:${kind}`, icon: 'laurel', meta: t.recordMeta(row.meta) });
   }
 
@@ -109,8 +109,8 @@ function RecapContent({ view, isCurrent, today }: { view: RecapView; isCurrent: 
         <Tile label={t.tileCompletions}>
           <TileNumber value={recap.completions} caption={t.completionsCaption(recap.completions)} />
         </Tile>
-        <Tile label={t.tileFlasks}>
-          <TileNumber value={recap.flasksFilled} caption={t.flasksCaption(recap.flasksFilled)} />
+        <Tile label={t.tileLevels}>
+          <TileNumber value={recap.flasksFilled} caption={t.levelsCaption(recap.flasksFilled)} />
         </Tile>
       </div>
 

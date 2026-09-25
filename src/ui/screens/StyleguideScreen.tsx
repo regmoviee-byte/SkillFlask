@@ -9,7 +9,8 @@ import { MilestoneSheet } from '../celebrations/MilestoneSheet';
 import { Badge } from '../components/Badge';
 import { TopCard } from '../celebrations/TopCard';
 import { ContextSheet } from '../components/ContextSheet';
-import { Flask, type FlaskHandle } from '../components/Flask';
+import type { ProgressHeroHandle } from '../progress/contract';
+import { flaskTheme } from '../progress/themes/flask';
 import { Ring } from '../components/Ring';
 import { EmptyState } from '../components/EmptyState';
 import { ICON_NAMES, Icon } from '../components/Icon';
@@ -59,6 +60,8 @@ function Broken(): never {
   throw new Error('Styleguide: ErrorBoundary demo');
 }
 
+const { Hero: FlaskHero, Mini: FlaskMini } = flaskTheme;
+
 export default function StyleguideScreen() {
   const { showToast } = useToast();
   const motion = useMotion();
@@ -69,7 +72,7 @@ export default function StyleguideScreen() {
   const [skeletonLoading, setSkeletonLoading] = useState(true);
   const shown = useCountUp(count);
   const [zoom, setZoom] = useState(false);
-  const flask = useRef<FlaskHandle>(null);
+  const flask = useRef<ProgressHeroHandle>(null);
   const [demoFill, setDemoFill] = useState(0.8);
   const [milestoneDemo, setMilestoneDemo] = useState(false);
   const [topCard, setTopCard] = useState(0);
@@ -142,13 +145,13 @@ export default function StyleguideScreen() {
 
         <Section title="Колба">
           <div className="card card-padded sg-flasks">
-            <Flask fill={0} capacity={100} state="empty" />
-            <Flask fill={0.4} capacity={150} />
-            <Flask fill={1} capacity={200} />
-            <Flask fill={1} state="complete" />
+            <FlaskHero fill={0} capacity={100} state="empty" />
+            <FlaskHero fill={0.4} capacity={150} />
+            <FlaskHero fill={1} capacity={200} />
+            <FlaskHero fill={1} state="complete" />
           </div>
           <div className="card card-padded sg-flask-play">
-            <Flask ref={flask} fill={demoFill} capacity={100} />
+            <FlaskHero ref={flask} fill={demoFill} capacity={100} />
             <div className="form">
               <button type="button" className="button" onClick={() => void playLevelUp(1)}>
                 Play level-up
@@ -164,7 +167,7 @@ export default function StyleguideScreen() {
           {/* Marks: five on one flask, two close together, one clamped to the rim by a smaller
               capacity; the oldest of them has a tick only (four captions at most). */}
           <div className="card card-padded sg-flask-play">
-            <Flask
+            <FlaskHero
               fill={0.62}
               capacity={150}
               marks={[
@@ -183,8 +186,8 @@ export default function StyleguideScreen() {
             <Ring value={1} tone="gold">
               9
             </Ring>
-            <Flask size="mini" fill={0.6} />
-            <Flask size="mini" fill={1} state="complete" />
+            <FlaskMini fill={0.6} />
+            <FlaskMini fill={1} state="complete" />
           </div>
           <div className="button-row">
             <button type="button" className="button" onClick={() => setMilestoneDemo(true)}>

@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { formatNumber } from '../lib/format';
 import { CATALOG, LADDERS } from '../domain/achievements/catalog';
 import { MAX_BUTTON_TEXT } from '../platform/buttons';
-import { BUTTON_TEXT_MAX, copy } from './copy';
+import { BUTTON_TEXT_MAX, copy, levelCopy } from './copy';
+import { PROGRESS_THEME_KEYS } from './progress/contract';
+import { THEME_TEXT } from './progress/texts';
+
+const flask = levelCopy(THEME_TEXT.flask);
 
 const FORBIDDEN = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|баллы|балл\b|баллов/i;
 
@@ -44,6 +48,11 @@ const sources = import.meta.glob(['./**/*.{ts,tsx}', '../services/**/*.ts', '!./
 describe('copy dictionary', () => {
   const strings: [string, string][] = [];
   collect(copy, 'copy', strings);
+  // The level strings of every theme, and the themes' own phrases.
+  for (const key of PROGRESS_THEME_KEYS) {
+    collect(levelCopy(THEME_TEXT[key]), `levelCopy(${key})`, strings);
+    collect(THEME_TEXT[key], `THEME_TEXT.${key}`, strings);
+  }
 
   it('contains strings', () => {
     expect(strings.length).toBeGreaterThan(80);
@@ -60,16 +69,16 @@ describe('copy dictionary', () => {
   });
 
   it('names the filled flasks and the way back in the history', () => {
-    expect(copy.history.flaskFilled(2)).toBe('Колба 2 заполнена');
-    expect(copy.history.flaskFilled(3, 2)).toBe('Колбы 2–3 заполнены');
-    expect(copy.history.flaskRollback(1)).toBe('Возврат к колбе 1');
-    expect(copy.skill.toNext(42, 58, 4)).toBe('42% · ещё\u00a058 до\u00a0колбы\u00a04');
-    expect(copy.skill.flaskLabel(3, 42, 100, 42)).toBe('Колба 3: 42 из 100, 42%');
+    expect(flask.completed(2)).toBe('Колба 2 заполнена');
+    expect(flask.completed(3, 2)).toBe('Колбы 2–3 заполнены');
+    expect(flask.rollback(1)).toBe('Возврат к колбе 1');
+    expect(flask.toNext(42, 58, 4)).toBe('42% · ещё\u00a058 до\u00a0колбы\u00a04');
+    expect(flask.heroLabel(3, 42, 100, 42)).toBe('Колба 3: 42 из 100, 42%');
   });
 
   it('describes a completion toast and its undo', () => {
     expect(copy.completion.added(5, 'Чтение')).toBe('+5 · Чтение');
-    expect(copy.completion.cancelled(1, 96, 100)).toBe('Отменено · Колба 1: 96/100');
+    expect(flask.cancelled(1, 96, 100)).toBe('Отменено · Колба 1: 96/100');
     expect(copy.stepRow.points(5)).toBe('+5');
     expect(copy.stepRow.today(2)).toBe('сегодня ×2');
     expect(copy.stepRow.check('Чтение', 5)).toBe('Отметить: Чтение, +5 очков');
@@ -104,9 +113,9 @@ describe('copy dictionary', () => {
   });
 
   it('describes marks', () => {
-    expect(copy.marks.position(2, 12.5, 21)).toBe('Колба 2, 12,5 из 21 очка');
-    expect(copy.marks.position(1, 30, 100)).toBe('Колба 1, 30 из 100 очков');
-    expect(copy.marks.historyPosition(3, 1)).toBe('Колба 3 · 1 очко');
+    expect(flask.markPosition(2, 12.5, 21)).toBe('Колба 2, 12,5 из 21 очка');
+    expect(flask.markPosition(1, 30, 100)).toBe('Колба 1, 30 из 100 очков');
+    expect(flask.markHistory(3, 1)).toBe('Колба 3 · 1 очко');
     expect(copy.marks.confirmRemove('Пробный тест')).toBe('Удалить засечку «Пробный тест»?');
     expect(copy.marks.add.length).toBeLessThanOrEqual(BUTTON_TEXT_MAX);
   });
@@ -118,6 +127,67 @@ describe('copy dictionary', () => {
 
   it('is frozen', () => {
     expect(Object.isFrozen(copy)).toBe(true);
+    expect(Object.isFrozen(flask)).toBe(true);
+  });
+});
+
+describe('level strings of the progress themes', () => {
+  const pizza = levelCopy(THEME_TEXT.pizza);
+
+  it('speak the theme’s nouns everywhere a level is named', () => {
+    expect(pizza.completed(1)).toBe('Пицца 1 съедена');
+    expect(pizza.completed(3, 2)).toBe('Пиццы 2–3 съедены');
+    expect(pizza.rollback(1)).toBe('Возврат к пицце 1');
+    expect(pizza.toNext(40, 60, 2)).toBe('40% · ещё\u00a060 до\u00a0пиццы\u00a02');
+    expect(pizza.milestoneProgress(2, 10)).toBe('2 из 10 пицц');
+    expect(pizza.milestoneProgress(1, 1)).toBe('1 из 1 пиццы');
+    expect(pizza.levels(3)).toBe('3 пиццы');
+    expect(pizza.state(2, 45, 150)).toBe('Пицца 2: 45/150');
+    expect(pizza.formMilestoneLevels).toBe('Пицц');
+    expect(levelCopy(THEME_TEXT.book).completed(2)).toBe('Книга 2 прочитана');
+    expect(levelCopy(THEME_TEXT.car).completed(2)).toBe('Поездка 2 завершена');
+    expect(levelCopy(THEME_TEXT.flower).completed(2)).toBe('Цветок 2 распустился');
+    expect(levelCopy(THEME_TEXT.rocket).completed(2)).toBe('Полёт 2 завершён');
+    expect(levelCopy(THEME_TEXT.rocket).rollback(2)).toBe('Возврат к полёту 2');
+    expect(levelCopy(THEME_TEXT.car).toNext(10, 5, 3)).toBe('10% · ещё\u00a05 до\u00a0поездки\u00a03');
+  });
+
+  it('has every noun and phrase for all thirteen themes, with the plural forms right for 1, 2, 5, 11, 21', () => {
+    expect(Object.keys(THEME_TEXT).sort()).toEqual([...PROGRESS_THEME_KEYS].sort());
+    const plurals: Record<string, [string, string, string]> = {
+      flask: ['колба', 'колбы', 'колб'],
+      flower: ['цветок', 'цветка', 'цветков'],
+      pizza: ['пицца', 'пиццы', 'пицц'],
+      car: ['поездка', 'поездки', 'поездок'],
+      book: ['книга', 'книги', 'книг'],
+      rocket: ['полёт', 'полёта', 'полётов'],
+      ball: ['бросок', 'броска', 'бросков'],
+      chick: ['цыплёнок', 'цыплёнка', 'цыплят'],
+      climber: ['вершина', 'вершины', 'вершин'],
+      puzzle: ['пазл', 'пазла', 'пазлов'],
+      moon: ['луна', 'луны', 'лун'],
+      tower: ['башня', 'башни', 'башен'],
+      rainbow: ['радуга', 'радуги', 'радуг'],
+    };
+    for (const key of PROGRESS_THEME_KEYS) {
+      const text = THEME_TEXT[key];
+      for (const field of ['name', 'levelNoun', 'levelGenitive', 'levelDative', 'hint'] as const) {
+        expect(text[field].trim().length, `${key}.${field}`).toBeGreaterThan(0);
+      }
+      const [one, few, many] = plurals[key]!;
+      const lc = levelCopy(text);
+      expect([1, 2, 5, 11, 21].map((n) => lc.levels(n)), key).toEqual([`1 ${one}`, `2 ${few}`, `5 ${many}`, `11 ${many}`, `21 ${one}`]);
+      // After «из»: the genitive singular for 1 and 21, the genitive plural otherwise.
+      expect([1, 2, 5, 11, 21].map((n) => lc.milestoneProgress(0, n)), key).toEqual(
+        [1, 2, 5, 11, 21].map((n) => `0 из ${n} ${n % 10 === 1 && n !== 11 ? text.levelGenitive : text.levelFormsOf[1]}`),
+      );
+      expect(text.levelFormsOf[0], key).toBe(text.levelGenitive);
+      // The phrases name the level with its number, the noun first where the theme says so.
+      expect(text.completed(7), key).toContain('7');
+      expect(text.completedRange(2, 3), key).toContain('2–3');
+      expect(lc.noun(4), key).toBe(`${text.levelNoun} 4`);
+      expect(text.fillLabel(45), key).toContain('45%');
+    }
   });
 });
 

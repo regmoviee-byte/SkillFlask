@@ -1,0 +1,177 @@
+import type { ProgressThemeKey, ProgressThemeText } from './contract';
+
+// The Russian nouns and phrases of every progress theme, known synchronously for all thirteen
+// keys: history, toasts, the hero's numbers and the milestone speak of the skill's own
+// level («Пицца 2 съедена», «ещё 5 до книги 3») while the theme's drawing may still be loading
+// (themes other than the flask are separate chunks, registry.ts). The ProgressThemeText part of
+// each entry must equal the `text` of the theme's own file: registry.test.ts compares them for
+// every theme file that ships, so a theme and its table entry cannot drift apart.
+
+/** A theme's text plus the two forms the app needs beyond the contract. */
+export interface LevelText extends ProgressThemeText {
+  /** Dative singular for the rollback: «Возврат к колбе 2», «к пицце 2», «к полёту 2». */
+  levelDative: string;
+  /** One write completed several levels: «Колбы 2–3 заполнены», «Пиццы 2–3 съедены». */
+  completedRange(from: number, to: number): string;
+}
+
+const range = (from: number, to: number) => `${from}–${to}`;
+
+export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.freeze({
+  flask: {
+    name: 'Колба',
+    levelNoun: 'Колба',
+    levelGenitive: 'колбы',
+    levelDative: 'колбе',
+    levelForms: ['колба', 'колбы', 'колб'],
+    levelFormsOf: ['колбы', 'колб', 'колб'],
+    completed: (n) => `Колба ${n} заполнена`,
+    completedRange: (from, to) => `Колбы ${range(from, to)} заполнены`,
+    fillLabel: (percent) => `Колба заполнена на ${percent}%`,
+    hint: 'Очки наполняют колбу до края',
+  },
+  flower: {
+    name: 'Цветок',
+    levelNoun: 'Цветок',
+    levelGenitive: 'цветка',
+    levelDative: 'цветку',
+    levelForms: ['цветок', 'цветка', 'цветков'],
+    levelFormsOf: ['цветка', 'цветков', 'цветков'],
+    completed: (n) => `Цветок ${n} распустился`,
+    completedRange: (from, to) => `Цветы ${range(from, to)} распустились`,
+    fillLabel: (p) => `Цветок вырос на ${p}%`,
+    hint: 'Из зёрнышка растёт цветок',
+  },
+  pizza: {
+    name: 'Пицца',
+    levelNoun: 'Пицца',
+    levelGenitive: 'пиццы',
+    levelDative: 'пицце',
+    levelForms: ['пицца', 'пиццы', 'пицц'],
+    levelFormsOf: ['пиццы', 'пицц', 'пицц'],
+    completed: (n) => `Пицца ${n} съедена`,
+    completedRange: (from, to) => `Пиццы ${range(from, to)} съедены`,
+    fillLabel: (percent) => `Пицца съедена на ${percent}%`,
+    hint: 'Кусочки съедаются один за другим',
+  },
+  car: {
+    name: 'Машинка',
+    levelNoun: 'Поездка',
+    levelGenitive: 'поездки',
+    levelDative: 'поездке',
+    levelForms: ['поездка', 'поездки', 'поездок'],
+    levelFormsOf: ['поездки', 'поездок', 'поездок'],
+    completed: (n) => `Поездка ${n} завершена`,
+    completedRange: (from, to) => `Поездки ${range(from, to)} завершены`,
+    fillLabel: (p) => `Машинка проехала ${p}% пути`,
+    hint: 'Машинка едет по дороге к финишу',
+  },
+  book: {
+    name: 'Книжка',
+    levelNoun: 'Книга',
+    levelGenitive: 'книги',
+    levelDative: 'книге',
+    levelForms: ['книга', 'книги', 'книг'],
+    levelFormsOf: ['книги', 'книг', 'книг'],
+    completed: (n) => `Книга ${n} прочитана`,
+    completedRange: (from, to) => `Книги ${range(from, to)} прочитаны`,
+    fillLabel: (percent) => `Книга прочитана на ${percent}%`,
+    hint: 'Страницы перелистываются до последней',
+  },
+  rocket: {
+    name: 'Ракета',
+    levelNoun: 'Полёт',
+    levelGenitive: 'полёта',
+    levelDative: 'полёту',
+    levelForms: ['полёт', 'полёта', 'полётов'],
+    levelFormsOf: ['полёта', 'полётов', 'полётов'],
+    completed: (n) => `Полёт ${n} завершён`,
+    completedRange: (from, to) => `Полёты ${range(from, to)} завершены`,
+    fillLabel: (percent) => `Ракета пролетела ${percent}% пути`,
+    hint: 'Ракета летит от планеты к планете',
+  },
+  ball: {
+    name: 'Мяч в корзину',
+    levelNoun: 'Бросок',
+    levelGenitive: 'броска',
+    levelDative: 'броску',
+    levelForms: ['бросок', 'броска', 'бросков'],
+    levelFormsOf: ['броска', 'бросков', 'бросков'],
+    completed: (n) => `Бросок ${n}: попадание`,
+    completedRange: (from, to) => `Броски ${range(from, to)}: попадания`,
+    fillLabel: (percent) => `Мяч пролетел ${percent}% пути к кольцу`,
+    hint: 'Мяч летит по дуге в корзину',
+  },
+  chick: {
+    name: 'Цыплёнок',
+    levelNoun: 'Цыплёнок',
+    levelGenitive: 'цыплёнка',
+    levelDative: 'цыплёнку',
+    levelForms: ['цыплёнок', 'цыплёнка', 'цыплят'],
+    levelFormsOf: ['цыплёнка', 'цыплят', 'цыплят'],
+    completed: (n) => `Цыплёнок ${n} вырос`,
+    completedRange: (from, to) => `Цыплята ${range(from, to)} выросли`,
+    fillLabel: (p) => `Цыплёнок вырос на ${p}%`,
+    hint: 'Из яйца вылупляется и растёт цыплёнок',
+  },
+  climber: {
+    name: 'Альпинист',
+    levelNoun: 'Вершина',
+    levelGenitive: 'вершины',
+    levelDative: 'вершине',
+    levelForms: ['вершина', 'вершины', 'вершин'],
+    levelFormsOf: ['вершины', 'вершин', 'вершин'],
+    completed: (n) => `Вершина ${n} покорена`,
+    completedRange: (from, to) => `Вершины ${range(from, to)} покорены`,
+    fillLabel: (percent) => `Альпинист прошёл ${percent}% подъёма`,
+    hint: 'Альпинист поднимается к вершине',
+  },
+  puzzle: {
+    name: 'Пазл',
+    levelNoun: 'Пазл',
+    levelGenitive: 'пазла',
+    levelDative: 'пазлу',
+    levelForms: ['пазл', 'пазла', 'пазлов'],
+    levelFormsOf: ['пазла', 'пазлов', 'пазлов'],
+    completed: (n) => `Пазл ${n} собран`,
+    completedRange: (from, to) => `Пазлы ${range(from, to)} собраны`,
+    fillLabel: (percent) => `Пазл собран на ${percent}%`,
+    hint: 'Кусочки встают на свои места',
+  },
+  moon: {
+    name: 'Луна',
+    levelNoun: 'Луна',
+    levelGenitive: 'луны',
+    levelDative: 'луне',
+    levelForms: ['луна', 'луны', 'лун'],
+    levelFormsOf: ['луны', 'лун', 'лун'],
+    completed: (n) => `Полнолуние ${n}`,
+    completedRange: (from, to) => `Полнолуния ${range(from, to)}`,
+    fillLabel: (percent) => `Луна заполнена на ${percent}%`,
+    hint: 'От новолуния к полнолунию',
+  },
+  tower: {
+    name: 'Башня',
+    levelNoun: 'Башня',
+    levelGenitive: 'башни',
+    levelDative: 'башне',
+    levelForms: ['башня', 'башни', 'башен'],
+    levelFormsOf: ['башни', 'башен', 'башен'],
+    completed: (n) => `Башня ${n} построена`,
+    completedRange: (from, to) => `Башни ${range(from, to)} построены`,
+    fillLabel: (percent) => `Башня построена на ${percent}%`,
+    hint: 'Кубики ставятся друг на друга',
+  },
+  rainbow: {
+    name: 'Радуга',
+    levelNoun: 'Радуга',
+    levelGenitive: 'радуги',
+    levelDative: 'радуге',
+    levelForms: ['радуга', 'радуги', 'радуг'],
+    levelFormsOf: ['радуги', 'радуг', 'радуг'],
+    completed: (n) => `Радуга ${n} сияет`,
+    completedRange: (from, to) => `Радуги ${range(from, to)} сияют`,
+    fillLabel: (percent) => `Радуга раскрашена на ${percent}%`,
+    hint: 'Полосы раскрашиваются одна за другой',
+  },
+} satisfies Record<ProgressThemeKey, LevelText>);

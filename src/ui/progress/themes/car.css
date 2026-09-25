@@ -1,0 +1,652 @@
+/* «Машинка» (themes/car.tsx). Natural colours for the six landscapes, the roads and the
+   scenery (mixed in oklab, so a tinted surface such as the purple Telegram theme darkens them
+   without turning their hue); the skill colour (--liquid-*) paints only the car body. Only transform, opacity and
+   stroke-dashoffset move; the exhaust puff is the one idle loop (.anim-decor). */
+
+.car {
+  /* Literal fallbacks for WebViews without color-mix(); the mixes below follow the surface. */
+  --car-grass: #deefd0;
+  --car-verge: #cbe6b6;
+  --car-meadow: #eef4cf;
+  --car-meadow-verge: #dbeab0;
+  --car-pave: #ebe9e5;
+  --car-walk: #dcd9d3;
+  --car-sand: #f6ebcf;
+  --car-sand-verge: #efdcad;
+  --car-desert: #f7e3b8;
+  --car-desert-verge: #ecd09a;
+  --car-asphalt: #6f747c;
+  --car-paint: #fbfbf7;
+  --car-trail: #f4c534;
+  --car-crown: #5aa84c;
+  --car-hill: #bfe0a8;
+  --car-trunk: #8b5c3c;
+  --car-fir: #3f8f4f;
+  --car-field: #efd98a;
+  --car-furrow: #d9b857;
+  --car-flower: #f08fb0;
+  --car-rock: #c9c3bb;
+  --car-ridge: #a39b90;
+  --car-snow: #ffffff;
+  --car-street: #c3c5ca;
+  --car-roof0: #d9826a;
+  --car-roof1: #93a7bc;
+  --car-roof2: #e2bb77;
+  --car-sea: #9fd3ec;
+  --car-dune: #efd08f;
+  --car-crest: #d4a45c;
+  --car-cactus: #5a9e4f;
+  --car-stone: #bf9269;
+  --car-post: #ffffff;
+  --car-post-cap: #e2513f;
+  --car-glass: #dff1fb;
+  --car-tyre: #2b2b30;
+  --car-hub: #c8ccd2;
+  --car-headlight: #ffd968;
+  --car-taillight: #e8483c;
+  --car-chequer: #26262b;
+  --car-start: #f08a2c;
+  --car-beam: #ffe58a;
+}
+
+:root[data-theme='dark'] .car {
+  --car-grass: #243322;
+  --car-verge: #2d4229;
+  --car-meadow: #2e3322;
+  --car-meadow-verge: #3a4228;
+  --car-pave: #2b2b2d;
+  --car-walk: #3a3a3c;
+  --car-sand: #37311f;
+  --car-sand-verge: #4a4028;
+  --car-desert: #3b3220;
+  --car-desert-verge: #4d4128;
+  --car-asphalt: #50545b;
+  --car-hill: #2d4229;
+  --car-crown: #4f9a43;
+  --car-trunk: #9a6a48;
+  --car-rock: #5a5652;
+  --car-street: #46484d;
+  --car-sea: #1f4a60;
+}
+
+@supports (color: color-mix(in oklab, red, blue)) {
+  .car {
+    --car-grass: color-mix(in oklab, #86c56f 28%, var(--color-bg-elevated));
+    --car-verge: color-mix(in oklab, #6fb85a 40%, var(--color-bg-elevated));
+    --car-hill: color-mix(in oklab, #5fae4c 42%, var(--color-bg-elevated));
+    --car-meadow: color-mix(in oklab, #c2d86e 30%, var(--color-bg-elevated));
+    --car-meadow-verge: color-mix(in oklab, #a9c95a 44%, var(--color-bg-elevated));
+    --car-pave: color-mix(in oklab, #bdb8b0 30%, var(--color-bg-elevated));
+    --car-walk: color-mix(in oklab, #bdb8b0 55%, var(--color-bg-elevated));
+    --car-street: color-mix(in oklab, #8e939b 55%, var(--color-bg-elevated));
+    --car-sand: color-mix(in oklab, #eed49a 38%, var(--color-bg-elevated));
+    --car-sand-verge: color-mix(in oklab, #e8c886 62%, var(--color-bg-elevated));
+    --car-desert: color-mix(in oklab, #f0cc84 42%, var(--color-bg-elevated));
+    --car-desert-verge: color-mix(in oklab, #e2b572 64%, var(--color-bg-elevated));
+    --car-dune: color-mix(in oklab, #e9bf72 62%, var(--color-bg-elevated));
+    --car-crest: color-mix(in oklab, #c8914a 80%, var(--color-bg-elevated));
+    --car-sea: color-mix(in oklab, #56a9d8 58%, var(--color-bg-elevated));
+    --car-rock: color-mix(in oklab, #9e968c 58%, var(--color-bg-elevated));
+    --car-ridge: color-mix(in oklab, #847b70 80%, var(--color-bg-elevated));
+    --car-snow: color-mix(in oklab, #ffffff 94%, var(--color-bg-elevated));
+    --car-field: color-mix(in oklab, #eccf62 64%, var(--color-bg-elevated));
+    --car-furrow: color-mix(in oklab, #cda640 80%, var(--color-bg-elevated));
+    --car-asphalt: color-mix(in oklab, #5d626a 84%, var(--color-bg-elevated));
+    --car-crown: color-mix(in oklab, #4c9f42 88%, var(--color-bg-elevated));
+    --car-fir: color-mix(in oklab, #2f7f45 88%, var(--color-bg-elevated));
+    --car-cactus: color-mix(in oklab, #4f9a4a 88%, var(--color-bg-elevated));
+    --car-trunk: color-mix(in oklab, #8b5a36 88%, var(--color-bg-elevated));
+    --car-stone: color-mix(in oklab, #b3875f 86%, var(--color-bg-elevated));
+    --car-roof0: color-mix(in oklab, #d6785e 80%, var(--color-bg-elevated));
+    --car-roof1: color-mix(in oklab, #8299b2 80%, var(--color-bg-elevated));
+    --car-roof2: color-mix(in oklab, #deb168 80%, var(--color-bg-elevated));
+    --car-flower: color-mix(in oklab, #f08fb0 92%, var(--color-bg-elevated));
+    --car-chequer: color-mix(in oklab, #1f1f24 92%, var(--color-fg));
+    --car-paint: color-mix(in oklab, #fbfbf7 94%, var(--color-bg-elevated));
+    --car-trail: color-mix(in oklab, #f4c534 94%, var(--color-bg-elevated));
+    --car-post: color-mix(in oklab, #ffffff 94%, var(--color-bg-elevated));
+    --car-post-cap: color-mix(in oklab, #e2513f 92%, var(--color-bg-elevated));
+    --car-glass: color-mix(in oklab, #dff1fb 90%, var(--color-bg-elevated));
+    --car-tyre: color-mix(in oklab, #2b2b30 90%, var(--color-fg));
+    --car-hub: color-mix(in oklab, #c8ccd2 90%, var(--color-bg-elevated));
+    --car-headlight: color-mix(in oklab, #ffd968 94%, var(--color-bg-elevated));
+    --car-taillight: color-mix(in oklab, #e8483c 94%, var(--color-bg-elevated));
+    --car-start: color-mix(in oklab, #f08a2c 92%, var(--color-bg-elevated));
+    --car-beam: color-mix(in oklab, #ffe58a 94%, var(--color-bg-elevated));
+  }
+}
+
+/* Each road's ground (--g) and verge (--v). */
+.car-w1,
+.car-w3 {
+  --g: var(--car-grass);
+  --v: var(--car-verge);
+}
+
+.car-w2 {
+  --g: var(--car-meadow);
+  --v: var(--car-meadow-verge);
+}
+
+.car-w4 {
+  --g: var(--car-pave);
+  --v: var(--car-walk);
+}
+
+.car-w5 {
+  --g: var(--car-sand);
+  --v: var(--car-sand-verge);
+}
+
+.car-w6 {
+  --g: var(--car-desert);
+  --v: var(--car-desert-verge);
+}
+
+.car--hero {
+  position: relative;
+  flex: none;
+  width: 140px;
+  height: 228px;
+}
+
+.car--hero.car--marked {
+  margin-right: 62px;
+}
+
+.car-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.car--mini {
+  display: block;
+  flex: none;
+}
+
+.car-ground {
+  fill: var(--g);
+}
+
+.car-verge {
+  fill: none;
+  stroke: var(--v);
+  stroke-width: 26;
+  stroke-linejoin: round;
+}
+
+.car-road {
+  fill: none;
+  stroke: var(--car-asphalt);
+  stroke-width: 14.4;
+  stroke-linejoin: round;
+}
+
+.car-road-edge {
+  fill: none;
+  stroke: var(--car-paint);
+  stroke-opacity: 0.9;
+  stroke-width: 17;
+  stroke-linejoin: round;
+}
+
+.car-road-dash {
+  fill: none;
+  stroke: var(--car-paint);
+  stroke-opacity: 0.85;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 5;
+}
+
+.car-trail {
+  fill: none;
+  stroke: var(--car-trail);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-dasharray: 100 101;
+}
+
+.car--complete .car-trail {
+  stroke: var(--gold-2);
+}
+
+.car-crown {
+  fill: var(--car-crown);
+}
+
+.car-trunk {
+  fill: var(--car-trunk);
+}
+
+/* Scenery of the six landscapes. */
+.car-hill {
+  fill: var(--car-hill);
+}
+
+.car-field,
+.car-hay {
+  fill: var(--car-field);
+}
+
+.car-crop,
+.car-park {
+  fill: var(--car-hill);
+}
+
+.car-pond {
+  fill: var(--car-sea);
+}
+
+.car-furrow,
+.car-fence,
+.car-street,
+.car-zebra,
+.car-wave,
+.car-beach,
+.car-river,
+.car-crest,
+.car-cactus,
+.car-palm,
+.car-palm-trunk,
+.car-rail {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.car-furrow {
+  stroke: var(--car-furrow);
+  stroke-width: 1.4;
+}
+
+.car-rail-wood {
+  fill: none;
+  stroke: var(--car-trunk);
+  stroke-width: 1;
+}
+
+.car-fence {
+  stroke: var(--car-trunk);
+  stroke-width: 2.2;
+  stroke-dasharray: 0.1 6;
+  stroke-linecap: square;
+}
+
+.car-flower {
+  fill: var(--car-flower);
+}
+
+.car-rock {
+  fill: var(--car-rock);
+}
+
+.car-ridge {
+  fill: var(--car-ridge);
+}
+
+.car-snow {
+  fill: var(--car-snow);
+}
+
+.car-knoll {
+  fill: var(--car-hill);
+}
+
+.car-fir {
+  fill: var(--car-fir);
+}
+
+.car-street {
+  stroke: var(--car-street);
+  stroke-width: 14;
+  stroke-linecap: butt;
+}
+
+.car-roof0 {
+  fill: var(--car-roof0);
+}
+
+.car-roof1 {
+  fill: var(--car-roof1);
+}
+
+.car-roof2 {
+  fill: var(--car-roof2);
+}
+
+.car-roof-top {
+  fill: var(--car-paint);
+  fill-opacity: 0.3;
+}
+
+.car-zebra {
+  stroke: var(--car-paint);
+  stroke-width: 10;
+  stroke-dasharray: 1.6 1.6;
+  stroke-linecap: butt;
+}
+
+.car-sea,
+.car-river {
+  fill: var(--car-sea);
+}
+
+.car-river {
+  fill: none;
+  stroke: var(--car-sea);
+  stroke-width: 14;
+}
+
+.car-beach {
+  stroke: var(--car-sand-verge);
+  stroke-width: 6;
+}
+
+.car-wave {
+  stroke: var(--car-paint);
+  stroke-width: 1.2;
+  stroke-opacity: 0.8;
+}
+
+.car-boat {
+  fill: var(--car-paint);
+  stroke: var(--car-post-cap);
+  stroke-width: 0.8;
+}
+
+.car-palm-trunk {
+  stroke: var(--car-trunk);
+  stroke-width: 2.2;
+}
+
+.car-palm {
+  stroke: var(--car-crown);
+  stroke-width: 2.6;
+}
+
+.car-dune {
+  fill: var(--car-dune);
+}
+
+.car-crest {
+  stroke: var(--car-crest);
+  stroke-width: 1.2;
+}
+
+.car-cactus {
+  stroke: var(--car-cactus);
+  stroke-width: 3.2;
+}
+
+.car-stone,
+.car-mesa {
+  fill: var(--car-stone);
+}
+
+.car-mesa-shade {
+  fill: var(--car-crest);
+}
+
+.car-rail {
+  stroke: var(--car-ridge);
+  stroke-width: 1.6;
+}
+
+.car-post-body {
+  fill: var(--car-post);
+  stroke: var(--car-chequer);
+  stroke-opacity: 0.25;
+  stroke-width: 0.6;
+}
+
+.car-post-cap {
+  fill: var(--car-post-cap);
+}
+
+.car-post text {
+  fill: var(--color-fg-secondary);
+  stroke: var(--g);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.car-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.car-start-flag {
+  fill: var(--car-start);
+}
+
+.car-line-across {
+  stroke: var(--car-paint);
+  stroke-width: 3;
+}
+
+.car-line-finish {
+  stroke: var(--car-paint);
+  stroke-width: 4;
+  stroke-dasharray: 2 2;
+}
+
+.car-cloth-light {
+  fill: var(--car-post);
+  stroke: var(--car-chequer);
+  stroke-width: 0.8;
+}
+
+.car-cloth-dark {
+  fill: var(--car-chequer);
+}
+
+.car--complete .car-cloth-light {
+  fill: var(--gold-1);
+}
+
+.car--complete .car-cloth-dark {
+  fill: var(--gold-3);
+}
+
+.car-star {
+  fill: var(--gold-2);
+  stroke: var(--gold-3);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.car-rays path {
+  stroke: var(--car-trail);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.car-rays {
+  opacity: 0;
+}
+
+/* The car: body in the skill colour, everything else natural. */
+.car-body {
+  fill: var(--liquid-mid);
+}
+
+.car-trim {
+  stroke: var(--liquid-deep);
+  stroke-width: 1.2;
+}
+
+.car-glass {
+  fill: var(--car-glass);
+}
+
+.car-tyre {
+  fill: var(--car-tyre);
+}
+
+.car-hub {
+  fill: var(--car-hub);
+}
+
+.car-headlight {
+  fill: var(--car-headlight);
+}
+
+.car-taillight {
+  fill: var(--car-taillight);
+}
+
+.car-shadow {
+  fill: var(--car-tyre);
+  fill-opacity: 0.25;
+}
+
+.car-beam {
+  fill: var(--car-beam);
+  opacity: 0;
+}
+
+.car-puff {
+  fill: var(--car-paint);
+  fill-opacity: 0.9;
+  stroke: var(--car-asphalt);
+  stroke-opacity: 0.35;
+  stroke-width: 0.6;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.car-puff.anim-decor {
+  animation: car-puff 1.8s ease-out infinite;
+}
+
+@keyframes car-puff {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-7px, -3px) scale(1.7);
+  }
+}
+
+html[data-motion='reduced'] .car-puff {
+  display: none;
+}
+
+/* Marks: a pennant on a pole beside the road and a caption right of the scene. */
+.car-mark {
+  cursor: pointer;
+}
+
+.car-mark-hit {
+  fill: transparent;
+}
+
+.car-mark-pole {
+  stroke: var(--color-fg);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.car-mark-flag {
+  fill: var(--color-fg);
+}
+
+.car-mark-leader {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 2 2.5;
+}
+
+.car-mark-caption {
+  position: absolute;
+  max-width: 90px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .car--hero.car--marked {
+    margin-right: 52px;
+  }
+
+  .car-mark-caption {
+    max-width: 78px;
+  }
+}
+
+.car-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Mini: the road of its level (drawn at MINI_SCALE, so widths are in hero units), the trail
+   and the car as a dot in the skill colour. */
+.car--mini .car-road {
+  stroke-width: 24;
+}
+
+.car--mini .car-trail {
+  stroke-width: 9;
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+.car--mini .car-pole {
+  stroke-width: 1.2;
+}
+
+.car-mini-flag {
+  fill: var(--car-post);
+}
+
+.car-mini-chequer {
+  fill: var(--car-chequer);
+}
+
+.car--mini.car--complete .car-mini-flag {
+  fill: var(--gold-1);
+}
+
+.car--mini.car--complete .car-mini-chequer {
+  fill: var(--gold-3);
+}
+
+.car-mini-car {
+  fill: var(--liquid-mid);
+  stroke: var(--car-paint);
+  stroke-width: 1.2;
+}
+
+html[data-motion='reduced'] .car--mini .car-trail {
+  transition: none;
+}

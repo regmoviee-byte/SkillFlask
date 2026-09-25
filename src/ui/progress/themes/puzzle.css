@@ -1,0 +1,379 @@
+/* The puzzle theme (progress/themes/puzzle.tsx) and its twenty pictures (puzzle-pictures.tsx).
+   Natural colours for the frame and the pictures (wood, grass, snow, the sun…), the skill colour
+   on one element of each picture (the sky, the sail, the balloon, the aurora…), gold on the frame
+   of a completed skill. Only transform and opacity move; the hovering piece's bob is the one idle
+   loop (.anim-decor), paused by html.paused and removed under reduced motion. */
+
+.puzzle {
+  --pz-wood: #9a6840;
+  --pz-wood-edge: #6f4526;
+  --pz-wood-light: #c89466;
+  --pz-slot: var(--color-bg-sunken);
+  --pz-cut: var(--color-fg-tertiary);
+  /* The cardboard of a loose piece, its shadow, and the shimmer of a finished picture. */
+  --pz-rim: #efe3cf;
+  --pz-shade: #2b2016;
+  --pz-glint: #fffbef;
+  /* The pictures' palette (the shapes name it without the prefix). */
+  --pz-sun: #ffcf48;
+  --pz-halo: #fff0b8;
+  --pz-cloud: #fdfbf6;
+  --pz-snow: #f3f6fa;
+  --pz-frost: #c7d5e8;
+  --pz-grass: #7cc25e;
+  --pz-meadow: #55a35c;
+  --pz-leaf: #2f7a3f;
+  --pz-trunk: #7a5234;
+  --pz-plank: #b8814f;
+  --pz-red: #df5147;
+  --pz-orange: #f2902e;
+  --pz-pink: #f28bb4;
+  --pz-violet: #8b68d6;
+  --pz-wheat: #e9c55a;
+  --pz-rock: #9aa0a8;
+  --pz-slate: #626a78;
+  --pz-mount: #8e9cc0;
+  --pz-sand: #f1d7a2;
+  --pz-dune: #e0ae66;
+  --pz-camel: #a86f3c;
+  --pz-sea: #3d8fd1;
+  --pz-foam: #b5def5;
+  --pz-whale: #4d6282;
+  --pz-belly: #d3dce8;
+  --pz-cream: #f4e4c6;
+  --pz-moon: #fcefc0;
+  --pz-smoke: #b3aeb0;
+  --pz-city: #1f2748;
+  --pz-city2: #3a4674;
+  --pz-ink: #2b2522;
+  --pz-day-top: #8fcdf1;
+  --pz-day-bottom: #dcf1fb;
+  --pz-dusk-top: #f59c8c;
+  --pz-dusk-bottom: #ffd89c;
+  --pz-space-top: #0c1030;
+  --pz-space-bottom: #262c5e;
+  --pz-polar-top: #0a1119;
+  --pz-polar-bottom: #1b2a36;
+  --pz-night-top: #16204a;
+  --pz-night-bottom: #36427c;
+  --pz-skill: var(--liquid-mid);
+  --pz-skill-light: var(--liquid-light);
+  --pz-skill-deep: var(--liquid-deep);
+  flex: none;
+}
+
+/* Tuned against the page: the wood takes a touch of the text colour (darker on light themes,
+   lighter on dark ones); the pictures take a tenth of the card colour, so they soften on light
+   themes and dim a little on dark and purple ones instead of glaring. */
+@supports (color: color-mix(in srgb, red, blue)) {
+  .puzzle {
+    --pz-wood: color-mix(in oklab, #a06c42 86%, var(--color-fg));
+    --pz-wood-edge: color-mix(in oklab, #6a4124 80%, var(--color-fg));
+    --pz-wood-light: color-mix(in oklab, #d09c6c 88%, var(--color-bg-elevated));
+    --pz-slot: color-mix(in oklab, var(--color-bg-sunken) 85%, var(--color-fg));
+    --pz-cut: color-mix(in oklab, var(--color-fg-tertiary) 70%, transparent);
+    --pz-rim: color-mix(in oklab, #efe3cf 88%, var(--color-fg));
+    --pz-shade: color-mix(in oklab, #2b2016 80%, var(--color-bg));
+    --pz-glint: color-mix(in oklab, #fffbef 88%, var(--liquid-light));
+    --pz-sun: color-mix(in oklab, #ffcf48 90%, var(--color-bg-elevated));
+    --pz-halo: color-mix(in oklab, #fff0b8 90%, var(--color-bg-elevated));
+    --pz-cloud: color-mix(in oklab, #fdfbf6 90%, var(--color-bg-elevated));
+    --pz-snow: color-mix(in oklab, #f3f6fa 90%, var(--color-bg-elevated));
+    --pz-frost: color-mix(in oklab, #c7d5e8 90%, var(--color-bg-elevated));
+    --pz-grass: color-mix(in oklab, #7cc25e 90%, var(--color-bg-elevated));
+    --pz-meadow: color-mix(in oklab, #55a35c 90%, var(--color-bg-elevated));
+    --pz-leaf: color-mix(in oklab, #2f7a3f 90%, var(--color-bg-elevated));
+    --pz-trunk: color-mix(in oklab, #7a5234 90%, var(--color-bg-elevated));
+    --pz-plank: color-mix(in oklab, #b8814f 90%, var(--color-bg-elevated));
+    --pz-red: color-mix(in oklab, #df5147 90%, var(--color-bg-elevated));
+    --pz-orange: color-mix(in oklab, #f2902e 90%, var(--color-bg-elevated));
+    --pz-pink: color-mix(in oklab, #f28bb4 90%, var(--color-bg-elevated));
+    --pz-violet: color-mix(in oklab, #8b68d6 90%, var(--color-bg-elevated));
+    --pz-wheat: color-mix(in oklab, #e9c55a 90%, var(--color-bg-elevated));
+    --pz-rock: color-mix(in oklab, #9aa0a8 90%, var(--color-bg-elevated));
+    --pz-slate: color-mix(in oklab, #626a78 90%, var(--color-bg-elevated));
+    --pz-mount: color-mix(in oklab, #8e9cc0 90%, var(--color-bg-elevated));
+    --pz-sand: color-mix(in oklab, #f1d7a2 90%, var(--color-bg-elevated));
+    --pz-dune: color-mix(in oklab, #e0ae66 90%, var(--color-bg-elevated));
+    --pz-camel: color-mix(in oklab, #a86f3c 90%, var(--color-bg-elevated));
+    --pz-sea: color-mix(in oklab, #3d8fd1 90%, var(--color-bg-elevated));
+    --pz-foam: color-mix(in oklab, #b5def5 90%, var(--color-bg-elevated));
+    --pz-whale: color-mix(in oklab, #4d6282 90%, var(--color-bg-elevated));
+    --pz-belly: color-mix(in oklab, #d3dce8 90%, var(--color-bg-elevated));
+    --pz-cream: color-mix(in oklab, #f4e4c6 90%, var(--color-bg-elevated));
+    --pz-moon: color-mix(in oklab, #fcefc0 90%, var(--color-bg-elevated));
+    --pz-smoke: color-mix(in oklab, #b3aeb0 90%, var(--color-bg-elevated));
+    --pz-city: color-mix(in oklab, #1f2748 90%, var(--color-bg-elevated));
+    --pz-city2: color-mix(in oklab, #3a4674 90%, var(--color-bg-elevated));
+    --pz-ink: color-mix(in oklab, #2b2522 90%, var(--color-bg-elevated));
+    --pz-day-top: color-mix(in oklab, #8fcdf1 90%, var(--color-bg-elevated));
+    --pz-day-bottom: color-mix(in oklab, #dcf1fb 90%, var(--color-bg-elevated));
+    --pz-dusk-top: color-mix(in oklab, #f59c8c 90%, var(--color-bg-elevated));
+    --pz-dusk-bottom: color-mix(in oklab, #ffd89c 90%, var(--color-bg-elevated));
+    --pz-space-top: color-mix(in oklab, #0c1030 90%, var(--color-bg-elevated));
+    --pz-space-bottom: color-mix(in oklab, #262c5e 90%, var(--color-bg-elevated));
+    --pz-polar-top: color-mix(in oklab, #0a1119 90%, var(--color-bg-elevated));
+    --pz-polar-bottom: color-mix(in oklab, #1b2a36 90%, var(--color-bg-elevated));
+    /* The night over the city is the skill colour after dark. */
+    --pz-night-top: color-mix(in oklab, var(--liquid-deep) 38%, #0d1234);
+    --pz-night-bottom: color-mix(in oklab, var(--liquid-mid) 34%, #2a2f5c);
+  }
+}
+
+.puzzle--hero {
+  position: relative;
+  width: 140px;
+  height: 228px;
+}
+
+.puzzle-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ---- The frame on its nail ---- */
+
+.pz-hang {
+  transform-box: view-box;
+  transform-origin: 74px 18px;
+}
+
+.pz-wire {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.pz-nail {
+  fill: var(--color-fg-secondary);
+}
+
+.pz-frame {
+  fill: var(--pz-wood);
+  stroke: var(--pz-wood-edge);
+  stroke-width: 1.5;
+}
+
+/* Gold arrives as a layer over the wood: an opacity change, not a colour transition. */
+.pz-frame-gold {
+  fill: var(--gold-2);
+  stroke: var(--gold-3);
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-out);
+}
+
+.puzzle--complete .pz-frame-gold {
+  opacity: 1;
+}
+
+.pz-frame-bevel {
+  fill: none;
+  stroke: var(--pz-wood-light);
+  stroke-width: 1.2;
+  stroke-opacity: 0.7;
+}
+
+.puzzle--complete .pz-frame-bevel {
+  stroke: var(--gold-1);
+  stroke-opacity: 1;
+}
+
+.pz-slots {
+  fill: var(--pz-slot);
+}
+
+/* A faint print of the picture on the empty board, as on the box lid. */
+.pz-ghost {
+  opacity: 0.16;
+}
+
+.pz-cuts {
+  fill: none;
+  stroke: var(--pz-cut);
+  stroke-width: 1;
+  stroke-dasharray: 2.5 2.5;
+}
+
+/* ---- Pieces ---- */
+
+.pz-piece {
+  transform-box: view-box;
+  transition:
+    transform 560ms var(--ease-spring),
+    opacity 240ms var(--ease-out);
+}
+
+/* A scripted choreography owns the pieces; transitions would fight WAAPI. */
+.puzzle--scripted .pz-piece {
+  transition: none;
+}
+
+.pz-piece-edge {
+  fill: none;
+  stroke: var(--pz-shade);
+  stroke-opacity: 0.22;
+  stroke-width: 0.8;
+}
+
+/* A loose piece is cardboard: a rim along its outline, its edge showing below it and a soft light
+   under it, so its blanks read as notches cut into the piece, not as holes into a dark page. */
+.pz-piece-back {
+  fill: var(--pz-rim);
+  opacity: 0;
+  transform: translate(1.2px, 1.8px);
+}
+
+.pz-piece-glow {
+  opacity: 0;
+}
+
+/* A soft cardboard-coloured light under the loose piece: what shows through its notches. */
+.pz-glow {
+  stop-color: var(--pz-rim);
+}
+
+.pz-piece--floating .pz-piece-back,
+.pz-piece--floating .pz-piece-glow {
+  opacity: 1;
+}
+
+.pz-piece--floating .pz-piece-edge {
+  stroke: var(--pz-rim);
+  stroke-opacity: 1;
+  stroke-width: 1.4;
+}
+
+.pz-bob.anim-decor {
+  animation: pz-bob 2.6s ease-in-out infinite;
+}
+
+@keyframes pz-bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.pz-shine {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pz-glint {
+  stop-color: var(--pz-glint);
+}
+
+/* ---- Piece counter on a plaque under the frame ---- */
+
+.pz-plaque {
+  fill: var(--color-bg-elevated);
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.puzzle--complete .pz-plaque {
+  stroke: var(--gold-2);
+}
+
+.pz-count text {
+  fill: var(--color-fg-secondary);
+  /* 11px on screen: the hero draws 160 units in 140px. */
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Marks: pennants on the left side of the frame, captions to the left of the hero ---- */
+
+/* The captions live in this margin: never wider than it, so they keep the page gutter. */
+.puzzle--hero.puzzle--marked {
+  margin-left: 84px;
+}
+
+.pz-mark {
+  cursor: pointer;
+}
+
+.pz-mark-hit {
+  fill: transparent;
+}
+
+.pz-mark-tick,
+.pz-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.75;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.pz-mark-flag {
+  fill: var(--color-fg);
+  fill-opacity: 0.75;
+}
+
+.pz-mark-caption {
+  position: absolute;
+  right: 100%;
+  max-width: 82px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .puzzle--hero.puzzle--marked {
+    margin-left: 72px;
+  }
+
+  .pz-mark-caption {
+    max-width: 70px;
+    font-size: 11px;
+  }
+}
+
+.pz-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ---- Mini ---- */
+
+.puzzle--mini {
+  display: block;
+}
+
+.puzzle--mini .pz-frame,
+.puzzle--mini .pz-frame-gold {
+  stroke-width: 1;
+}
+
+.pz-mini-grid {
+  fill: none;
+  stroke: var(--color-bg-elevated);
+  stroke-width: 0.9;
+  stroke-opacity: 0.85;
+}
+
+html[data-motion='reduced'] .pz-piece,
+html[data-motion='reduced'] .pz-frame-gold {
+  transition: none;
+}

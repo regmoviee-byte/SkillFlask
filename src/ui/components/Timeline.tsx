@@ -1,17 +1,19 @@
 import type { HistoryEvent, MarkEvent, TransactionEvent } from '../../domain/events';
 import { formatDayLabel } from '../../lib/dates';
 import { formatDelta } from '../../lib/format';
-import { copy } from '../copy';
+import { copy, type LevelCopy } from '../copy';
 import { Icon } from './Icon';
 
 // The skill's history as a timeline: day groups with sticky headers, a thin line with a dot
 // per operation, and the moments an operation caused (a flask filled, the milestone) as chips
-// on the line right above it. A cancelled completion stays, struck through (principle 3.8).
+// on the line right above it, named in the skill's theme («Пицца 2 съедена»). A cancelled completion stays, struck through (principle 3.8).
 // Marks («засечки») sit at their own date with a pennant on the line and open their sheet.
 
 interface TimelineProps {
   /** Newest first (services/history.ts). */
   events: HistoryEvent[];
+  /** The skill's level strings (its theme's nouns). */
+  levels: LevelCopy;
   today: string;
   hasMore: boolean;
   onMore(): void;
@@ -36,7 +38,7 @@ function groupByDay(events: HistoryEvent[]): DayGroup[] {
   return groups;
 }
 
-export function Timeline({ events, today, hasMore, onMore, onOpen, onOpenMark }: TimelineProps) {
+export function Timeline({ events, levels, today, hasMore, onMore, onOpen, onOpenMark }: TimelineProps) {
   return (
     <div className="timeline">
       {groupByDay(events).map((group) => (
@@ -44,7 +46,7 @@ export function Timeline({ events, today, hasMore, onMore, onOpen, onOpenMark }:
           <h3 className="timeline-day-head">{formatDayLabel(group.date, today)}</h3>
           <ul className="timeline-list card">
             {group.events.map((event) => (
-              <TimelineItem key={event.id} event={event} onOpen={onOpen} onOpenMark={onOpenMark} />
+              <TimelineItem key={event.id} event={event} levels={levels} onOpen={onOpen} onOpenMark={onOpenMark} />
             ))}
           </ul>
         </section>
@@ -58,18 +60,25 @@ export function Timeline({ events, today, hasMore, onMore, onOpen, onOpenMark }:
   );
 }
 
-function TimelineItem({ event, onOpen, onOpenMark }: { event: HistoryEvent; onOpen(completionId: string): void; onOpenMark(markId: string): void }) {
+interface ItemProps {
+  event: HistoryEvent;
+  levels: LevelCopy;
+  onOpen(completionId: string): void;
+  onOpenMark(markId: string): void;
+}
+
+function TimelineItem({ event, levels, onOpen, onOpenMark }: ItemProps) {
   const t = copy.history;
   switch (event.type) {
     case 'COMPLETION':
     case 'CANCELLATION':
     case 'RESTORE':
     case 'CORRECTION':
-      return <OperationRow event={event} onOpen={onOpen} />;
+      return <OperationRow event={event} levels={levels} onOpen={onOpen} />;
     case 'LEVEL_UP':
-      return <Separator tone="accent" text={t.flaskFilled(event.flask, event.levels)} />;
+      return <Separator tone="accent" text={levels.completed(event.flask, event.levels)} />;
     case 'LEVEL_DOWN':
-      return <Separator tone="muted" text={t.flaskRollback(event.flask)} />;
+      return <Separator tone="muted" text={levels.rollback(event.flask)} />;
     case 'MILESTONE_REACHED':
       return <Separator tone="positive" text={t.milestoneReached(event.name)} />;
     case 'MILESTONE_LOST':
@@ -83,12 +92,12 @@ function TimelineItem({ event, onOpen, onOpenMark }: { event: HistoryEvent; onOp
     case 'SKILL_RESTORED':
       return <Separator tone="muted" text={t.skillRestored} />;
     case 'MARK':
-      return <MarkRow event={event} onOpen={onOpenMark} />;
+      return <MarkRow event={event} levels={levels} onOpen={onOpenMark} />;
   }
 }
 
 /** A mark: pennant on the line, its title, where it sits and the description on one line. */
-function MarkRow({ event: { mark }, onOpen }: { event: MarkEvent; onOpen(markId: string): void }) {
+function MarkRow({ event: { mark }, levels, onOpen }: { event: MarkEvent; levels: LevelCopy; onOpen(markId: string): void }) {
   return (
     <li>
       <button type="button" className="timeline-row timeline-mark pressable-row" onClick={() => onOpen(mark.id)}>
@@ -100,7 +109,7 @@ function MarkRow({ event: { mark }, onOpen }: { event: MarkEvent; onOpen(markId:
             <span className="visually-hidden">{copy.marks.mark}: </span>
             <span className="timeline-name">{mark.title}</span>
           </span>
-          <span className="timeline-caption">{copy.marks.historyPosition(mark.flaskNumber, mark.pointsInFlask)}</span>
+          <span className="timeline-caption">{levels.markHistory(mark.flaskNumber, mark.pointsInFlask)}</span>
           {mark.description && <span className="history-note">{mark.description}</span>}
         </span>
       </button>
@@ -116,7 +125,7 @@ function Separator({ tone, text }: { tone: 'accent' | 'positive' | 'gold' | 'mut
   );
 }
 
-function OperationRow({ event, onOpen }: { event: TransactionEvent; onOpen(completionId: string): void }) {
+function OperationRow({ event, levels, onOpen }: { event: TransactionEvent; levels: LevelCopy; onOpen(completionId: string): void }) {
   const t = copy.history;
   const { completion, after, delta } = event;
   const cancelled = event.type === 'COMPLETION' && completion?.status === 'CANCELLED';
@@ -141,7 +150,7 @@ function OperationRow({ event, onOpen }: { event: TransactionEvent; onOpen(compl
           {cancelled && <span className="badge badge-muted">{t.cancelledBadge}</span>}
         </span>
         <span className="timeline-caption">
-          {t.flaskState(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
+          {levels.state(after.currentFlask, after.pointsInCurrentFlask, after.currentCapacity)}
           {event.minutes && ` · ${t.duration(event.minutes.from, event.minutes.to)}`}
           {event.type === 'CORRECTION' && !event.minutes && delta === 0 && ` · ${t.minutesChanged}`}
           {/* A TIMED completion shows its minutes as they are now (corrections included). */}

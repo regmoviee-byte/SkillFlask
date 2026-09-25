@@ -58,7 +58,7 @@ describe('achievement catalogue', () => {
     expect(CATALOG.find((d) => d.id === 'actions-1000')!.title).toBe('Действия · 1 000');
     expect(CATALOG.find((d) => d.id === 'completed-1')!.description).toBe('1 навык доведён до конца');
     expect(CATALOG.find((d) => d.id === 'completed-3')!.description).toBe('3 навыка доведены до конца');
-    expect(CATALOG.find((d) => d.id === 'flasks-25')!.description).toBe('25 заполненных колб');
+    expect(CATALOG.find((d) => d.id === 'flasks-25')!.description).toBe('25 пройденных уровней');
   });
 
   it('writes every string in Russian, without forbidden words, exclamation marks or emoji', () => {

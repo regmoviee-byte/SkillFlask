@@ -179,7 +179,7 @@ describe('Entry points', () => {
     expect(row('Лучшая неделя').getAttribute('href')).toBe('/recap/2026-09-14');
     // 22nd and 23rd in a row.
     expect(within(row('Лучшая серия')).getByText('2 дня подряд')).toBeTruthy();
-    expect(row('Самая быстрая колба').getAttribute('href')).toBe(`/skills/${skillId}`);
+    expect(row('Самый быстрый уровень').getAttribute('href')).toBe(`/skills/${skillId}`);
     // No timed action: no «Самое длинное занятие».
     expect(within(section).queryByText('Самое длинное занятие')).toBeNull();
   });

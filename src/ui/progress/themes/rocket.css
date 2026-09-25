@@ -1,0 +1,430 @@
+/* «Ракета»: natural colours as token mixes; the skill colour is the rocket body only. Generated
+   planets (level ≥ 2) carry literal colours from rocket.tsx; a faint --color-fg rim outlines each. */
+
+.rocket {
+  --rk-ocean: #3f86c6;
+  --rk-land: #62a85a;
+  --rk-cloud: #ffffff;
+  --rk-air: #8cc4f0;
+  --rk-moon: #d3d0c7;
+  --rk-moon-shade: #b3afa4;
+  --rk-crater: #aaa69b;
+  --rk-flame: #f28a2e;
+  --rk-flame-core: #ffe08a;
+  --rk-flag: #e0533d;
+  --rk-star: #e3b23c;
+  --rk-window: #e6f4ff;
+  --rk-metal: #8b9099;
+  --rk-halo: #e6e2d6;
+  --rk-dust: #ddd7ca;
+  --rk-smoke: #cfcfd4;
+  --rk-smoke-gold: #ead9a4;
+  --rk-halo-gold: #f6cf5f;
+  --rk-rock: #a59d91;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .rocket {
+    --rk-ocean: color-mix(in srgb, #3582c6 84%, var(--color-bg-elevated));
+    --rk-land: color-mix(in srgb, #5aa653 86%, var(--color-bg-elevated));
+    --rk-cloud: color-mix(in srgb, #ffffff 88%, var(--color-bg-elevated));
+    --rk-air: color-mix(in srgb, #8cc4f0 60%, var(--color-bg-elevated));
+    --rk-moon: color-mix(in srgb, #d6d2c8 90%, var(--color-fg));
+    --rk-moon-shade: color-mix(in srgb, #b8b3a7 88%, var(--color-fg));
+    --rk-crater: color-mix(in srgb, #aca79b 86%, var(--color-fg));
+    --rk-flame: color-mix(in srgb, var(--gold-2) 55%, #f2612a);
+    --rk-flame-core: color-mix(in srgb, var(--gold-1) 70%, #ffffff);
+    --rk-flag: color-mix(in srgb, #e0533d 90%, var(--color-bg-elevated));
+    --rk-star: color-mix(in srgb, var(--gold-1) 70%, var(--color-fg) 30%);
+    --rk-window: color-mix(in srgb, #e6f4ff 90%, var(--color-bg-elevated));
+    --rk-metal: color-mix(in srgb, #8b9099 80%, var(--color-fg));
+    --rk-halo: color-mix(in srgb, #efeadc 80%, var(--color-bg-elevated));
+    --rk-dust: color-mix(in srgb, #f1ebdc 72%, var(--color-bg-elevated));
+    --rk-smoke: color-mix(in srgb, var(--color-fg-tertiary) 38%, var(--color-bg-elevated));
+    --rk-smoke-gold: color-mix(in srgb, var(--gold-1) 45%, var(--rk-smoke));
+    --rk-halo-gold: color-mix(in srgb, var(--gold-1) 85%, var(--color-bg-elevated));
+    --rk-rock: color-mix(in srgb, #a89f92 86%, var(--color-fg));
+  }
+}
+
+.rocket--hero {
+  position: relative;
+  flex: none;
+  width: 140px;
+  height: 228px;
+}
+
+.rocket--mini {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.rocket-svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ---- Sky ---- */
+
+.rocket-stars path {
+  fill: var(--rk-star);
+  opacity: 0.8;
+}
+
+.rocket--complete .rocket-stars path {
+  fill: var(--gold-2);
+  opacity: 1;
+}
+
+/* ---- Earth ---- */
+
+.rocket-atmosphere {
+  fill: var(--rk-air);
+  opacity: 0.55;
+}
+
+.rocket-ocean {
+  fill: var(--rk-ocean);
+}
+
+.rocket-land {
+  fill: var(--rk-land);
+}
+
+.rocket-cloud {
+  fill: none;
+  stroke: var(--rk-cloud);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.rocket-tower {
+  fill: none;
+  stroke: var(--rk-metal);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.rocket-platform {
+  fill: var(--rk-metal);
+}
+
+/* ---- Planets: the Moon in tokens, generated ones in their own colours ---- */
+
+.rocket-halo-in {
+  stop-color: var(--rk-halo);
+  stop-opacity: 0.5;
+}
+
+.rocket-halo-out {
+  stop-color: var(--rk-halo);
+  stop-opacity: 0;
+}
+
+.rocket-planet-shade {
+  opacity: 0.6;
+}
+
+.rocket-planet-glow {
+  opacity: 0.4;
+}
+
+.rocket-planet-rim {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-opacity: 0.24;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.rk-cloud {
+  opacity: 0.85;
+}
+
+.rocket-planet--moon .rk-pb {
+  fill: var(--rk-moon);
+}
+
+.rocket-planet--moon .rocket-planet-shade {
+  fill: var(--rk-moon-shade);
+  opacity: 0.7;
+}
+
+.rocket-planet--moon .rk-crater {
+  fill: var(--rk-crater);
+}
+
+.rocket-planet--moon .rk-mare {
+  fill: var(--rk-moon-shade);
+  opacity: 0.6;
+}
+
+.rocket-planet--gold .rk-pb {
+  fill: var(--gold-1);
+}
+
+.rocket-planet--gold .rk-pf {
+  fill: var(--gold-2);
+}
+
+.rocket-planet--gold .rk-ps {
+  stroke: var(--gold-2);
+}
+
+.rocket-planet--gold .rocket-planet-shade {
+  opacity: 0.55;
+}
+
+.rocket-planet--gold .rocket-planet-rim {
+  stroke: var(--gold-3);
+  stroke-opacity: 0.6;
+}
+
+.rocket--complete .rocket-halo-in {
+  stop-color: var(--rk-halo-gold);
+  stop-opacity: 0.55;
+}
+
+.rocket-rock {
+  fill: var(--rk-rock);
+  stroke: var(--color-fg);
+  stroke-opacity: 0.22;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.rocket-flag {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+.rocket-flag-pole {
+  stroke: var(--rk-metal);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.rocket-flag-cloth {
+  fill: var(--rk-flag);
+}
+
+.rocket-puffs circle {
+  fill: var(--rk-dust);
+  stroke: var(--rk-moon-shade);
+  stroke-width: 0.8;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* ---- Route ---- */
+
+.rocket-route {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-opacity: 0.55;
+  stroke-width: 1.6;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+
+.rocket-trail {
+  fill: none;
+  stroke: var(--rk-smoke);
+  stroke-width: 2.8;
+  stroke-linecap: butt;
+  stroke-dasharray: 1 2;
+  transition: stroke-dashoffset var(--dur-hero) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+}
+
+.rocket--complete .rocket-trail {
+  stroke: var(--rk-smoke-gold);
+}
+
+.rocket-leader {
+  fill: none;
+  stroke: var(--color-fg-tertiary);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+  stroke-linecap: round;
+}
+
+.rocket-leader-dot {
+  fill: var(--color-fg-tertiary);
+  fill-opacity: 0.6;
+}
+
+.rocket-route--mini {
+  stroke-width: 1.6;
+  stroke-dasharray: 1.5 3;
+}
+
+.rocket-trail--mini {
+  stroke-width: 2.6;
+}
+
+.rocket--scripted .rocket-trail {
+  transition: none;
+}
+
+/* ---- The rocket: the skill colour is its body ---- */
+
+.rocket-body {
+  fill: var(--liquid-mid);
+}
+
+.rocket-body-shade {
+  fill: var(--liquid-deep);
+  opacity: 0.55;
+}
+
+.rocket-fin,
+.rocket-fin-mid {
+  fill: var(--liquid-deep);
+}
+
+.rocket-nozzle {
+  fill: var(--rk-metal);
+}
+
+.rocket-window {
+  fill: var(--rk-window);
+  stroke: var(--liquid-deep);
+  stroke-width: 1.4;
+}
+
+.rocket-window-glint {
+  fill: var(--rk-cloud);
+  opacity: 0.9;
+}
+
+.rocket--mini .rocket-body {
+  stroke: var(--liquid-deep);
+  stroke-width: 2;
+}
+
+.rocket-flame {
+  fill: var(--rk-flame);
+}
+
+.rocket-flame-core {
+  fill: var(--rk-flame-core);
+}
+
+.rocket-flame-wrap {
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.rocket--flame .rocket-flame-wrap {
+  opacity: 1;
+}
+
+.rocket-flame-scale {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.rocket--scripted .rocket-flame-scale {
+  transition: none;
+}
+
+/* The idle flicker: the flame alone, from the nozzle down. */
+.rocket-flame.anim-decor {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: rocket-flicker 380ms ease-in-out infinite alternate;
+}
+
+@keyframes rocket-flicker {
+  from {
+    transform: scale(1, 1);
+  }
+  to {
+    transform: scale(0.84, 1.22);
+  }
+}
+
+.rocket-craft,
+.rocket-cam {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+/* ---- Marks: pennants on the route, captions on the right ---- */
+
+/* 12 characters (the label is shortened in rocket.tsx) fit in 100 px; the caption starts at 126 px. */
+.rocket--hero.rocket--marked {
+  margin-right: 86px;
+}
+
+.rocket-mark {
+  cursor: pointer;
+}
+
+.rocket-mark-hit {
+  fill: transparent;
+}
+
+.rocket-mark-pole {
+  stroke: var(--color-fg);
+  stroke-opacity: 0.7;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.rocket-mark-flag,
+.rocket-mark-foot {
+  fill: var(--color-fg);
+  fill-opacity: 0.7;
+}
+
+.rocket-mark-caption {
+  position: absolute;
+  max-width: 100px;
+  min-height: 24px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 374px) {
+  .rocket--hero.rocket--marked {
+    margin-right: 78px;
+  }
+
+  .rocket-mark-caption {
+    max-width: 92px;
+    font-size: 11px;
+  }
+}
+
+.rocket-mark-caption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+html[data-motion='reduced'] .rocket-trail,
+html[data-motion='reduced'] .rocket-flame-wrap,
+html[data-motion='reduced'] .rocket-flame-scale {
+  transition: none;
+}

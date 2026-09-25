@@ -96,6 +96,8 @@ const delta: Check = (v) => typeof v === 'number' && isPoints(Math.abs(v));
 const title = (max: number): Check => (v) => typeof v === 'string' && v.trim() === v && v.length > 0 && v.length <= max;
 const text = (max: number): Check => (v) => typeof v === 'string' && v.length <= max;
 const rate: Check = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+/** An enum-like key (theme, colour): a short word, validated against the known ones at read time. */
+const key: Check = (v) => typeof v === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(v);
 /** The shapes validateSchedule accepts: weekdays 1..7 (at least one), quotas of 1..31. */
 const schedule: Check = (v) => {
   if (!v || typeof v !== 'object') return false;
@@ -124,6 +126,9 @@ export const ROW_CHECKS: Record<string, Record<string, Check>> = {
     completedAt: nullable(iso),
     archivedAt: nullable(iso),
     originSkillId: nullable(id),
+    // Any short key: one this build does not know (a newer release's) is read as the default.
+    theme: key,
+    color: nullable(key),
     ...timestamps,
   },
   milestones: {

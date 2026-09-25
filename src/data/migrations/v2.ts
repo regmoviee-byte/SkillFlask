@@ -7,7 +7,8 @@ import { localDate } from '../../lib/clock';
 type V1Step = Omit<StepDefinition, 'pointsPerMinute' | 'defaultMinutes' | 'scheduleFrom' | 'schedule'> &
   Partial<Pick<StepDefinition, 'pointsPerMinute' | 'defaultMinutes' | 'scheduleFrom' | 'schedule'>>;
 type V1Completion = Omit<StepCompletion, 'cancelledAt'> & Partial<Pick<StepCompletion, 'cancelledAt'>>;
-type V1Skill = Omit<Skill, 'originSkillId'> & Partial<Pick<Skill, 'originSkillId'>>;
+// Fields added by later versions are optional too: the same row type serves every step.
+type V1Skill = Omit<Skill, 'originSkillId' | 'theme' | 'color'> & Partial<Pick<Skill, 'originSkillId' | 'theme' | 'color'>>;
 
 export function upgradeStepV2(step: V1Step): void {
   step.pointsPerMinute ??= null;
@@ -24,6 +25,8 @@ export function upgradeCompletionV2(completion: V1Completion): void {
 export function upgradeSkillV2(skill: V1Skill): void {
   skill.originSkillId ??= null;
 }
+
+export type { V1Skill };
 
 export interface RowMigrations {
   steps?: (row: V1Step) => void;
