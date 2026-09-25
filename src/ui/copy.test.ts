@@ -7,6 +7,7 @@ import { BUTTON_TEXT_MAX, copy, levelCopy } from './copy';
 import { PROGRESS_THEME_KEYS } from './progress/contract';
 import { THEME_TEXT } from './progress/texts';
 import { insightsCopy } from './insights/strings';
+import { timerCopy } from './timer/strings';
 
 const flask = levelCopy(THEME_TEXT.flask);
 
@@ -62,6 +63,8 @@ describe('copy dictionary', () => {
   for (const key of PROGRESS_THEME_KEYS) strings.push([`insightsCopy.forecast.line(${key})`, line(THEME_TEXT[key], 3, '≈ 12 октября')]);
   strings.push(['insightsCopy.forecast.required', required(70, [{ name: 'Разговор', minutes: null, times: 5 }, { name: 'Чтение', minutes: 30, times: 3 }])]);
   strings.push(['insightsCopy.forecast.required()', required(7, [])]);
+  // The live timer (ui/timer/strings.ts).
+  collect(timerCopy, 'timerCopy', strings);
 
   it('contains strings', () => {
     expect(strings.length).toBeGreaterThan(80);

@@ -649,6 +649,127 @@ if (todayOverflow > 0) errors.push(`«Сегодня» scrolls sideways by ${tod
 await shot('today-v2-320');
 await page.setViewportSize(contextOptions.viewport);
 
+// The live timer (v0.5 package 15), on «Чтение вслух» (0,5/мин, обычно 30 мин): ▶ beside the
+// ✓, the pill on every screen, the sheet running and paused, «Завершить» → «Сколько минут?»
+// prefilled → the completion toast. The timer counts from its stored timestamps, so moving its
+// start back in IndexedDB and reloading is the same as waiting (and shows that a reload keeps it).
+/** Moves the stored timer's start `ms` into the past (the page's own clock, SHIFT_DAYS included). */
+const backdateTimer = (ms) =>
+  page.evaluate(
+    (ms) =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open('skill-flask');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const idb = open.result;
+          const store = idb.transaction('settings', 'readwrite').objectStore('settings');
+          const get = store.get('activeTimer');
+          get.onsuccess = () => {
+            const row = get.result;
+            if (!row) return reject(new Error('no activeTimer row'));
+            row.value.startedAt = new Date(Date.parse(row.value.startedAt) - ms).toISOString();
+            store.put(row).onsuccess = () => {
+              idb.close();
+              resolve();
+            };
+          };
+        };
+      }),
+    ms,
+  );
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await page.getByRole('button', { name: 'Запустить таймер: Чтение вслух' }).click();
+const timerPill = page.locator('.timer-pill');
+await timerPill.getByText('00:0', { exact: false }).waitFor();
+await page.getByRole('button', { name: 'Открыть таймер: Чтение вслух', exact: true }).waitFor();
+// Twelve minutes in (after a reload: the stored timestamps are all it needs).
+await backdateTimer(12 * 60_000);
+await page.reload();
+await timerPill.getByText(/^12:0\d$/).waitFor();
+await shot('timer-pill-today');
+// The sheet «Таймер»: the ring fills towards the usual 30 minutes; then paused.
+await timerPill.getByRole('button', { name: /^Открыть таймер: Чтение вслух, / }).click();
+const timerSheet = page.locator('.timer-sheet');
+await timerSheet.getByText('Цель — 30 мин').waitFor();
+await shot('timer-sheet');
+await timerSheet.getByRole('button', { name: 'Пауза' }).click();
+await timerSheet.getByText('На паузе').waitFor();
+await shot('timer-sheet-paused');
+await timerSheet.getByRole('button', { name: 'Продолжить' }).click();
+await timerSheet.getByText('Цель — 30 мин').waitFor();
+await page.keyboard.press('Escape');
+await timerSheet.waitFor({ state: 'detached' });
+// Four seconds before the usual 30 minutes: after the reload the goal toast comes while the app is open.
+await backdateTimer(18 * 60_000 - 4000);
+await page.reload();
+await timerPill.getByText(/^29:5\d$/).waitFor();
+await page.getByRole('status').getByText('30 минут — цель на сегодня есть').waitFor({ timeout: 8000 });
+{
+  // The toast rises above the pill instead of covering it.
+  const [toastBox, pillBox] = await Promise.all([page.locator('.toast').boundingBox(), timerPill.boundingBox()]);
+  if (!toastBox || !pillBox || toastBox.y + toastBox.height > pillBox.y) errors.push('the goal toast overlaps the timer pill');
+}
+await shot('timer-goal-toast');
+// Another root screen, then a nested one scrolled to its end: the pill stays above the bars and
+// the page end has room for it (the last row scrolls out from under it).
+await tab('Навыки').click();
+await page.locator('.skill-card', { hasText: 'Чтение' }).first().waitFor();
+await shot('timer-pill-home');
+await page.locator('.skill-card', { hasText: 'Чтение' }).first().click();
+await page.getByRole('button', { name: 'Открыть таймер: Чтение вслух', exact: true }).waitFor();
+// The lazy heat map and the history arrive after the first paint: let them, then go to the end.
+await page.locator('.heatmap-grid button').first().waitFor();
+await page.waitForTimeout(500);
+await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+await page.waitForTimeout(300);
+{
+  const lastBottom = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('.screen-body > *')].filter((el) => el.getBoundingClientRect().height > 0);
+    return items.at(-1)?.getBoundingClientRect().bottom ?? 0;
+  });
+  const pillTop = (await timerPill.boundingBox())?.y ?? 0;
+  if (lastBottom > pillTop + 1) errors.push(`the end of the skill screen stays under the timer pill (${lastBottom.toFixed(0)} > ${pillTop.toFixed(0)})`);
+}
+await shot('timer-pill-skill-end');
+await page.evaluate(() => window.scrollTo(0, 0));
+await timerPill.getByRole('button', { name: /^Открыть таймер: Чтение вслух, / }).click();
+await timerSheet.getByText('Цель — 30 мин').waitFor();
+// «Завершить» → «Сколько минут?» over the timer, with its minutes and start day.
+await timerSheet.getByRole('button', { name: 'Завершить' }).click();
+const timerMinutes = page.locator('.minutes-sheet');
+await timerMinutes.getByText('Начислится 15 очков').waitFor();
+if ((await timerMinutes.getByLabel('Минуты').inputValue()) !== '30') errors.push('«Завершить» did not fill in the timer’s 30 minutes');
+if (!(await timerMinutes.getByLabel('Дата').inputValue())) errors.push('«Завершить» did not fill in the timer’s date');
+await shot('timer-finish-minutes');
+await timerMinutes.getByRole('button', { name: 'Готово' }).click();
+await page.getByRole('status').getByText('+15 · Чтение вслух').waitFor();
+await timerPill.waitFor({ state: 'detached' });
+await timerSheet.waitFor({ state: 'detached' });
+await shot('timer-recorded');
+// A 320 px phone: the pill keeps its digits and buttons, the name gives way.
+await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+await page.getByRole('button', { name: 'Запустить таймер: Чтение вслух' }).click();
+await timerPill.waitFor();
+await page.setViewportSize({ width: 320, height: 700 });
+await page.waitForTimeout(200);
+{
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 0) errors.push(`the skill screen with the timer pill scrolls sideways by ${overflow}px at 320 px`);
+  const inside = await timerPill.evaluate((el) => [...el.querySelectorAll('button')].every((b) => b.getBoundingClientRect().right <= el.getBoundingClientRect().right + 0.5));
+  if (!inside) errors.push('a timer pill button sticks out at 320 px');
+}
+await shot('timer-pill-320');
+await page.setViewportSize(contextOptions.viewport);
+// «Сбросить» leaves nothing behind for the rest of the walk.
+await timerPill.getByRole('button', { name: /^Открыть таймер: Чтение вслух, / }).click();
+await timerSheet.getByRole('button', { name: 'Сбросить' }).click();
+const resetConfirm = page.getByRole('dialog', { name: 'Подтверждение' });
+await resetConfirm.getByText('Сбросить таймер? Время не запишется').waitFor();
+await shot('timer-confirm-reset');
+await resetConfirm.getByRole('button', { name: 'Сбросить' }).click();
+await timerPill.waitFor({ state: 'detached' });
+await page.getByRole('button', { name: 'Назад' }).click();
+
 // Archive from the skill form: gone from «Сегодня», a third chip «Архив» on the home screen,
 // the banner with «Продолжить с этого места» on the skill.
 await tab('Навыки').click();

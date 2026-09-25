@@ -6,6 +6,7 @@ import type { Progress } from '../../domain/progression';
 import type { StepDefinition } from '../../domain/types';
 import { cancelCompletion, completeStep, type MutationResult } from '../../services/completions';
 import { DoubleSubmitError, SAME_TAP_MS, ValidationError } from '../../services/core';
+import { TimerContext } from '../timer/context';
 import { BUSY_TAIL_MS, StepRow } from './StepRow';
 import { ToastProvider } from './Toast';
 
@@ -213,6 +214,35 @@ describe('StepRow', () => {
     await wait(0);
     expect(completeStep).toHaveBeenCalledWith('step-1', { date: undefined, minutes: 45 });
     expect(await screen.findByText('+22,5 · Чтение')).toBeTruthy();
+  });
+
+  it('starts the live timer with ▶ beside a TIMED step’s ✓, today only', () => {
+    const timed: StepDefinition = { ...step, type: 'TIMED', points: 0, pointsPerMinute: 0.5, defaultMinutes: 30 };
+    const start = vi.fn();
+    const withTimer = (stepId: string | null, props: Partial<Parameters<typeof StepRow>[0]> = {}) =>
+      render(
+        <MemoryRouter>
+          <TimerContext.Provider value={{ stepId, start }}>
+            <ul>
+              <StepRow step={timed} skill={{ status: 'ACTIVE' }} todayCount={0} mode="complete" {...props} />
+            </ul>
+          </TimerContext.Provider>
+        </MemoryRouter>,
+      );
+    withTimer(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Запустить таймер: Чтение' }));
+    expect(start).toHaveBeenCalledWith(timed);
+    cleanup();
+    // This step's timer runs: the same button opens it.
+    withTimer('step-1');
+    expect(screen.getByRole('button', { name: 'Открыть таймер: Чтение' }).classList.contains('is-running')).toBe(true);
+    // A past day picked on «Сегодня», a BOOLEAN step, an inactive skill: no ▶.
+    for (const other of [() => withTimer(null, { date: '2020-01-06' }), () => renderRow(), () => withTimer(null, { skill: { status: 'ARCHIVED' } })]) {
+      cleanup();
+      other();
+      expect(screen.getByText('Чтение')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /таймер/ })).toBeNull();
+    }
   });
 
   it('records on the given past date and counts «в этот день»', async () => {

@@ -233,6 +233,10 @@ export const copy = Object.freeze({
     rate: (rate: number) => formatRate(rate),
     check: (name: string, points: number) => `Отметить: ${name}, +${formatPoints(points)}`,
     checkTimed: (name: string, rate: number) => `Отметить: ${name}, ${formatNumber(rate)} ${plural(rate, POINTS)} в минуту`,
+    /** The ▶ of a TIMED action (the live timer, package 15); the rest of the timer's words are lazy (ui/timer/strings.ts). */
+    startTimer: (name: string) => `Запустить таймер: ${name}`,
+    /** The same button while this action's timer runs: it opens the timer. */
+    openTimer: (name: string) => `Открыть таймер: ${name}`,
   },
   minutes: {
     title: 'Сколько минут?',
@@ -240,6 +244,8 @@ export const copy = Object.freeze({
     unit: 'мин',
     willEarn: (points: number) => `Начислится ${formatPoints(points)}`,
     done: 'Готово',
+    /** The date field, shown when the minutes come from a timer. */
+    date: 'Дата',
   },
   stepper: {
     less: 'Меньше',
@@ -675,6 +681,8 @@ export const copy = Object.freeze({
   },
   errors: {
     save: 'Не сохранилось. Данные на месте — попробуйте ещё раз',
+    /** The live timer's chunk did not load (a new build on the server): the timer itself is kept. */
+    timerChunk: 'Таймер не открылся — обновите приложение в «Настройках»',
   },
   db: {
     opening: 'Открываем данные…',

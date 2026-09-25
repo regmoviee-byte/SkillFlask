@@ -21,6 +21,7 @@ import { SkillsScreen } from './screens/SkillsScreen';
 import { StepFormScreen } from './screens/StepFormScreen';
 import { TodayScreen } from './screens/TodayScreen';
 import { StartRedirect } from './StartRedirect';
+import { TimerLayer } from './timer/TimerLayer';
 
 // The styleguide exists only in development builds; the dead branch keeps it out of the bundle.
 const StyleguideScreen = import.meta.env.DEV ? lazy(() => import('./screens/StyleguideScreen')) : null;
@@ -57,42 +58,45 @@ function Shell() {
       <ToastProvider routeKey={location.pathname}>
         {/* Reward moments (flask level-up, TopCard, milestone sheet) toast through the provider above. */}
         <CelebrationProvider>
-          <div className="app">
-            <ErrorBoundary>
-              <Routes>
-                {/* «Сегодня» is the entry once there is an action to tap, the skills before that. */}
-                <Route path="/" element={<StartRedirect />} />
-                <Route path="/today" element={<TodayScreen />} />
-                <Route path="/skills" element={<SkillsScreen />} />
-                <Route path="/skills/new" element={<SkillFormScreen />} />
-                <Route path="/skills/:skillId" element={<SkillScreen />} />
-                <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
-                <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
-                <Route path="/steps/new" element={<StepFormScreen />} />
-                <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
-                <Route path="/achievements" element={<AchievementsScreen />} />
-                <Route path="/recap" element={<RecapScreen />} />
-                <Route path="/recap/:weekStart" element={<RecapScreen />} />
-                <Route path="/settings" element={<SettingsScreen />} />
-                <Route path="/todo" element={<Navigate to="/today" replace />} />
-                <Route path="/account" element={<Navigate to="/settings" replace />} />
-                {StyleguideScreen && (
-                  <Route
-                    path="/styleguide"
-                    element={
-                      <Suspense fallback={null}>
-                        <StyleguideScreen />
-                      </Suspense>
-                    }
-                  />
-                )}
-                {/* Unknown paths decide like `/`. Telegram launches the app with its own hash
-                    (`#tgWebAppData=…&tgWebAppVersion=…`), which lands here, not on `/`. */}
-                <Route path="*" element={<StartRedirect />} />
-              </Routes>
-            </ErrorBoundary>
-            {hasTabBar && <TabBar />}
-          </div>
+          {/* The live timer (package 15): the step rows' ▶, and the pill over every screen. */}
+          <TimerLayer>
+            <div className="app">
+              <ErrorBoundary>
+                <Routes>
+                  {/* «Сегодня» is the entry once there is an action to tap, the skills before that. */}
+                  <Route path="/" element={<StartRedirect />} />
+                  <Route path="/today" element={<TodayScreen />} />
+                  <Route path="/skills" element={<SkillsScreen />} />
+                  <Route path="/skills/new" element={<SkillFormScreen />} />
+                  <Route path="/skills/:skillId" element={<SkillScreen />} />
+                  <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
+                  <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
+                  <Route path="/steps/new" element={<StepFormScreen />} />
+                  <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
+                  <Route path="/achievements" element={<AchievementsScreen />} />
+                  <Route path="/recap" element={<RecapScreen />} />
+                  <Route path="/recap/:weekStart" element={<RecapScreen />} />
+                  <Route path="/settings" element={<SettingsScreen />} />
+                  <Route path="/todo" element={<Navigate to="/today" replace />} />
+                  <Route path="/account" element={<Navigate to="/settings" replace />} />
+                  {StyleguideScreen && (
+                    <Route
+                      path="/styleguide"
+                      element={
+                        <Suspense fallback={null}>
+                          <StyleguideScreen />
+                        </Suspense>
+                      }
+                    />
+                  )}
+                  {/* Unknown paths decide like `/`. Telegram launches the app with its own hash
+                      (`#tgWebAppData=…&tgWebAppVersion=…`), which lands here, not on `/`. */}
+                  <Route path="*" element={<StartRedirect />} />
+                </Routes>
+              </ErrorBoundary>
+              {hasTabBar && <TabBar />}
+            </div>
+          </TimerLayer>
           <DialogHost />
         </CelebrationProvider>
       </ToastProvider>

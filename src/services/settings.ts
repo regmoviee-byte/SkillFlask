@@ -12,6 +12,7 @@ export type SettingKey =
   | 'motion'
   | 'appearance'
   | 'coachTodaySeen'
+  | 'activeTimer'
   | 'installId';
 
 /** Reads a setting; `installId` is generated on first read so every install has a stable id. */

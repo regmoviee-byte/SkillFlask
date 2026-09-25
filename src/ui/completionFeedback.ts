@@ -8,6 +8,7 @@ import { cancelCompletion, type MutationResult } from '../services/completions';
 import { ValidationError } from '../services/core';
 import { haptics } from '../platform/haptics';
 import { logError } from '../platform/errorLog';
+import type { useCelebrations } from './celebrations/CelebrationProvider';
 import type { ShowToast } from './components/Toast';
 import { copy, type LevelCopy } from './copy';
 
@@ -42,6 +43,37 @@ export function announceCompletion(result: MutationResult, stepName: string, sho
   showToast(completionMessage(result, stepName), {
     action: { label: copy.completion.undo, onClick: () => void undoCompletion(completionId, showToast, levels) },
   });
+}
+
+/**
+ * The UI side of a completion written from a tap (the step row's ✓, the timer's «Завершить»):
+ * freeze the skill's hero, write, then the toast with «Отменить» and the celebrations, the «+N»
+ * flying from `source`. A failed write releases the hero and rethrows for the caller to report.
+ */
+export async function writeCompletion(
+  write: () => Promise<MutationResult>,
+  ctx: {
+    skillId: string;
+    stepName: string;
+    levels: LevelCopy;
+    source: Element | null;
+    showToast: ShowToast;
+    celebrations: ReturnType<typeof useCelebrations>;
+  },
+): Promise<MutationResult> {
+  // Freeze the flask on screen before the write, so the live query cannot move it before the
+  // points have flown in.
+  const release = ctx.celebrations.hold(ctx.skillId);
+  let result: MutationResult;
+  try {
+    result = await write();
+  } catch (error) {
+    release();
+    throw error;
+  }
+  announceCompletion(result, ctx.stepName, ctx.showToast, ctx.levels);
+  void ctx.celebrations.celebrateResult(result, { skillId: ctx.skillId, source: ctx.source, points: result.pointsAwarded }).finally(release);
+  return result;
 }
 
 /** The toast's «Отменить»: cancels exactly the completion the toast announced, once. */

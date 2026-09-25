@@ -3,7 +3,8 @@ import type { SVGProps } from 'react';
 // One stroke icon set, 24px grid, fixed meanings: flask — level/skill, flag — milestone,
 // pennant — mark («засечка»), trophy — completed skill, medal — achievement, sun — today,
 // sliders — settings, more — a context menu, palette — a skill's appearance («Оформление»),
-// link — a link to a skill, trend — the forecast, home — the home-screen shortcut, share / plus-square /
+// link — a link to a skill, trend — the forecast, home — the home-screen shortcut, play / pause / stop —
+// the live timer (filled), share / plus-square /
 // more-vertical — the browsers' own buttons in the install instructions.
 // The four tab icons have filled variants. No emoji anywhere in the chrome.
 
@@ -45,10 +46,16 @@ const STROKE: Record<string, string> = {
   share: 'M12 15V3M8 7l4-4 4 4M8 10H6v11h12V10h-2',
   'plus-square': 'M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 8v8M8 12h8',
   'more-vertical': 'M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  play: 'M8 5.5v13l10.5-6.5z',
+  pause: 'M8.5 5.5v13M15.5 5.5v13',
+  stop: 'M7 7h10v10H7z',
   palette: 'M12 3a9 9 0 0 0 0 18c1.2 0 1.6-.9 1.2-1.7-.5-1 .2-2.3 1.5-2.3H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10zM7.5 12.5h.01M9 8h.01M14 7.5h.01M17 11h.01',
 };
 
 const FILLED: Partial<Record<keyof typeof STROKE, string>> = {
+  play: 'M8 5.5v13l10.5-6.5z',
+  pause: 'M7 5.5h3v13H7zM14 5.5h3v13h-3z',
+  stop: 'M7 7h10v10H7z',
   flask: 'M9.5 2h5a1 1 0 0 1 0 2H15v5.2l4.7 8.3A3 3 0 0 1 17 22H7a3 3 0 0 1-2.7-4.5L9 9.2V4h-.5a1 1 0 0 1 0-2z',
   sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   medal: 'M12 22a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.6 10.5 6 3h4l2 4 2-4h4l-2.6 7.5a7 7 0 0 0-6.8 0z',

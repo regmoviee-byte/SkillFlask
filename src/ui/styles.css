@@ -163,8 +163,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  /* A shown toast adds its height (Toast.tsx): the page end scrolls clear of it. */
-  padding: var(--sp-2) var(--gutter) calc(var(--sp-6) + var(--toast-room, 0px));
+  /* A shown toast adds its height (Toast.tsx), a running timer's pill its own (ui/timer): the
+     page end scrolls clear of both. */
+  padding: var(--sp-2) var(--gutter) calc(var(--sp-6) + var(--toast-room, 0px) + var(--timer-room, 0px));
 }
 
 /* Sticks to the viewport bottom and covers the safe-area inset with its own background, so
@@ -396,7 +397,8 @@ button {
   position: fixed;
   left: var(--gutter);
   right: var(--gutter);
-  bottom: calc(var(--safe-bottom) + var(--sp-6));
+  /* --timer-room: a running timer's pill sits in this lane; the toast rises above it. */
+  bottom: calc(var(--safe-bottom) + var(--sp-6) + var(--timer-room, 0px));
   z-index: 20;
   display: flex;
   align-items: center;
@@ -416,13 +418,13 @@ button {
 }
 
 .toast.above-tab-bar {
-  bottom: calc(var(--tab-height) + var(--safe-bottom) + var(--sp-4));
+  bottom: calc(var(--tab-height) + var(--safe-bottom) + var(--sp-4) + var(--timer-room, 0px));
 }
 
 /* Above a sticky .screen-footer (12px padding + 48px button + 12px padding); Toast.tsx
    overrides the offset with the footer's measured height when it has two buttons. */
 .toast.above-footer {
-  bottom: calc(var(--safe-bottom) + var(--kb) + 72px + var(--sp-4));
+  bottom: calc(var(--safe-bottom) + var(--kb) + 72px + var(--sp-4) + var(--timer-room, 0px));
 }
 
 :root[data-theme='dark'] .toast {
@@ -4088,6 +4090,7 @@ html[data-motion='reduced'] .ach-card-medal {
 @media (prefers-reduced-motion: reduce) {
   .bar-fill,
   .toast,
+  .timer-pill,
   .pressable,
   .button {
     transition: none;
@@ -4602,4 +4605,274 @@ html[data-motion='reduced'] .ach-card-medal {
   align-self: flex-start;
   margin-top: var(--sp-2);
   padding: 0 var(--sp-1);
+}
+
+/* ---------- v0.5 package 15: the live timer ---------- */
+
+/* The ▶ beside a timed action's ✓: a plain accent glyph, so the ring with the points stays the
+   main control of the row. Filled while this action's timer runs. */
+.timer-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  margin-right: calc(-1 * var(--sp-2));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--liquid-deep);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast);
+}
+
+.timer-button:active {
+  transform: scale(0.9);
+}
+
+.timer-button.is-running {
+  background: var(--color-accent-soft);
+}
+
+.timer-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The pill over every screen, just above the tab bar or the bottom buttons (TimerHost sets
+   `bottom`); its height is published as --timer-room for the toast and the page end. */
+.timer-pill {
+  position: fixed;
+  left: var(--gutter);
+  right: var(--gutter);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  max-width: calc(560px - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 2px 4px 2px 2px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  box-shadow:
+    inset 0 0 0 0.5px var(--color-border),
+    0 6px 20px rgba(0, 0, 0, 0.16);
+  animation: rise-in var(--dur-base) var(--ease-out);
+}
+
+/* On dark pages the cards share the pill's surface: a lighter surface and a firmer edge keep it
+   apart from the card it floats over. */
+:root[data-theme='dark'] .timer-pill {
+  background: #2c2c30;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root[data-theme='dark'] .timer-pill {
+    background: color-mix(in srgb, var(--color-bg-elevated) 86%, var(--color-fg));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-fg) 14%, transparent),
+      0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+}
+
+html[data-motion='reduced'] .timer-pill {
+  animation: none;
+}
+
+/* The deep liquid tone is too dark for a glyph on a dark surface (a purple Telegram accent
+   darkened falls under 3:1): dark pages draw the timer's glyphs in the mid tone. */
+:root[data-theme='dark'] .timer-button,
+:root[data-theme='dark'] .timer-pill-button,
+:root[data-theme='dark'] .timer-pill-dot {
+  color: var(--liquid-mid);
+}
+
+:root[data-theme='dark'] .timer-pill-dot {
+  background: var(--liquid-mid);
+}
+
+.timer-pill-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap-target);
+  padding: 0 var(--sp-2) 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* A still dot, never a pulse: the digits are the only thing that moves. */
+.timer-pill-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--liquid-deep);
+}
+
+.timer-pill.is-paused .timer-pill-dot {
+  background: var(--color-fg-tertiary);
+}
+
+.timer-pill-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.timer-pill-time {
+  flex: none;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-pill.is-paused .timer-pill-time {
+  color: var(--color-fg-secondary);
+}
+
+.timer-pill-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--liquid-deep);
+  cursor: pointer;
+}
+
+.timer-pill-button:active,
+.timer-pill-open:active {
+  background: var(--color-accent-soft);
+}
+
+/* The sheet «Таймер»: the skill line, the dial with large tabular digits, the actions. */
+.timer-sheet-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-4);
+}
+
+.timer-sheet-skill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.timer-sheet-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.timer-sheet-step,
+.timer-sheet-level {
+  overflow-wrap: anywhere;
+}
+
+.timer-sheet-level {
+  color: var(--color-fg-secondary);
+}
+
+.timer-dial {
+  display: flex;
+  justify-content: center;
+}
+
+.timer-dial .ring-value {
+  /* One step a second, moving evenly; no easing that would make the ring pulse. */
+  transition: stroke-dashoffset 1s linear;
+}
+
+html[data-motion='reduced'] .timer-dial .ring-value {
+  transition: none;
+}
+
+.timer-dial-plain {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 8px var(--color-bg-sunken);
+}
+
+.timer-dial-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.timer-digits {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-dial.is-paused .timer-digits {
+  color: var(--color-fg-secondary);
+}
+
+/* Paused: the ring keeps its length but steps back from the skill colour. */
+.timer-dial.is-paused .ring-value {
+  stroke: var(--color-fg-tertiary);
+}
+
+.timer-dial-caption {
+  min-height: 1.3em;
+  color: var(--color-fg-secondary);
+  font-size: 14px;
+}
+
+.timer-warning,
+.minutes-warning {
+  margin: 0;
+  padding: 10px var(--sp-3);
+  border-radius: var(--r-s);
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.minutes-warning {
+  margin-bottom: var(--sp-3);
+}
+
+.timer-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.timer-reset {
+  color: var(--color-danger);
+}
+
+.minutes-date {
+  margin-top: var(--sp-4);
 }

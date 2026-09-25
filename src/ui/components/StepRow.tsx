@@ -7,17 +7,20 @@ import { localDate } from '../../lib/dates';
 import { DoubleSubmitError, SAME_TAP_MS } from '../../services/core';
 import { haptics } from '../../platform/haptics';
 import { useCelebrations } from '../celebrations/CelebrationProvider';
-import { announceCompletion, errorMessage } from '../completionFeedback';
+import { errorMessage, writeCompletion } from '../completionFeedback';
 import { copy } from '../copy';
 import { copyForSkill } from '../progress/registry';
 import { MinutesSheet } from '../sheets/MinutesSheet';
+import { useTimer } from '../timer/context';
 import { Icon } from './Icon';
 import { useToast } from './Toast';
 
 // One action of a skill: name, a caption («каждый день · сегодня ×2») and a 44px button «+5»
 // that records a completion in one tap: the points fly into the flask, the button shows ✓ for
-// a moment. A TIMED action shows its rate («0,5/мин») and asks «Сколько минут?» first. Shared
-// by the skill screen and «Сегодня» (where it may record on a past day and show a quota x/N).
+// a moment. A TIMED action shows its rate («0,5/мин») and asks «Сколько минут?» first; beside
+// it a ▶ starts the live timer (package 15; not on a past day picked on «Сегодня»: a timer
+// records the day it runs). Shared by the skill screen and «Сегодня» (where it may record on a
+// past day and show a quota x/N).
 
 /**
  * The green «done» state lasts this long after the write settles. The ✓ itself stays busy at
@@ -56,6 +59,7 @@ export interface StepRowProps {
 export function StepRow({ step, skill, todayCount, mode, onResult, date, context, quota }: StepRowProps) {
   const { showToast } = useToast();
   const celebrations = useCelebrations();
+  const timer = useTimer();
   const button = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -119,19 +123,18 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
     setBusy(true);
     haptics.press();
     const tapStart = Date.now();
-    // Freeze the flask on screen before the write, so the live query cannot move it before
-    // the points have flown in.
-    const release = celebrations.hold(step.skillId);
     try {
-      const result = await completeStep(step.id, { date, minutes });
+      const result = await writeCompletion(() => completeStep(step.id, { date, minutes }), {
+        skillId: step.skillId,
+        stepName: step.name,
+        levels: copyForSkill(skill),
+        source: button.current,
+        showToast,
+        celebrations,
+      });
       setDone(true);
-      announceCompletion(result, step.name, showToast, copyForSkill(skill));
-      void celebrations
-        .celebrateResult(result, { skillId: step.skillId, source: button.current, points: result.pointsAwarded })
-        .finally(release);
       onResult?.(result);
     } catch (error) {
-      release();
       // A double submit that slipped past the busy flag (another row of the same step, a slow
       // device): the first completion landed and its toast with «Отменить» stays on screen.
       if (!(error instanceof DoubleSubmitError)) {
@@ -150,9 +153,21 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
     }
   }
 
+  const timing = timer.stepId === step.id;
   return (
     <li className={`step-row${quota ? ' quota-row' : ''}`}>
       {text}
+      {timed && active && !past && (
+        <button
+          type="button"
+          className={`timer-button${timing ? ' is-running' : ''}`}
+          aria-label={timing ? copy.stepRow.openTimer(step.name) : copy.stepRow.startTimer(step.name)}
+          // The confirm «Остановить таймер …?» must open inside the tap (Telegram's popup).
+          onClick={() => timer.start(step)}
+        >
+          <Icon name="play" filled size={20} />
+        </button>
+      )}
       {active && (
         <button
           ref={button}

@@ -46,12 +46,19 @@
 // ≈ 0.5 KB); and a lazy chunk that fails to load no longer takes the app down (ui/lazySafe.ts),
 // the home map's half-year check, the sheets' onExited (≈ 0.2 KB). 200.0 KB measured: 1 byte
 // under 200 KB, too close for CI's zlib, so the budget moves by the next whole KB.
+// 202 KB since v0.5 package 15 (the live timer, +1.4 KB): the pill, the sheet «Таймер», the
+// finish flow, pausing and recording are a lazy chunk (TimerHost, ≈ 3.9 KB), but the first paint
+// must know whether a timer runs — on every screen, since the pill floats over all of them — and
+// start one from the ▶ of a step row: the live query of the settings row and its parser
+// (services/timer.ts, domain/timerRow.ts), the context the rows read, the ▶ itself with its
+// three glyphs, the date field of «Сколько минут?» that a timer's start day fills in, and the
+// fallback toast for a timer chunk that fails to load. 201.4 KB measured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 201);
+const LIMIT_KB = Number(process.argv[2] ?? 202);
 const LAZY_LIMIT_KB = 14;
 const dir = 'dist/assets';
 const manifestPath = 'dist/.vite/manifest.json';

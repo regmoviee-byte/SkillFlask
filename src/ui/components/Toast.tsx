@@ -13,7 +13,8 @@ import { useHasTabBar } from './TabBar';
 // the control that was just pressed or a section heading («История» right under the actions)
 // — it rises just above them instead, never past the middle of the screen — and while it is
 // shown the page end gets its height as extra room (--toast-room), so the last rows can
-// always be scrolled out from under it.
+// always be scrolled out from under it. A running timer's pill (ui/timer) sits in the same lane
+// just above the bars and publishes its height as --timer-room: the toast rises above it.
 
 export interface ToastOptions {
   action?: { label: string; onClick(): void };
@@ -46,7 +47,7 @@ function rememberPress(event: Event): void {
 function pressedControl(toast: Element): Element | null {
   if (!lastPress || performance.now() - lastPress.at > PRESS_MS || !lastPress.el.isConnected) return null;
   const el = lastPress.el.closest('button, a, [role="button"], label') ?? lastPress.el;
-  if (toast.contains(el) || el.closest('.sheet, [role="dialog"], .screen-footer, .tab-bar')) return null;
+  if (toast.contains(el) || el.closest('.sheet, [role="dialog"], .screen-footer, .tab-bar, .timer-pill')) return null;
   return el;
 }
 
@@ -150,7 +151,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastState; onDismiss(): void 
     };
   }, []);
 
-  const offset = lift !== null ? `${lift}px` : aboveFooter && footerHeight > 0 ? `calc(var(--kb) + ${footerHeight}px + var(--sp-4))` : undefined;
+  const offset = lift !== null ? `${lift}px` : aboveFooter && footerHeight > 0 ? `calc(var(--kb) + ${footerHeight}px + var(--sp-4) + var(--timer-room, 0px))` : undefined;
 
   return (
     <div

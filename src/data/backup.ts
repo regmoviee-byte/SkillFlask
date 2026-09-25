@@ -58,6 +58,15 @@ export const DEVICE_SETTINGS = [
   'appearance',
 ] as const satisfies readonly SettingKey[];
 
+/**
+ * Settings that never leave the device: the running timer (v0.5 package 15) is state of this
+ * phone at this moment, not history. Left out of every export (file and cloud) and dropped
+ * from a file that carries one; an import or a wipe clears the device's own.
+ */
+export const LOCAL_ONLY_SETTINGS = ['activeTimer'] as const satisfies readonly SettingKey[];
+
+const isLocalOnly = (row: unknown) => (LOCAL_ONLY_SETTINGS as readonly unknown[]).includes((row as { key?: unknown } | null)?.key);
+
 /** Schema version that introduced a table; tables absent here exist since version 1. */
 const TABLE_SINCE: Record<string, number> = { settings: 2, achievementUnlocks: 2, marks: 3 };
 
@@ -72,6 +81,7 @@ export async function exportBackup(): Promise<BackupFile> {
   const tables = await db.transaction('r', db.tables, async () => {
     const out: Record<string, unknown[]> = {};
     for (const table of db.tables) out[table.name] = await table.toArray();
+    if (out.settings) out.settings = out.settings.filter((row) => !isLocalOnly(row));
     return out;
   });
   return { format: BACKUP_FORMAT, schemaVersion: db.verno, appVersion, exportedAt: nowIso(), installId, tables };
@@ -376,7 +386,8 @@ export async function importBackup(file: BackupFile): Promise<BackupStats> {
     const keep = await deviceSettings(DEVICE_SETTINGS);
     await Promise.all(db.tables.map((table) => table.clear()));
     for (const table of db.tables) {
-      const rows = file.tables[table.name] ?? [];
+      const all = file.tables[table.name] ?? [];
+      const rows = table.name === 'settings' ? all.filter((row) => !isLocalOnly(row)) : all;
       if (rows.length) await table.bulkAdd(rows);
     }
     await db.settings.bulkDelete([...DEVICE_SETTINGS]);
