@@ -30,13 +30,17 @@ export interface Records {
   bestWeek: { points: number; weekStart: string } | null;
   /** Most completions on one local date. */
   mostCompletions: { count: number; date: string } | null;
-  /** The longest run of consecutive active dates ever (never a current streak). */
+  /**
+   * The longest run of consecutive active dates ever (never a current streak); null below two
+   * days — a single day is no run.
+   */
   bestStreak: { days: number; start: string; end: string } | null;
   /** The longest TIMED completion; null while there is none. */
   longestSession: { minutes: number; date: string; skillId: string; stepName: string } | null;
   /**
    * Fewest days between the fills of two consecutive flasks of one skill (flask ≥ 2): the
-   * flask that filled the quickest after the one before it. 0 — the same day.
+   * flask that filled the quickest after the one before it. 0 — the same day. A pair filled out
+   * of calendar order (backdated history) is skipped.
    */
   fastestFlask: { days: number; flask: number; date: string; skillId: string } | null;
 }
@@ -156,7 +160,7 @@ export function computeRecords(snapshot: HistorySnapshot, events: readonly Repla
 
   const dates = activeDates(completions);
   const streakDays = bestDayStreak(dates);
-  const run = streakDays > 0 ? dayStreaks(dates).find((r) => r.length === streakDays) : undefined;
+  const run = streakDays >= 2 ? dayStreaks(dates).find((r) => r.length === streakDays) : undefined;
 
   let longestSession: Records['longestSession'] = null;
   for (const c of completions) {
@@ -170,8 +174,10 @@ export function computeRecords(snapshot: HistorySnapshot, events: readonly Repla
   for (const fill of [...fills].sort(byDateThenWrite)) {
     const previous = fill.flask >= 2 ? fillOf.get(`${fill.skillId}:${fill.flask - 1}`) : undefined;
     if (!previous) continue;
-    // A backdated completion can fill the later flask on an earlier calendar day: never below 0.
-    const days = Math.max(0, diffDays(previous.date, fill.date));
+    // A backdated completion can fill the later flask on an earlier calendar day than the one
+    // before it: that pair says nothing about speed, so it is no record (never a made-up «0»).
+    const days = diffDays(previous.date, fill.date);
+    if (days < 0) continue;
     if (!fastestFlask || days < fastestFlask.days) fastestFlask = { days, flask: fill.flask, date: fill.date, skillId: fill.skillId };
   }
 

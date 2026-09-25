@@ -80,13 +80,13 @@ describe('RecapScreen', () => {
     expect(tile('Активные дни').querySelectorAll('.week-day.is-active')).toHaveLength(3);
     // A past week outlines no day as today.
     expect(tile('Активные дни').querySelector('.week-day.is-today')).toBeNull();
-    expect(screen.getByText('Больше очков, чем на прошлой неделе')).toBeTruthy();
+    expect(screen.getByText('Больше очков, чем неделей раньше')).toBeTruthy();
     const best = screen.getByText('Больше всего очков').closest('a')!;
     expect(best.getAttribute('href')).toBe(`/skills/${skillId}`);
     expect(within(best).getByText('40 очков')).toBeTruthy();
-    expect(screen.getByText('Чаще всего').closest('.info-row')!.textContent).toBe('Чаще всего×4 · Разговорная практика · Английский');
+    expect(screen.getByText('Чаще всего').closest('.info-row')!.textContent).toBe('Чаще всего×4\u00a0· Разговорная практика\u00a0· Английский');
     // Records set this week carry the laurel and «Рекорд · …».
-    expect(screen.getByText('Лучший день').closest('.info-row')!.textContent).toContain('Рекорд · 14\u00a0сентября');
+    expect(screen.getByText('Лучший день').closest('.info-row')!.textContent).toContain('Рекорд\u00a0· 14\u00a0сентября');
     expect(document.body.textContent).not.toMatch(/меньше|хуже|пропущ/i);
   });
 

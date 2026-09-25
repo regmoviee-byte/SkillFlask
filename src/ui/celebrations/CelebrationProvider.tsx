@@ -111,10 +111,13 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const navigationWaiters = useRef(new Set<() => void>());
+  /** The route now, for a celebration that runs after a navigation (read before the waiters). */
+  const pathname = useRef(location.pathname);
   useEffect(() => {
+    pathname.current = location.pathname;
     navigationWaiters.current.forEach((resolve) => resolve());
     navigationWaiters.current.clear();
-  }, [location.key]);
+  }, [location.key, location.pathname]);
   /** Resolves on the next route change, or after a second when none comes. */
   const nextNavigation = useCallback(
     () =>
@@ -222,8 +225,9 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * The skill's hero stage when its flask is on screen. After a navigation the screen may still
-   * be loading its data, so a write made away from the flask waits for it a moment.
+   * The skill's hero stage when its flask is on screen. After a navigation to the skill screen it
+   * may still be loading its data, so a write made away from the flask waits for it a moment —
+   * only there: any other screen (Today) gets its card at once, and the queue moves on.
    */
   const heroStage = useCallback(async (skillId: string, patient: boolean): Promise<CelebrationStage | null> => {
     const until = performance.now() + (patient ? HERO_WAIT_MS : 0);
@@ -242,7 +246,8 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
       if (stage) pillUntil.current = performance.now() + PILL_MS;
       stage?.announce(play.newFlask - 1, play.newFlask);
     };
-    const hero = flask ? null : await heroStage(ctx.skillId, ctx.afterNavigation === true);
+    const patient = ctx.afterNavigation === true && pathname.current === `/skills/${ctx.skillId}`;
+    const hero = flask ? null : await heroStage(ctx.skillId, patient);
     const place = levelUpPlace({ flask: !flask ? 'none' : onScreen(flask.element()) ? 'on-screen' : 'off-screen', heroOnScreen: hero !== null });
     if (place === 'flask') {
       await flask!.playLevelUp({ fromFill: play.fromFill, toFill: play.toFill, levels: play.levels, onOverflow: overflow });

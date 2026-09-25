@@ -55,12 +55,24 @@ describe('computeRecords — empty and simple journals', () => {
     const step = h.mkStep(h.mkSkill({ capacity: 1000 }), 5);
     // Written in reverse calendar order: the tie still goes to the earlier date.
     h.mkCompletion(step, '2026-09-10');
+    h.mkCompletion(step, '2026-09-11');
     h.mkCompletion(step, '2026-09-03');
+    h.mkCompletion(step, '2026-09-04');
     const records = computeRecords(h.snapshot());
     expect(records.bestDay).toEqual({ date: '2026-09-03', points: 5 });
     expect(records.mostCompletions).toEqual({ date: '2026-09-03', count: 1 });
-    // Two single-day runs: the earlier one is the record.
-    expect(records.bestStreak).toEqual({ days: 1, start: '2026-09-03', end: '2026-09-03' });
+    // Two two-day runs: the earlier one is the record.
+    expect(records.bestStreak).toEqual({ days: 2, start: '2026-09-03', end: '2026-09-04' });
+  });
+
+  it('has no «Лучшая серия» below two days in a row', () => {
+    const h = new History();
+    const step = h.mkStep(h.mkSkill({ capacity: 1000 }), 5);
+    h.mkCompletion(step, '2026-09-03');
+    h.mkCompletion(step, '2026-09-05');
+    expect(computeRecords(h.snapshot()).bestStreak).toBeNull();
+    h.mkCompletion(step, '2026-09-06');
+    expect(computeRecords(h.snapshot()).bestStreak).toEqual({ days: 2, start: '2026-09-05', end: '2026-09-06' });
   });
 });
 
@@ -194,12 +206,14 @@ describe('computeRecords — «Самая быстрая колба»', () => {
     expect(computeRecords(h.snapshot()).fastestFlask).toEqual({ days: 0, flask: 2, date: '2026-09-05', skillId: quick });
   });
 
-  it('never goes below zero when a backdated completion fills the later flask', () => {
+  it('skips a pair filled out of calendar order by a backdated completion', () => {
     const h = new History();
     const skill = h.mkSkill({ capacity: 10 });
     const step = h.mkStep(skill, 10);
-    h.mkCompletion(step, '2026-09-10');
-    h.mkCompletion(step, '2026-09-04');
-    expect(computeRecords(h.snapshot()).fastestFlask).toEqual({ days: 0, flask: 2, date: '2026-09-04', skillId: skill });
+    h.mkCompletion(step, '2026-09-10'); // flask 1
+    h.mkCompletion(step, '2026-09-04'); // flask 2, backdated before flask 1: no record
+    expect(computeRecords(h.snapshot()).fastestFlask).toBeNull();
+    h.mkCompletion(step, '2026-09-13'); // flask 3: 9 days after flask 2, the next valid pair
+    expect(computeRecords(h.snapshot()).fastestFlask).toEqual({ days: 9, flask: 3, date: '2026-09-13', skillId: skill });
   });
 });

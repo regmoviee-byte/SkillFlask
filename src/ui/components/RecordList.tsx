@@ -93,7 +93,7 @@ function InfoRow({ row }: { row: InfoRowSpec }) {
           {row.value && (
             <>
               <span className="info-row-value">{row.value}</span>
-              {row.meta && ' · '}
+              {row.meta && '\u00a0· '}
             </>
           )}
           {row.meta}

@@ -474,17 +474,18 @@ export const copy = Object.freeze({
     completionsCaption: (n: number) => plural(n, ACTIONS),
     tileFlasks: 'Заполнено',
     flasksCaption: (n: number) => plural(n, FLASKS),
-    morePoints: 'Больше очков, чем на прошлой неделе',
-    moreDays: 'Больше активных дней, чем на прошлой неделе',
+    // «Неделей раньше», not «на прошлой неделе»: a browsed past week compares with the one before it.
+    morePoints: 'Больше очков, чем неделей раньше',
+    moreDays: 'Больше активных дней, чем неделей раньше',
     best: 'Лучшее за неделю',
     topSkill: 'Больше всего очков',
     topAction: 'Чаще всего',
-    topActionMeta: (actionName: string, skillName: string) => `${actionName} · ${skillName}`,
+    topActionMeta: (actionName: string, skillName: string) => `${actionName}\u00a0· ${skillName}`,
     topActionValue: (n: number) => `×${n}`,
     milestone: (name: string) => `Веха «${name}» достигнута`,
-    milestoneMeta: (skillName: string, date: string) => `${skillName} · ${keepNumbers(formatDate(date))}`,
+    milestoneMeta: (skillName: string, date: string) => `${skillName}\u00a0· ${keepNumbers(formatDate(date))}`,
     /** A record set this week: «Рекорд · 15 сентября». */
-    recordMeta: (detail: string) => `Рекорд · ${detail}`,
+    recordMeta: (detail: string) => `Рекорд\u00a0· ${detail}`,
     achievements: 'Ачивки недели',
     emptyTitle: 'В эту неделю отметок нет',
     emptyText: 'Итоги собираются из отметок: очки, активные дни, колбы и рекорды.',
@@ -503,14 +504,15 @@ export const copy = Object.freeze({
     completions: (n: number) => count(n, ACTIONS),
     streak: (days: number) => `${count(days, DAYS)} подряд`,
     minutes: (n: number) => formatMinutes(n),
-    /** Days between the fills of two flasks, both ends counted: 0 (the same day) is «за 1 день». */
-    flaskDays: (days: number) => `за ${count(days + 1, DAYS)}`,
+    /** Days between the fills of two flasks: 0 — «в тот же день», 2 — «за 2 дня». */
+    flaskDays: (days: number) => (days === 0 ? 'в тот же день' : `за ${count(days, DAYS)}`),
     date: (date: string) => keepNumbers(formatDate(date)),
     week: (monday: string) => keepNumbers(formatWeek(monday)),
     /** A run of days: «5–7 сентября». */
     streakDates: (start: string, days: number) => keepNumbers(formatDaySpan(start, days)),
-    withSkill: (skillName: string, detail: string) => `${skillName} · ${detail}`,
-    flask: (skillName: string, flask: number, date: string) => `${skillName} · Колба\u00a0${flask} · ${keepNumbers(formatDate(date))}`,
+    // A no-break space before each «·», so a wrapped line never starts with the dot.
+    withSkill: (skillName: string, detail: string) => `${skillName}\u00a0· ${detail}`,
+    flask: (skillName: string, flask: number, date: string) => `${skillName}\u00a0· Колба\u00a0${flask}\u00a0· ${keepNumbers(formatDate(date))}`,
     bySkill: (n: number) => `Лучший день по навыкам · ${n}`,
   },
   settings: {

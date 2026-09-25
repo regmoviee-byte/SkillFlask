@@ -86,7 +86,18 @@ describe('weekRecap — best of the week', () => {
 
     h.mkCompletion(read, '2026-09-18');
     h.mkCompletion(talk, '2026-09-19');
+    // The name the week logged last: the two talks after the rename carry the new one.
     expect(weekRecap(h.snapshot(), '2026-09-14').topAction).toEqual({ stepId: talk, skillId: english, name: 'Разговорная практика', count: 3 });
+  });
+
+  it('names the top action as the week logged it, not as it is called now', () => {
+    const h = new History();
+    const step = h.mkStep(h.mkSkill({ capacity: 1000 }), 5);
+    h.steps.find((s) => s.id === step)!.name = 'Чтение';
+    h.mkCompletion(step, '2026-09-14');
+    h.mkCompletion(step, '2026-09-15');
+    h.steps.find((s) => s.id === step)!.name = 'Чтение вслух';
+    expect(weekRecap(h.snapshot(), '2026-09-14').topAction).toMatchObject({ stepId: step, name: 'Чтение', count: 2 });
   });
 
   it('breaks a tie of skills by who got there first', () => {

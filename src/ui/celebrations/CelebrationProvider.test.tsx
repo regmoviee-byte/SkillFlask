@@ -199,6 +199,34 @@ describe('CelebrationProvider', () => {
     expect(screen.getByText(/^Колба \d+ заполнена$/)).toBeTruthy();
   });
 
+  it('does not wait for a hero when the write returns to another screen', async () => {
+    let navigate: (to: string) => void = () => {};
+    function Navigator() {
+      const go = useNavigate();
+      useEffect(() => {
+        navigate = go;
+      }, [go]);
+      return null;
+    }
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <CelebrationProvider>
+            <Probe live={progress(0, 90)} />
+            <Navigator />
+          </CelebrationProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const done = api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1), levelChange: 1 }), { skillId: 's1', afterNavigation: true, flaskRef: null });
+    act(() => navigate('/today'));
+    const started = performance.now();
+    await act(() => done);
+    // Today shows no hero of the skill: the card comes at once, not after the hero's wait (1.5 s).
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(screen.getByText('Колба 1 заполнена')).toBeTruthy();
+  });
+
   it('tells a fill made away from the flask on the hero it returns to, never by a card over it', async () => {
     let navigate: (to: string) => void = () => {};
     function Navigator() {

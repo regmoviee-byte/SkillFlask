@@ -93,9 +93,9 @@ export function weekRecap(snapshot: HistorySnapshot, weekStartDate: string, opti
   }
   const bestSkill = top(skillDeci);
   const bestStep = top(stepCounts);
-  const stepDef = bestStep ? snapshot.steps.find((s) => s.id === bestStep[0]) : undefined;
-  // The action's name as it is now; a step no longer in the snapshot keeps its last recorded name.
-  const stepName = bestStep ? (stepDef?.name ?? list.filter((c) => c.stepId === bestStep[0]).at(-1)!.stepName) : '';
+  // The action's name as the week logged it (the completion snapshot, like the history and
+  // «Самое длинное занятие»): the latest of the week, so a later rename never rewrites a past week.
+  const stepName = bestStep ? list.filter((c) => c.stepId === bestStep[0]).at(-1)!.stepName : '';
 
   const milestones: WeekRecap['milestones'] = [];
   const timelines = timelinesBySkill(events);
