@@ -4200,3 +4200,406 @@ html[data-motion='reduced'] .ach-card-medal {
 :root[data-motion='reduced']::view-transition-new(root) {
   animation: none;
 }
+
+/* ---------- «Прогноз» and «Активность» (v0.5 package 14) ---------- */
+
+/* The forecast line under the hero: quiet text, the icon in the skill colour; the whole row
+   opens «Прогноз». It arrives with its own query, so it fades in rather than pops. */
+.forecast-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--tap-target);
+  margin-top: calc(-1 * var(--sp-3));
+  padding: 6px var(--sp-2);
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--color-fg-secondary);
+  font-size: 15px;
+  line-height: 1.35;
+  text-align: left;
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
+
+/* Its place until the lazy line arrives (ui/insights/skeleton.tsx): the same box, empty. */
+.forecast-line--placeholder {
+  animation: none;
+}
+
+.forecast-line-icon {
+  flex: none;
+  color: var(--liquid-deep, var(--color-accent));
+}
+
+.forecast-line-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.forecast-line-chevron {
+  flex: none;
+  color: var(--color-fg-tertiary);
+}
+
+.forecast-pace {
+  margin: 0 0 var(--sp-2);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.forecast-dates .info-row {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The date takes what it needs (up to ~60 %) and wraps before «в феврале 2027», never inside it;
+   the name beside it wraps into the rest. */
+.forecast-dates .info-row-text {
+  flex: 1 1 0;
+}
+
+.forecast-dates .info-row-value {
+  flex: 0 1 auto;
+  max-width: 62%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: right;
+}
+
+.forecast-by-date {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.forecast-by-date-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.forecast-answer {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.forecast-note {
+  margin: var(--sp-4) 0 0;
+}
+
+/* The heat map: weeks as columns, 26 : 7 of the width whatever the phone, so its skeleton
+   (ui/insights/lazy.tsx) holds exactly the same box. A cell is a button over its whole grid
+   area (a finger landing between two cells still hits one); the square drawn is inset by 1 px.
+   --heat is the skill colour inside a skill's scope, the accent on the home screen. */
+.heatmap-card {
+  --heat: var(--liquid-deep, var(--color-accent));
+  padding: var(--sp-3) var(--sp-3) 10px;
+}
+
+:root[data-theme='dark'] .heatmap-card {
+  --heat: var(--liquid-mid, var(--color-accent));
+}
+
+.tile--activity {
+  --heat: var(--color-accent);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  padding: 14px var(--sp-3) 10px;
+}
+
+.heatmap {
+  --hm-label: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heatmap-months {
+  display: grid;
+  grid-template-columns: repeat(var(--heatmap-weeks, 26), minmax(0, 1fr));
+  height: 14px;
+  margin-left: calc(var(--hm-label) + 4px);
+  color: var(--color-fg-tertiary);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.heatmap-months > span {
+  grid-row: 1;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.heatmap-body {
+  display: flex;
+  gap: 4px;
+}
+
+.heatmap-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  flex: none;
+  width: var(--hm-label);
+  color: var(--color-fg-tertiary);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.heatmap-weekdays > span {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+}
+
+.heatmap-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(var(--heatmap-weeks, 26), minmax(0, 1fr));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  grid-auto-flow: column;
+  min-width: 0;
+  aspect-ratio: var(--heatmap-weeks, 26) / 7;
+}
+
+.heatmap-cell {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.heatmap-cell::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 2px;
+  background: var(--heat);
+}
+
+.heatmap-cell[data-level='0']::before {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.heatmap-cell[data-level='1']::before {
+  opacity: 0.3;
+}
+
+.heatmap-cell[data-level='2']::before {
+  opacity: 0.52;
+}
+
+.heatmap-cell[data-level='3']::before {
+  opacity: 0.76;
+}
+
+/* A dark page (and Telegram's purple) swallows the light end of the scale: lift it. */
+:root[data-theme='dark'] .heatmap-cell[data-level='1']::before {
+  opacity: 0.42;
+}
+
+:root[data-theme='dark'] .heatmap-cell[data-level='2']::before {
+  opacity: 0.62;
+}
+
+:root[data-theme='dark'] .heatmap-cell[data-level='3']::before {
+  opacity: 0.82;
+}
+
+.heatmap-cell.is-today::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--color-fg);
+}
+
+.heatmap-cell.is-future {
+  visibility: hidden;
+}
+
+.heatmap-cell:focus-visible {
+  outline-offset: 0;
+}
+
+/*
+ * WebViews without aspect-ratio (iOS < 15, Android System WebView < 88) would leave the grid
+ * 0 px high: there each cell is a square of its column's width instead (a grid item's percentage
+ * padding resolves against its column), which gives the grid the same 26 : 7; the empty grid of
+ * the skeleton keeps its box with the padding trick over the body's width minus the labels.
+ */
+@supports not (aspect-ratio: 1 / 1) {
+  .heatmap-grid {
+    grid-template-rows: repeat(7, auto);
+  }
+
+  .heatmap-cell {
+    padding-bottom: 100%;
+  }
+
+  .heatmap-grid:empty {
+    padding-bottom: calc((100% - var(--hm-label) - 4px) * 7 / var(--heatmap-weeks, 26));
+  }
+}
+
+.heatmap-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 20px;
+  margin-top: var(--sp-2);
+}
+
+.heatmap-caption {
+  min-width: 0;
+  color: var(--color-fg-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.heatmap-legend {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-fg-tertiary);
+  font-size: 11px;
+}
+
+.heatmap-legend .heatmap-cell {
+  width: 11px;
+  height: 11px;
+  cursor: default;
+}
+
+.heatmap-legend .heatmap-cell:first-of-type {
+  margin-left: 2px;
+}
+
+.heatmap-legend .heatmap-cell:last-of-type {
+  margin-right: 2px;
+}
+
+/* A 320 px phone: the legend keeps its five squares, the words give way to the caption. */
+@media (max-width: 359px) {
+  .heatmap-legend {
+    font-size: 0;
+  }
+}
+
+.history {
+  scroll-margin-top: calc(52px + var(--safe-top) + var(--sp-2));
+}
+
+/* The day sheet of the map: ‹ date › at the top, what was done, the way to the history. */
+.day-sheet-head {
+  display: grid;
+  grid-template-columns: var(--tap-target) 1fr var(--tap-target);
+  align-items: center;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.day-sheet-head .icon-button:disabled {
+  color: var(--color-fg-tertiary);
+  opacity: 0.4;
+}
+
+.day-sheet-title {
+  min-width: 0;
+  text-align: center;
+}
+
+.day-sheet-title .sheet-title {
+  margin: 0;
+}
+
+.day-sheet-title .sheet-title::first-letter {
+  text-transform: uppercase;
+}
+
+.day-sheet-title .hint {
+  margin: 2px 0 0;
+  font-size: 14px;
+}
+
+.day-sheet-empty {
+  margin: var(--sp-4) 0;
+  text-align: center;
+}
+
+.day-sheet-group + .day-sheet-group {
+  margin-top: var(--sp-3);
+}
+
+.day-sheet-skill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--color-link);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.day-sheet-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-1);
+}
+
+.day-sheet-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.day-sheet-name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.day-sheet-meta,
+.day-sheet-note {
+  color: var(--color-fg-secondary);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.day-sheet-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.day-sheet-points {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-sheet-history {
+  align-self: flex-start;
+  margin-top: var(--sp-2);
+  padding: 0 var(--sp-1);
+}

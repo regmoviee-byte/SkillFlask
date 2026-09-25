@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatDateTime, formatDateTimeRelative } from '../../lib/dates';
@@ -32,9 +32,13 @@ import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 import { motionMode, setMotionPreference, type MotionPreference } from '../hooks/useMotion';
 import { useToday } from '../hooks/useToday';
+import { lazySafe } from '../lazySafe';
 import { BackupTextSheet } from '../sheets/BackupTextSheet';
 import { ImportSheet } from '../sheets/ImportSheet';
-import { InstallSheet } from '../sheets/InstallSheet';
+
+// The install instructions are a lazy chunk (v0.5 package 14 won back the initial load with it):
+// it starts loading with this screen, long before «Добавить на главный экран» can be tapped.
+const InstallSheet = lazySafe(() => import('../sheets/InstallSheet').then((m) => ({ default: m.InstallSheet })), 'InstallSheet');
 
 // «Настройки» (replaces «Аккаунт»): data and backups, appearance (the «Тема» choice, motion,
 // haptics), about (the home-screen shortcut, version, update), danger zone.
@@ -407,7 +411,9 @@ export function SettingsScreen() {
 
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
       <BackupTextSheet text={exportText} onClose={() => setExportText(null)} />
-      <InstallSheet os={installOs} onClose={() => setInstallOs(null)} />
+      <Suspense fallback={null}>
+        <InstallSheet os={installOs} onClose={() => setInstallOs(null)} />
+      </Suspense>
     </Screen>
   );
 }

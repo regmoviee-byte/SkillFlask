@@ -13,7 +13,7 @@
 //    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
-import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate } from '../lib/dates';
+import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate, MONTHS_IN } from '../lib/dates';
 import { formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
 import type { SkillColor } from '../domain/appearance';
 import type { LevelText } from './progress/texts';
@@ -35,14 +35,11 @@ const POINTS_OF: [string, string, string] = ['очка', 'очков', 'очко
 
 const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)} ${plural(n, forms)}`;
 
-/** «в сентябре»: the month of a quota period that is not the current one. */
-const MONTHS_IN = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
-
 /**
  * A number never parts from the word after it («17 сентября», «2025 г.»), nor a range of days
  * at its dash («14–20»): a narrow row wraps between the parts of a text, not inside a date.
  */
-const keepNumbers = (text: string) => text.replace(/(\d) /g, '$1\u00a0').replace(/(\d)–(?=\d)/g, '$1–\u2060');
+export const keepNumbers = (text: string) => text.replace(/(\d) /g, '$1\u00a0').replace(/(\d)–(?=\d)/g, '$1–\u2060');
 
 export const copy = Object.freeze({
   tabs: {
@@ -89,6 +86,8 @@ export const copy = Object.freeze({
     emptyText: 'Создайте навык, добавьте действия и набирайте очки за каждое.',
     create: 'Создать навык',
     example: 'Пример: Английский B1 → C1',
+    /** The heat map of every skill (ui/insights). */
+    activity: 'Активность · все навыки',
   },
   today: {
     title: 'Сегодня',
@@ -165,6 +164,8 @@ export const copy = Object.freeze({
     notFoundText: 'Возможно, он удалён.',
     toSkills: 'К навыкам',
     history: 'История',
+    /** The skill's heat map (ui/insights). */
+    activity: 'Активность',
     historyEmptyTitle: 'Здесь появится история',
     historyEmptyActive: 'Отметьте первое действие — здесь появятся очки и уровни.',
     historyEmptyInactive: 'Выполнений нет.',

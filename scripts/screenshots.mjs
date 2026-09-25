@@ -1266,7 +1266,166 @@ await bigContext.close();
   await page.goto(`${baseUrl}#/skills`);
   await recapTile.waitFor();
   await shot('home-recap-320');
+
+  // «Прогноз» and «Активность» (v0.5 package 14) on the same history: five days of practice in
+  // the last four weeks give the forecast line, its sheet answers «А если к дате?», the skill's
+  // heat map and the home screen's one open a day. Then a new skill: no line, an empty map.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const forbiddenTone = /отста|просроч|пропущ|штраф|долг|провал/i;
+  await page.goto(`${baseUrl}#${skillPath}`);
+  // The line itself, not the placeholder that keeps its place until the lazy chunk arrives.
+  const forecastLine = page.locator('button.forecast-line');
+  await forecastLine.waitFor();
+  if (!/^В таком темпе колба \d+ заполнится (≈|примерно)/.test((await forecastLine.innerText()).replace(/\u00a0/g, ' '))) {
+    errors.push(`the forecast line reads «${await forecastLine.innerText()}»`);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot('skill-forecast');
+  await forecastLine.click();
+  const forecastSheet = page.getByRole('dialog', { name: 'Прогноз' });
+  await forecastSheet.getByText('А если к дате?').waitFor();
+  const answer = await forecastSheet.locator('.forecast-answer').innerText();
+  if (!/^(Нужно ≈|В нынешнем темпе)/.test(answer.replace(/\u00a0/g, ' '))) errors.push(`«А если к дате?» answers «${answer}»`);
+  if (forbiddenTone.test(await forecastSheet.innerText())) errors.push('the forecast sheet pressures the user');
+  await shot('forecast-sheet');
+  // A date close by: what it takes, in the skill's own actions.
+  const soon = shiftDate(today, 10);
+  await forecastSheet.getByLabel('Дата').fill(soon);
+  await forecastSheet.getByText(/^Нужно ≈/).waitFor();
+  await shot('forecast-sheet-date');
+  await page.keyboard.press('Escape');
+  await forecastSheet.waitFor({ state: 'detached' });
+
+  const skillMap = page.locator('.activity .heatmap-grid');
+  await skillMap.locator('button').first().waitFor();
+  await scrollToHeading(page.getByRole('heading', { name: 'Активность' }));
+  await page.waitForTimeout(300);
+  await shot('skill-activity');
+  if ((await skillMap.locator('button[data-level="0"]').count()) === (await skillMap.locator('button').count())) errors.push('the skill heat map shows no day of practice');
+  // The latest day with practice: its completions, «История навыка».
+  await skillMap.locator('button:not([data-level="0"])').last().click();
+  const daySheet = page.locator('.day-sheet');
+  await daySheet.locator('.day-sheet-row').first().waitFor();
+  await shot('day-sheet');
+  await daySheet.getByRole('button', { name: 'Предыдущий день' }).click();
+  await page.waitForTimeout(300);
+  await shot('day-sheet-previous');
+  await daySheet.getByRole('button', { name: 'Следующий день' }).click();
+  await daySheet.getByRole('button', { name: 'История навыка' }).click();
+  await daySheet.waitFor({ state: 'detached' });
+  await page.waitForTimeout(500);
+  const historyTop = await page.getByRole('heading', { name: 'История' }).evaluate((el) => el.getBoundingClientRect().top);
+  if (historyTop < 0 || historyTop > 200) errors.push(`«История навыка» left the history heading at ${Math.round(historyTop)}px`);
+  await shot('day-sheet-to-history');
+
+  // Home: every skill together, as a wide tile after the others.
+  await page.goto(`${baseUrl}#/skills`);
+  const homeMap = page.locator('.tile--activity');
+  await homeMap.locator('.heatmap-grid button').first().waitFor();
+  await homeMap.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(300);
+  await shot('home-activity');
+  await homeMap.locator('.heatmap-grid button:not([data-level="0"])').last().click();
+  await page.locator('.day-sheet .day-sheet-skill').first().waitFor();
+  await shot('home-day-sheet');
+  await page.locator('.day-sheet .day-sheet-skill').first().click();
+  await page.waitForURL((url) => url.hash === `#${skillPath}`);
+  await page.getByRole('heading', { name: 'История' }).waitFor();
+  await page.waitForTimeout(500);
+  await shot('home-day-to-history');
+
+  // A 320 px phone: the line wraps, the map scales, nothing scrolls sideways.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto(`${baseUrl}#${skillPath}`);
+  await forecastLine.waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+  if ((await overflow()) > 0) errors.push(`the skill screen scrolls sideways by ${await overflow()}px at 320 px`);
+  await shot('skill-forecast-320');
+  await scrollToHeading(page.getByRole('heading', { name: 'Активность' }));
+  await page.waitForTimeout(300);
+  await shot('skill-activity-320');
+  await forecastLine.click();
+  await forecastSheet.getByText('А если к дате?').waitFor();
+  await shot('forecast-sheet-320');
+  await page.keyboard.press('Escape');
+  await forecastSheet.waitFor({ state: 'detached' });
+  await page.goto(`${baseUrl}#/skills`);
+  await homeMap.locator('.heatmap-grid button').first().waitFor();
+  if ((await overflow()) > 0) errors.push(`the home screen scrolls sideways by ${await overflow()}px at 320 px`);
+  await homeMap.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(300);
+  await shot('home-activity-320');
+  await homeMap.locator('.heatmap-grid button:not([data-level="0"])').last().click();
+  await page.locator('.day-sheet .day-sheet-skill').first().waitFor();
+  await shot('home-day-sheet-320');
+  await page.keyboard.press('Escape');
+
+  // A new skill: nothing forecast, the map empty on purpose.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${baseUrl}#/skills/new`);
+  await page.getByLabel('Название', { exact: true }).fill('Гитара');
+  await page.getByRole('button', { name: 'Создать навык' }).click();
+  await page.getByRole('button', { name: 'Создать первое действие' }).waitFor();
+  await page.getByText('Здесь будут видны дни с занятиями').waitFor();
+  if (await page.locator('.forecast-line').count()) errors.push('a new skill shows a forecast');
+  await scrollToHeading(page.getByRole('heading', { name: 'Активность' }));
+  await page.waitForTimeout(300);
+  await shot('skill-new-activity');
+
+  // The same history in a context without the service worker (Telegram never gets its precache),
+  // for the lazy chunks of package 14: a slow one keeps its place (the forecast line does not
+  // push the milestone rack down when it arrives), a missing one (a redeploy removed the old
+  // hashed files, a flaky network) leaves its place empty and the app keeps working.
+  await page.goto(`${baseUrl}#/settings`);
+  const [insightsDownload] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Скачать файл' }).click()]);
+  const insightsBackup = `${outDir}/backup-insights.json`;
+  await insightsDownload.saveAs(insightsBackup);
   await recapContext.close();
+
+  const chunkContext = await browser.newContext({ ...contextOptions, serviceWorkers: 'block' });
+  await setupContext(chunkContext);
+  page = await openPage(chunkContext);
+  await page.goto(`${baseUrl}#/settings`);
+  await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+  await page.locator('.import-sheet input[type="file"]').setInputFiles(insightsBackup);
+  await page.locator('.import-sheet').getByRole('button', { name: 'Заменить данные' }).click();
+  await page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) }).getByRole('button', { name: 'Заменить', exact: true }).click();
+  await page.getByText('Импортировано').waitFor();
+
+  const slowChunk = /\/assets\/ForecastLine-[^/]*\.js$/;
+  await page.route(slowChunk, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.goto(`${baseUrl}#${skillPath}`);
+  const rack = page.locator('.rack');
+  await rack.waitFor();
+  const rackBefore = await rack.evaluate((el) => el.getBoundingClientRect().top);
+  if (!(await page.locator('.forecast-line--placeholder').count())) errors.push('the forecast line has no placeholder while its chunk loads');
+  await page.locator('button.forecast-line').waitFor();
+  await page.waitForTimeout(300);
+  const rackAfter = await rack.evaluate((el) => el.getBoundingClientRect().top);
+  if (Math.abs(rackAfter - rackBefore) > 12) errors.push(`the forecast line moved the milestone rack by ${Math.round(rackAfter - rackBefore)}px when it arrived`);
+  await page.unroute(slowChunk);
+
+  const missingChunk = /\/assets\/(ForecastLine|ActivityCard|LinkSheet)-[^/]*\.js$/;
+  await page.route(missingChunk, (route) => route.abort());
+  await page.reload();
+  await page.getByRole('heading', { name: 'История' }).waitFor();
+  await page.waitForTimeout(600);
+  if (await page.getByText('Что-то пошло не так').count()) errors.push('a missing lazy chunk took the skill screen down');
+  if (await page.locator('.activity, button.forecast-line').count()) errors.push('a missing lazy chunk left a broken section on the skill screen');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot('chunk-missing-skill');
+  await page.goto(`${baseUrl}#/skills`);
+  await page.locator('.skill-card').first().waitFor();
+  await page.waitForTimeout(600);
+  if (await page.getByText('Что-то пошло не так').count()) errors.push('a missing lazy chunk took the home screen down');
+  if (await page.locator('.tile--activity').count()) errors.push('a missing lazy chunk left an empty tile on the home screen');
+  await shot('chunk-missing-home');
+  await chunkContext.close();
 }
 
 // «Образы прогресса и цвет» (packages 11 and 13), in their own context: the picker in the skill

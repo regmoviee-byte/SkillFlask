@@ -56,6 +56,16 @@ export function monthEnd(date: string): string {
   return fromUtc(Date.UTC(y, m, 0));
 }
 
+/** The same day `n` months later, kept inside the month: 31 January + 1 → 28 (29) February. */
+export function addMonths(date: string, n: number): string {
+  const [y, m, d] = parts(date);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  return fromUtc(Date.UTC(y, m - 1 + n, Math.min(d, last)));
+}
+
+/** «в сентябре»: the prepositional case after «в». */
+export const MONTHS_IN = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
+
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 const dateFormatWithYear = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const timeFormat = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -94,6 +104,12 @@ export function formatDaySpan(start: string, days: number): string {
 /** A Monday..Sunday week named by its Monday: «14–20 сентября». */
 export function formatWeek(monday: string): string {
   return formatDaySpan(monday, 7);
+}
+
+/** «в марте» in the current year, «в марте 2027» in another one. Accepts YYYY-MM-DD. */
+export function formatMonthIn(date: string): string {
+  const [y, m] = parts(date);
+  return `в ${MONTHS_IN[m - 1]}${y === nowDate().getFullYear() ? '' : ` ${y}`}`;
 }
 
 /** «четверг, 24 сентября» — the second line of «Сегодня». Accepts YYYY-MM-DD. */

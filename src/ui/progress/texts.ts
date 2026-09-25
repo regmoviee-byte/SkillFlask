@@ -13,6 +13,8 @@ export interface LevelText extends ProgressThemeText {
   levelDative: string;
   /** One write completed several levels: «Колбы 2–3 заполнены», «Пиццы 2–3 съедены». */
   completedRange(from: number, to: number): string;
+  /** The level completed in the future, lower case, for the forecast: «колба 3 заполнится», «пицца 3 будет съедена». */
+  willComplete(level: number): string;
 }
 
 const range = (from: number, to: number) => `${from}–${to}`;
@@ -27,6 +29,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['колбы', 'колб', 'колб'],
     completed: (n) => `Колба ${n} заполнена`,
     completedRange: (from, to) => `Колбы ${range(from, to)} заполнены`,
+    willComplete: (n) => `колба ${n} заполнится`,
     fillLabel: (percent) => `Колба заполнена на ${percent}%`,
     hint: 'Очки наполняют колбу до края',
   },
@@ -39,6 +42,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['цветка', 'цветков', 'цветков'],
     completed: (n) => `Цветок ${n} распустился`,
     completedRange: (from, to) => `Цветы ${range(from, to)} распустились`,
+    willComplete: (n) => `цветок ${n} распустится`,
     fillLabel: (p) => `Цветок вырос на ${p}%`,
     hint: 'Из зёрнышка растёт цветок',
   },
@@ -51,6 +55,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['пиццы', 'пицц', 'пицц'],
     completed: (n) => `Пицца ${n} съедена`,
     completedRange: (from, to) => `Пиццы ${range(from, to)} съедены`,
+    willComplete: (n) => `пицца ${n} будет съедена`,
     fillLabel: (percent) => `Пицца съедена на ${percent}%`,
     hint: 'Кусочки съедаются один за другим',
   },
@@ -63,6 +68,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['поездки', 'поездок', 'поездок'],
     completed: (n) => `Поездка ${n} завершена`,
     completedRange: (from, to) => `Поездки ${range(from, to)} завершены`,
+    willComplete: (n) => `поездка ${n} завершится`,
     fillLabel: (p) => `Машинка проехала ${p}% пути`,
     hint: 'Машинка едет по дороге к финишу',
   },
@@ -75,6 +81,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['книги', 'книг', 'книг'],
     completed: (n) => `Книга ${n} прочитана`,
     completedRange: (from, to) => `Книги ${range(from, to)} прочитаны`,
+    willComplete: (n) => `книга ${n} будет прочитана`,
     fillLabel: (percent) => `Книга прочитана на ${percent}%`,
     hint: 'Страницы перелистываются до последней',
   },
@@ -87,6 +94,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['полёта', 'полётов', 'полётов'],
     completed: (n) => `Полёт ${n} завершён`,
     completedRange: (from, to) => `Полёты ${range(from, to)} завершены`,
+    willComplete: (n) => `полёт ${n} завершится`,
     fillLabel: (percent) => `Ракета пролетела ${percent}% пути`,
     hint: 'Ракета летит от планеты к планете',
   },
@@ -99,6 +107,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['броска', 'бросков', 'бросков'],
     completed: (n) => `Бросок ${n}: попадание`,
     completedRange: (from, to) => `Броски ${range(from, to)}: попадания`,
+    willComplete: (n) => `бросок ${n} попадёт в корзину`,
     fillLabel: (percent) => `Мяч пролетел ${percent}% пути к кольцу`,
     hint: 'Мяч летит по дуге в корзину',
   },
@@ -111,6 +120,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['цыплёнка', 'цыплят', 'цыплят'],
     completed: (n) => `Цыплёнок ${n} вырос`,
     completedRange: (from, to) => `Цыплята ${range(from, to)} выросли`,
+    willComplete: (n) => `цыплёнок ${n} вырастет`,
     fillLabel: (p) => `Цыплёнок вырос на ${p}%`,
     hint: 'Из яйца вылупляется и растёт цыплёнок',
   },
@@ -123,6 +133,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['вершины', 'вершин', 'вершин'],
     completed: (n) => `Вершина ${n} покорена`,
     completedRange: (from, to) => `Вершины ${range(from, to)} покорены`,
+    willComplete: (n) => `вершина ${n} будет покорена`,
     fillLabel: (percent) => `Альпинист прошёл ${percent}% подъёма`,
     hint: 'Альпинист поднимается к вершине',
   },
@@ -135,6 +146,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['пазла', 'пазлов', 'пазлов'],
     completed: (n) => `Пазл ${n} собран`,
     completedRange: (from, to) => `Пазлы ${range(from, to)} собраны`,
+    willComplete: (n) => `пазл ${n} будет собран`,
     fillLabel: (percent) => `Пазл собран на ${percent}%`,
     hint: 'Кусочки встают на свои места',
   },
@@ -147,6 +159,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['луны', 'лун', 'лун'],
     completed: (n) => `Полнолуние ${n}`,
     completedRange: (from, to) => `Полнолуния ${range(from, to)}`,
+    willComplete: (n) => `луна ${n} станет полной`,
     fillLabel: (percent) => `Луна заполнена на ${percent}%`,
     hint: 'От новолуния к полнолунию',
   },
@@ -159,6 +172,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['башни', 'башен', 'башен'],
     completed: (n) => `Башня ${n} построена`,
     completedRange: (from, to) => `Башни ${range(from, to)} построены`,
+    willComplete: (n) => `башня ${n} будет построена`,
     fillLabel: (percent) => `Башня построена на ${percent}%`,
     hint: 'Кубики ставятся друг на друга',
   },
@@ -171,6 +185,7 @@ export const THEME_TEXT: Readonly<Record<ProgressThemeKey, LevelText>> = Object.
     levelFormsOf: ['радуги', 'радуг', 'радуг'],
     completed: (n) => `Радуга ${n} сияет`,
     completedRange: (from, to) => `Радуги ${range(from, to)} сияют`,
+    willComplete: (n) => `радуга ${n} засияет`,
     fillLabel: (percent) => `Радуга раскрашена на ${percent}%`,
     hint: 'Полосы раскрашиваются одна за другой',
   },

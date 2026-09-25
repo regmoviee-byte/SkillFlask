@@ -1,6 +1,8 @@
 import { Link, useSearchParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { activityStart } from '../../domain/activityWindow';
 import type { SkillStatus } from '../../domain/types';
+import { localDate } from '../../lib/dates';
 import { formatNumber } from '../../lib/format';
 import { getHomeView, type HomeView } from '../../services/queries';
 import type { LastWeekLine } from '../../services/recap';
@@ -14,14 +16,15 @@ import { Skeleton } from '../components/Skeleton';
 import { Tile, TileNumber, TodayTile } from '../components/Tile';
 import { copy } from '../copy';
 import { useToday } from '../hooks/useToday';
+import { HomeActivity } from '../insights/lazy';
 import type { ProgressThemeKey } from '../progress/contract';
 import { ProgressMini } from '../progress/ProgressHero';
 import { skillTheme } from '../progress/registry';
 
 // Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
 // dots, the levels completed so far (all skills, whatever their themes: «Пройдено»), the last achievement (or the next one), «Итоги недели» for
-// the week before — then the skill cards. Facts only: no charts, no targets, nothing about
-// days without activity.
+// the week before, the heat map of every skill («Активность», ui/insights) — then the skill
+// cards. Facts only: no targets, nothing about days without activity.
 
 const t = copy.home;
 
@@ -30,6 +33,15 @@ const SEGMENTS: { status: SkillStatus; param: string; label: string }[] = [
   { status: 'COMPLETED', param: 'completed', label: t.filterCompleted },
   { status: 'ARCHIVED', param: 'archived', label: t.filterArchived },
 ];
+
+/**
+ * A completion was written on or after `from`. Written, not dated: a completion is never dated
+ * after it was written, so this can only say yes too often (one back-dated past the half year),
+ * and then the map drops itself on finding its half year empty (ui/insights/lazy.tsx).
+ */
+function practisedSince(home: HomeView, from: string): boolean {
+  return home.summaries.some((s) => s.lastActivityAt !== null && localDate(new Date(s.lastActivityAt)) >= from);
+}
 
 /**
  * Completed levels drawn in the «Пройдено» tile, at most (four fit the tile on a 320 px phone).
@@ -128,6 +140,8 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
         </Tile>
         <AchievementTile home={home} />
         {home.lastWeek && <RecapTile line={home.lastWeek} />}
+        {/* Every skill's days of practice (ui/insights), once something was done in its half year. */}
+        {practisedSince(home, activityStart(today)) && <HomeActivity today={today} />}
       </div>
 
       {showChips && (

@@ -22,6 +22,11 @@ export interface SheetProps {
   closeRef?: MutableRefObject<() => void>;
   /** Extra class on the sheet surface. */
   className?: string;
+  /**
+   * Called once a closed sheet has slid out, unmounted and let go of the page's scroll (not when
+   * the screen unmounts it): the moment to scroll the page, which the lock would otherwise undo.
+   */
+  onExited?(): void;
 }
 
 const EXIT_MS = 260;
@@ -156,7 +161,7 @@ interface Drag {
   fromBody: boolean;
 }
 
-export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef, className }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef, className, onExited }: SheetProps) {
   const id = useId();
   const titleId = `${id}-title`;
   const bodyId = `${id}-body`;
@@ -169,6 +174,10 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
   onCloseRef.current = onClose;
   const dismissibleRef = useRef(dismissible);
   dismissibleRef.current = dismissible;
+  const onExitedRef = useRef(onExited);
+  onExitedRef.current = onExited;
+  /** Set when the exit timer unmounts the sheet, so the unlock that follows reports onExited. */
+  const exited = useRef(false);
   // history.back() is asynchronous: until popstate arrives the top state still carries this
   // sheet's id, so a second tap (scrim, button, BackButton) would go back one entry too far.
   const closing = useRef(false);
@@ -196,6 +205,7 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
     setState((prev) => (prev === 'closed' ? prev : 'closing'));
     if (sheetRef.current) sheetRef.current.style.transform = '';
     const timer = window.setTimeout(() => {
+      exited.current = true;
       setMounted(false);
       setState('closed');
     }, EXIT_MS);
@@ -244,6 +254,10 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
       document.removeEventListener('keydown', onKey);
       unlockBody();
       previous?.focus?.({ preventScroll: true });
+      if (exited.current) {
+        exited.current = false;
+        onExitedRef.current?.();
+      }
     };
   }, [mounted, id, requestClose]);
 

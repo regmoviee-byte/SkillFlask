@@ -32,12 +32,26 @@
 // shared html.paused hook, the installed-app check, the shortcut request guard) keeps the
 // budget: 199.2 KB, about 0.8 KB of headroom. The next package that adds initial-load code
 // should lazy-load those sheets or raise the budget with a reason.
+// v0.5 package 14 («Прогноз», «Активность») keeps the budget: the forecast, the heat maps, their
+// sheets, read models and strings are lazy chunks; what stays in the initial load (the lazy
+// wrappers, the map's same-size skeleton, the section titles, the future-tense level phrases of
+// the 13 themes) is paid for by lazy-loading the install and link sheets. With more lazy chunks
+// importing React, rolldown began to split React and other shared modules out of the entry
+// (+1–3 KB of chunk overhead); vite.config.ts now keeps every initial module in one chunk
+// (codeSplitting group `$initial`). 199.3 KB measured.
+// 201 KB since package 14's review fixes (+0.7 KB): the forecast line keeps its place from the
+// first paint instead of pushing the milestone rack and the ✓ buttons down as it arrives, which
+// takes knowing at first paint whether there is a forecast — getSkillDetails applies the same
+// rule as the lazy forecast (domain/pace.ts: the pace, the three-day rule, the level date,
+// ≈ 0.5 KB); and a lazy chunk that fails to load no longer takes the app down (ui/lazySafe.ts),
+// the home map's half-year check, the sheets' onExited (≈ 0.2 KB). 200.0 KB measured: 1 byte
+// under 200 KB, too close for CI's zlib, so the budget moves by the next whole KB.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 200);
+const LIMIT_KB = Number(process.argv[2] ?? 201);
 const LAZY_LIMIT_KB = 14;
 const dir = 'dist/assets';
 const manifestPath = 'dist/.vite/manifest.json';

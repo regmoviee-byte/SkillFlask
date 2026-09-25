@@ -5,6 +5,7 @@ import { newId } from '../lib/ids';
 import { verifyJournal } from '../services/journal';
 import { isTransactionEvent } from '../domain/events';
 import { getSkillHistory } from '../services/history';
+import { getAllActivity, getSkillActivity, getSkillForecast } from '../services/insights';
 import { getSkillDetails, listSkillSummaries } from '../services/queries';
 import { createSkill, createStep } from '../services/skills';
 import { installFreshDb } from '../test/harness';
@@ -49,7 +50,7 @@ describe('seedDemoData', () => {
 });
 
 describe('read-model performance', () => {
-  it('builds skill details and the history from 5 000 transactions under 200 ms each (scaled on a loaded runner)', async () => {
+  it('builds skill details, the history, the forecast and the heat maps from 5 000 transactions under 200 ms each (scaled on a loaded runner)', async () => {
     const skillId = await createSkill({
       name: 'Нагрузка',
       description: '',
@@ -119,5 +120,15 @@ describe('read-model performance', () => {
     const budget = Math.max(200, rawRead * 2.5);
     expect(await median(() => getSkillDetails(skillId))).toBeLessThan(budget);
     expect(await median(() => getSkillHistory(skillId))).toBeLessThan(budget);
+
+    // «Прогноз» and «Активность» (package 14) on the same journal, the day after its last completion.
+    const today = '2025-02-05';
+    const forecast = await getSkillForecast(skillId, today);
+    expect(forecast?.pace.activeDays).toBe(27);
+    expect((await getSkillActivity(skillId, today))?.days.size).toBe(35);
+    expect((await getAllActivity(today)).days.size).toBe(35);
+    expect(await median(() => getSkillForecast(skillId, today))).toBeLessThan(budget);
+    expect(await median(() => getSkillActivity(skillId, today))).toBeLessThan(budget);
+    expect(await median(() => getAllActivity(today))).toBeLessThan(budget);
   });
 });

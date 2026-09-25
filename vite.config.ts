@@ -9,9 +9,16 @@ export default defineConfig({
   // serviceWorker: dist/sw.js gets the build's version and precache list (the offline start
   // of the installed browser app; never registered inside Telegram).
   plugins: [react(), serviceWorker(pkg.version)],
-  // dist/.vite/manifest.json tells scripts/check-bundle.mjs the initial load from the lazy
-  // chunks (the progress themes other than the flask). CI deletes it before publishing dist.
-  build: { manifest: true },
+  build: {
+    // dist/.vite/manifest.json tells scripts/check-bundle.mjs the initial load from the lazy
+    // chunks (the progress themes other than the flask, the forecast and heat maps, a few
+    // sheets). CI deletes it before publishing dist.
+    manifest: true,
+    // Everything the first paint needs stays one chunk: left alone, rolldown splits React and
+    // other modules the lazy chunks share into chunks of their own, which costs kilobytes of
+    // the initial budget in chunk overhead and worse compression (scripts/check-bundle.mjs).
+    rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'app', tags: ['$initial'] }] } } },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

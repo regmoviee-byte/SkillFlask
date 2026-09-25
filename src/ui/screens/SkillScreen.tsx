@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Suspense, useEffect, useRef, useState, type RefObject } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { markHeight, marksForFlask } from '../../domain/marks';
 import { fromDeci, toDeci } from '../../domain/points';
@@ -31,17 +31,23 @@ import { useToast } from '../components/Toast';
 import { copy, type LevelCopy } from '../copy';
 import { useCountUp } from '../hooks/useCountUp';
 import { useToday } from '../hooks/useToday';
+import { lazySafe } from '../lazySafe';
+import { SkillActivity, SkillForecast } from '../insights/lazy';
 import type { ProgressHeroHandle, ProgressMark } from '../progress/contract';
 import { ProgressHero } from '../progress/ProgressHero';
 import { colorScope, copyForSkill, skillTheme } from '../progress/registry';
 import { AppearanceSheet } from '../sheets/AppearanceSheet';
 import { CompletionSheet } from '../sheets/CompletionSheet';
-import { LinkSheet } from '../sheets/LinkSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 
+// The link fallback is a lazy chunk (v0.5 package 14 won back the initial load with it): it
+// starts loading with the screen, long before a refused clipboard could need it.
+const LinkSheet = lazySafe(() => import('../sheets/LinkSheet').then((m) => ({ default: m.LinkSheet })), 'LinkSheet');
+
 // Wireframe 2: the skill's progress theme as the hero (the flask by default, ProgressHero) with
-// the level number in big numerals, the milestone rack, the marks («Засечки»), the actions with
-// their ✓ and the history as a timeline. What the hero shows can be frozen for a moment by a
+// the level number in big numerals, the forecast line («В таком темпе…», ui/insights), the
+// milestone rack, the marks («Засечки»), the actions with their ✓, the heat map «Активность» and
+// the history as a timeline. What the hero shows can be frozen for a moment by a
 // celebration (useCelebrationStage), so the points fly in first. The whole screen is painted in
 // the skill's colour (colorScope). The header ⋯ opens the skill's menu: edit it, its
 // appearance («Оформление»), add a mark, copy a link that opens it («Ссылка на навык»).
@@ -143,7 +149,9 @@ export function SkillScreen() {
           })}
         />
       )}
-      <LinkSheet link={linkShown} telegram={isTelegram()} onClose={() => setLinkShown(null)} onCopied={linkCopied} />
+      <Suspense fallback={null}>
+        <LinkSheet link={linkShown} telegram={isTelegram()} onClose={() => setLinkShown(null)} onCopied={linkCopied} />
+      </Suspense>
       {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
       {details && (
         <MarkSheet
@@ -191,6 +199,18 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
   const hasOperations = history ? history.operations > 0 || details.marks.length > 0 : true;
   const openMark = (id: string) => onMark({ kind: 'mark', id });
   const lifecycle = useLifecycle(skill);
+  // A day of the home screen's heat map opens the skill at its history, once: the entry then
+  // forgets it, so coming back to this screen later starts at the top as usual.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const focusHistory = (location.state as { focus?: string } | null)?.focus === 'history';
+  const historyRef = useRef<HTMLElement>(null);
+  const historyReady = history !== undefined;
+  useEffect(() => {
+    if (!focusHistory || !historyReady) return;
+    historyRef.current?.scrollIntoView({ block: 'start' });
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true });
+  }, [focusHistory, historyReady, navigate, location.pathname, location.search]);
 
   return (
     <>
@@ -208,6 +228,8 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
         onMarkTap={openMark}
       />
 
+      {active && details.hasForecast && <SkillForecast skillId={skill.id} today={today} />}
+
       <MilestoneRack
         skill={skill}
         milestone={details.milestone}
@@ -220,7 +242,9 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
 
       <ActionsCard details={details} />
 
-      <section className="history">
+      <SkillActivity skillId={skill.id} active={active} today={today} />
+
+      <section ref={historyRef} className="history">
         <h2 className="section-title">{t.history}</h2>
         {!history ? null : !hasOperations ? (
           <div className="card">

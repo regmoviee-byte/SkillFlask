@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setClock } from './clock';
 import {
   addDays,
+  addMonths,
   diffDays,
   formatDateRange,
   formatDaySpan,
@@ -9,6 +10,7 @@ import {
   formatDateTime,
   formatDateTimeRelative,
   formatDayLabel,
+  formatMonthIn,
   formatWeekdayDate,
   isoWeekday,
   isValidLocalDate,
@@ -65,6 +67,22 @@ describe('monthStart / monthEnd', () => {
     expect(monthEnd('2026-02-14')).toBe('2026-02-28');
     expect(monthEnd('2024-02-14')).toBe('2024-02-29');
     expect(monthEnd('2026-12-05')).toBe('2026-12-31');
+  });
+});
+
+describe('addMonths / formatMonthIn', () => {
+  it('keeps the day inside a shorter month and crosses the year', () => {
+    expect(addMonths('2026-09-24', 3)).toBe('2026-12-24');
+    expect(addMonths('2026-11-30', 3)).toBe('2027-02-28');
+    expect(addMonths('2027-11-30', 3)).toBe('2028-02-29');
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
+    expect(addMonths('2026-03-31', -1)).toBe('2026-02-28');
+  });
+
+  it('names a month after «в», the year only when it is not the current one', () => {
+    setClock(() => new Date('2026-09-24T12:00:00'));
+    expect(formatMonthIn('2026-12-03')).toBe('в декабре');
+    expect(formatMonthIn('2027-03-15')).toBe('в марте 2027');
   });
 });
 

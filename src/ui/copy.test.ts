@@ -1,14 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { formatNumber } from '../lib/format';
+import { setClock } from '../lib/clock';
 import { CATALOG, LADDERS } from '../domain/achievements/catalog';
 import { MAX_BUTTON_TEXT } from '../platform/buttons';
 import { BUTTON_TEXT_MAX, copy, levelCopy } from './copy';
 import { PROGRESS_THEME_KEYS } from './progress/contract';
 import { THEME_TEXT } from './progress/texts';
+import { insightsCopy } from './insights/strings';
 
 const flask = levelCopy(THEME_TEXT.flask);
 
-const FORBIDDEN = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|баллы|балл\b|баллов/i;
+const FORBIDDEN = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|отста[её]|баллы|балл\b|баллов/i;
 
 /** Collects every string of the dictionary, calling functions with representative arguments. */
 function collect(value: unknown, path: string, out: [string, string][]): void {
@@ -53,6 +55,13 @@ describe('copy dictionary', () => {
     collect(levelCopy(THEME_TEXT[key]), `levelCopy(${key})`, strings);
     collect(THEME_TEXT[key], `THEME_TEXT.${key}`, strings);
   }
+  // «Прогноз» and «Активность» (ui/insights/strings.ts); the two phrases that take a theme or a
+  // list of steps are called with real ones.
+  const { line, required, ...forecast } = insightsCopy.forecast;
+  collect({ forecast, activity: insightsCopy.activity }, 'insightsCopy', strings);
+  for (const key of PROGRESS_THEME_KEYS) strings.push([`insightsCopy.forecast.line(${key})`, line(THEME_TEXT[key], 3, '≈ 12 октября')]);
+  strings.push(['insightsCopy.forecast.required', required(70, [{ name: 'Разговор', minutes: null, times: 5 }, { name: 'Чтение', minutes: 30, times: 3 }])]);
+  strings.push(['insightsCopy.forecast.required()', required(7, [])]);
 
   it('contains strings', () => {
     expect(strings.length).toBeGreaterThan(80);
@@ -125,6 +134,26 @@ describe('copy dictionary', () => {
     expect(toasts.filter(([, text]) => /понижен/i.test(text))).toEqual([]);
   });
 
+  it('forecasts without pressure: a date at the current pace, or what a chosen date takes', () => {
+    // The year is named only when it is not the current one.
+    setClock(() => new Date('2026-09-24T12:00:00'));
+    onTestFinished(() => setClock(null));
+    const t = insightsCopy.forecast;
+    expect(t.line(THEME_TEXT.flask, 3, t.when('2026-10-12', 18))).toBe('В таком темпе колба 3 заполнится ≈\u00a012\u00a0октября');
+    expect(t.line(THEME_TEXT.pizza, 3, t.when('2026-10-12', 18))).toBe('В таком темпе пицца 3 будет съедена ≈\u00a012\u00a0октября');
+    expect(t.when('2027-03-15', 172)).toBe('примерно в\u00a0марте\u00a02027');
+    expect(t.pace(45.2, 28)).toBe('≈\u00a045\u00a0очков в неделю за последние 4\u00a0недели');
+    expect(t.pace(6.44, 21)).toBe('≈\u00a06,4\u00a0очка в неделю за последний 21\u00a0день');
+    expect(t.milestone('B2', 'Достичь B2')).toBe('Цель «B2»');
+    expect(t.milestone('', 'Главная цель')).toBe('Веха «Главная цель»');
+    expect(t.required(70, [{ name: 'Разговор', minutes: null, times: 5 }, { name: 'Чтение', minutes: 30, times: 3 }])).toBe(
+      'Нужно ≈\u00a070\u00a0очков в неделю: например, «Разговор» 5\u00a0раз в неделю или «Чтение» по 30\u00a0мин 3\u00a0раза',
+    );
+    expect(insightsCopy.activity.cell('2026-09-24', 3, 25)).toBe('24 сентября: 3 действия, 25 очков');
+    expect(insightsCopy.activity.summary(64)).toBe('За полгода: 64 дня с занятиями');
+    expect(Object.isFrozen(insightsCopy)).toBe(true);
+  });
+
   it('is frozen', () => {
     expect(Object.isFrozen(copy)).toBe(true);
     expect(Object.isFrozen(flask)).toBe(true);
@@ -187,6 +216,9 @@ describe('level strings of the progress themes', () => {
       expect(text.completedRange(2, 3), key).toContain('2–3');
       expect(lc.noun(4), key).toBe(`${text.levelNoun} 4`);
       expect(text.fillLabel(45), key).toContain('45%');
+      // The forecast's future: lower case (it follows «В таком темпе»), with the number.
+      expect(text.willComplete(3), key).toMatch(/^[а-яё]/);
+      expect(text.willComplete(3), key).toContain(' 3');
     }
   });
 });

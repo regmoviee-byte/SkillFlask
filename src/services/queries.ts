@@ -3,6 +3,7 @@ import { addDays, localDate, weekStart } from '../lib/dates';
 import { fromDeci, toDeci } from '../domain/points';
 import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
 import { newestMarksFirst } from '../domain/marks';
+import { levelForecast } from '../domain/pace';
 import type { LevelThreshold, Mark, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
 import { getLastWeekLine, type LastWeekLine } from './recap';
@@ -29,6 +30,12 @@ export interface SkillDetails extends SkillSummary {
   lastDoneAt: Record<string, string | null>;
   /** The skill's marks («Засечки»), newest first. */
   marks: Mark[];
+  /**
+   * The skill has a forecast (domain/pace.ts, the same rule as getSkillForecast): the screen
+   * keeps the line's place from the first paint, so the lazy line does not push the page down.
+   * Paused days (package 18) must be left out here as in getSkillForecast (`excluded`).
+   */
+  hasForecast: boolean;
 }
 
 function configOf(skill: Skill, manual: number[]): CapacityConfig {
@@ -282,16 +289,18 @@ export async function getSkillDetails(id: string, today: string = localDate()): 
       const config = configOf(skill, thresholds.map((t) => t.requiredPoints));
       // The history list has its own read model (services/history.ts).
       const total = foldJournal(transactions.sort(compareJournalOrder).map((t) => t.delta));
+      const progress = computeProgress(total, config);
       return {
         skill,
         milestone,
         config,
-        progress: computeProgress(total, config),
+        progress,
         steps: activeSteps,
         hiddenSteps: steps.filter((s) => !s.isActive).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)),
         todayCounts,
         lastDoneAt,
         marks: newestMarksFirst(marks),
+        hasForecast: levelForecast({ status: skill.status, progress, today, transactions, completions }) !== null,
       };
     },
   );
