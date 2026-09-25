@@ -29,7 +29,7 @@ html[data-motion='reduced'] .anim-decor {
   animation: none !important;
 }
 
-/* The page is hidden (every progress theme toggles html.paused on visibilitychange, see progress/themes/flask.tsx). */
+/* The page is hidden: html.paused (progress/pauseWhenHidden.ts, installed by every theme's hero). */
 html.paused .anim-decor {
   animation-play-state: paused;
 }

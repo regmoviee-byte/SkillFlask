@@ -4,10 +4,11 @@
 // dev as it is, with an empty list.
 //
 // Strategies:
-// - the page (any navigation, index.html): network first, the cached page offline or when
-//   the network takes longer than NETWORK_TIMEOUT_MS;
+// - the page (the scope and index.html, navigations to them included): network first, the
+//   cached page offline or when the network takes longer than NETWORK_TIMEOUT_MS;
 // - hashed files under assets/: cache first (their names change with their content);
-// - other files of the app (manifest, icons): network first, the cache offline;
+// - other files of the app (manifest, icons): network first, the cache offline; a navigation
+//   to one of them (a tab opened on the icon) is left to the network;
 // - everything else (other origins, e.g. telegram.org, non-GET): not touched.
 // A new version installs next to the old one and waits; the page shows «Обновить приложение»
 // and posts SKIP_WAITING when the user taps it (platform/sw.ts).
@@ -23,9 +24,11 @@ function strategyFor(request, scope) {
   const url = new URL(request.url);
   const base = new URL(scope);
   if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return 'network';
-  if (request.mode === 'navigate') return 'page';
   const path = url.pathname.slice(base.pathname.length);
   if (path === '' || path === 'index.html') return 'page';
+  // A tab opened on the icon, the manifest or the worker itself is not the app: stored under
+  // the page's key it would replace the offline index.html with a PNG or JSON body.
+  if (request.mode === 'navigate') return 'network';
   if (path === 'sw.js') return 'network';
   if (path.startsWith('assets/')) return 'asset';
   return 'fresh';

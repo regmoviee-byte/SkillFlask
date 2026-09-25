@@ -5,6 +5,7 @@ import { FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type AnimationEvent,
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
 import { levelNumber, PIC_W, PictureArt, PictureDefs, pictureIndex } from './puzzle-pictures';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './puzzle.css';
 
 // The puzzle («Пазл»): a 3×4 jigsaw in a wooden frame hanging on a nail. Every level is a new
@@ -287,15 +288,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 // ---- Text ----

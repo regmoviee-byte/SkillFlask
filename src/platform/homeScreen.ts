@@ -5,7 +5,8 @@ import { API, onTg, supports, tgCall, webApp, type HomeScreenStatus } from './te
 // itself (addToHomeScreen; checkHomeScreenStatus says whether one exists or the device cannot).
 // In a browser: Chrome's `beforeinstallprompt` is captured at boot and replayed from the row;
 // Safari has no prompt, so the row opens instructions. A page already running as the installed
-// app (display-mode: standalone) offers nothing.
+// app (display-mode: standalone) offers nothing; a browser tab of an installed app (known where
+// getInstalledRelatedApps exists) says «Уже на главном экране».
 
 export type HomeScreenOffer =
   /** No row: an older Telegram, an unsupported device, or the installed app itself. */
@@ -114,7 +115,24 @@ export function initHomeScreen(): () => void {
   window.addEventListener('beforeinstallprompt', onPrompt);
   window.addEventListener('appinstalled', onInstalled);
   set(browserOffer());
+  // A browser tab of an app that is already installed: Chrome never fires beforeinstallprompt
+  // there, so the row would offer instructions for installing it again. Chrome on Android
+  // answers through getInstalledRelatedApps (the manifest lists itself in
+  // related_applications); elsewhere the method is absent and nothing changes.
+  let stopped = false;
+  const related = (navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> }).getInstalledRelatedApps;
+  if (typeof related === 'function') {
+    related.call(navigator).then(
+      (apps) => {
+        if (stopped || !Array.isArray(apps) || apps.length === 0) return;
+        installedHere = true;
+        set(browserOffer());
+      },
+      () => {},
+    );
+  }
   return () => {
+    stopped = true;
     window.removeEventListener('beforeinstallprompt', onPrompt);
     window.removeEventListener('appinstalled', onInstalled);
   };

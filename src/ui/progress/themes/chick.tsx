@@ -5,6 +5,7 @@ import { DONE_EVENT, IDLE, nextPhase, refillTarget, type AnimationState } from '
 import { PLAIN_TICKS } from '../../components/flaskScale';
 import { useMotion, type MotionMode } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressState, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './chick.css';
 
 // The chick («Цыплёнок»): an egg in a straw nest cracks, hatches and grows into a chick; at the
@@ -635,15 +636,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
     // An easing the engine does not parse: plain ease-out keeps the choreography going.
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const cssOf = (p: PartStyle): CSSProperties => ({ transform: p.transform, opacity: p.opacity, strokeDashoffset: p.dash });

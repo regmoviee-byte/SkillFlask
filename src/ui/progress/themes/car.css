@@ -150,8 +150,10 @@
   height: 228px;
 }
 
+/* The captions start right of the box (CAPTION_X 166 of 160, about 145 px) and run up to
+   90 px: the numbers column starts after them. */
 .car--hero.car--marked {
-  margin-right: 62px;
+  margin-right: 90px;
 }
 
 .car-svg {
@@ -596,7 +598,7 @@ html[data-motion='reduced'] .car-puff {
 
 @media (max-width: 374px) {
   .car--hero.car--marked {
-    margin-right: 52px;
+    margin-right: 76px;
   }
 
   .car-mark-caption {
@@ -649,4 +651,17 @@ html[data-motion='reduced'] .car-puff {
 
 html[data-motion='reduced'] .car--mini .car-trail {
   transition: none;
+}
+
+/* A 320 px phone: the hero draws at 120 px (styles.css, .hero--marks), so the captions start
+   further left; margin and caption width leave the numbers column about 88 px. */
+@media (max-width: 359px) {
+  .car--hero.car--marked {
+    margin-right: 72px;
+  }
+
+  .car-mark-caption {
+    max-width: 75px;
+    font-size: 11px;
+  }
 }

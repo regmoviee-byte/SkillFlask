@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { copy } from '../../copy';
 import { useMotion, type MotionMode } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressState } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './rocket.css';
 
 // «Ракета»: a journey from world to world. Level 1 flies from the Earth to the Moon; level n ≥ 2
@@ -777,16 +778,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
       return null;
     }
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden: the idle flicker stops burning frames. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 // ---- Drawing ----

@@ -6,6 +6,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, MAX_CYCLES, nextPhase, refillTarg
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './car.css';
 
 // «Машинка»: a small car (the skill colour) drives from the start pennant at the bottom to the
@@ -392,15 +393,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 /** Groups of `size` numbers from a flat list, with a key. */

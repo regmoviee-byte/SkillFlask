@@ -1269,9 +1269,10 @@ await bigContext.close();
   await recapContext.close();
 }
 
-// «Образы прогресса и цвет» (package 11), in their own context: the picker in the skill form,
-// every theme this build ships on the hero at 60 % (switched through the ⋯ sheet), each one's
-// level-up caught mid-flight, the rack of minis, the home card, and the skill in a colour.
+// «Образы прогресса и цвет» (packages 11 and 13), in their own context: the picker in the skill
+// form (all thirteen themes), every theme on the hero at 60 % (switched through the ⋯ sheet),
+// a mark on each one's path (at 390 and 320 px, opened from its caption, then deleted), each
+// one's level-up caught mid-flight, the rack of minis, the home card, and the skill in a colour.
 {
   const themeContext = await browser.newContext(contextOptions);
   await setupContext(themeContext);
@@ -1306,6 +1307,8 @@ await bigContext.close();
   if (!(await colorGroup.getByRole('radio', { name: 'Как в теме' }).isChecked())) errors.push('a new skill does not start «Как в теме»');
   const themes = await themeGroup.getByRole('radio').evaluateAll((els) => els.map((el) => ({ key: el.value, name: el.getAttribute('aria-label').split('.')[0] })));
   if (themes[0]?.key !== 'flask') errors.push(`the picker does not start with the flask: ${JSON.stringify(themes)}`);
+  // All thirteen themes ship (packages 11 and 13).
+  if (themes.length !== 13) errors.push(`the picker offers ${themes.length} themes, expected 13: ${themes.map((t) => t.key).join(', ')}`);
   const themeCard = (scope, key) => scope.locator('label.theme-card').filter({ has: page.locator(`input[value="${key}"]`) });
   const swatch = (scope, name) => scope.locator('label.swatch').filter({ has: page.getByRole('radio', { name, exact: true }) });
   await settled(); // the focused name field scrolls itself into view first
@@ -1363,6 +1366,47 @@ await bigContext.close();
     await page.locator('.hero .progress-hero-placeholder').waitFor({ state: 'detached' });
     await page.waitForTimeout(700);
     await shotHero(`theme-${theme.key}`);
+    // A mark on the theme's path: a pennant with its caption (shortened past 12 characters)
+    // beside the drawing, clear of the numbers; the caption opens the mark in the theme's nouns.
+    // (This context's page: `markSheet` above belongs to the first one.)
+    const themeMarkSheet = page.locator('.mark-sheet');
+    await skillMenu('Добавить засечку');
+    await themeMarkSheet.getByRole('heading', { name: 'Новая засечка' }).waitFor();
+    await themeMarkSheet.getByLabel('Название').fill('Первый концерт');
+    await themeMarkSheet.getByRole('button', { name: 'Сохранить' }).click();
+    await themeMarkSheet.waitFor({ state: 'detached' });
+    const markCaption = page.locator('.hero').getByRole('button', { name: 'Засечка: Первый концерт', exact: true });
+    await markCaption.waitFor();
+    const measureMark = () =>
+      markCaption.evaluate((el) => {
+        const caption = el.getBoundingClientRect();
+        const info = document.querySelector('.hero-info').getBoundingClientRect();
+        return { overlap: caption.right - info.left, text: el.textContent, sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+    const markPlace = await measureMark();
+    if (markPlace.overlap > 1) errors.push(`the «${theme.name}» mark caption runs into the hero numbers by ${markPlace.overlap.toFixed(0)}px`);
+    // The same on a 320 px phone (narrower captions and margins), and nothing scrolls sideways.
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(150);
+    const narrowMark = await measureMark();
+    if (narrowMark.overlap > 1) errors.push(`at 320 px the «${theme.name}» mark caption runs into the hero numbers by ${narrowMark.overlap.toFixed(0)}px`);
+    if (narrowMark.sideways > 0) errors.push(`at 320 px the «${theme.name}» skill screen with a mark scrolls sideways by ${narrowMark.sideways}px`);
+    if (theme.key === 'car') await shotHero('theme-car-mark-320');
+    await page.setViewportSize(contextOptions.viewport);
+    await page.waitForTimeout(150);
+    // (A theme may number its captions: the pizza's «1» badge.)
+    if (!markPlace.text.endsWith('Первый конц…')) errors.push(`the «${theme.name}» mark caption reads «${markPlace.text}», expected «Первый конц…»`);
+    await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+    await shotHero(`theme-${theme.key}-mark`);
+    await markCaption.click();
+    await themeMarkSheet.getByText(/ \d+, 12 из 20 очков$/).waitFor();
+    // Deleted again: its row under «Засечки» would push «Концерт» down, and the tap on it
+    // would scroll the hero away (the level-up then rightly goes to the card).
+    await themeMarkSheet.getByRole('button', { name: 'Удалить' }).click();
+    const themeMarkConfirm = page.getByRole('dialog').filter({ hasText: 'Удалить засечку «Первый концерт»?' });
+    await themeMarkConfirm.getByRole('button', { name: 'Удалить' }).click();
+    await themeMarkSheet.waitFor({ state: 'detached' });
+    await markCaption.waitFor({ state: 'detached' });
     // A level-up mid-flight (the points fly for about half a second, then the choreography
     // starts: caught about 0.4 s into it), then its end.
     await cardsGone();

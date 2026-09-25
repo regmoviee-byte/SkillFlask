@@ -120,7 +120,11 @@ export interface ProgressThemeText {
 export interface ProgressThemeDefinition {
   key: ProgressThemeKey;
   text: ProgressThemeText;
-  /** Hidden from the picker until its theme file ships; a stored key still renders. */
+  /**
+   * True for every theme that ships. The picker offers a theme when its file is in the build
+   * (registry.ts), so this flag gates nothing; it stays in the contract the theme branches were
+   * written against, and registry.test.ts checks it is true.
+   */
   available: boolean;
   Hero: ComponentType<ProgressHeroProps>;
   Mini: ComponentType<ProgressMiniProps>;

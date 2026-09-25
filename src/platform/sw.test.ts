@@ -216,6 +216,10 @@ describe('public/sw.js', () => {
     expect(api.strategyFor(request(`${SCOPE}icons/icon-192.png`), SCOPE)).toBe('fresh');
     expect(api.strategyFor(request(`${SCOPE}manifest.webmanifest`), SCOPE)).toBe('fresh');
     expect(api.strategyFor(request(`${SCOPE}sw.js`), SCOPE)).toBe('network');
+    // A tab opened on a file of the app is not the page: it must never replace the cached index.html.
+    expect(api.strategyFor(request(`${SCOPE}icons/icon-192.png`, 'navigate'), SCOPE)).toBe('network');
+    expect(api.strategyFor(request(`${SCOPE}manifest.webmanifest`, 'navigate'), SCOPE)).toBe('network');
+    expect(api.strategyFor(request(`${SCOPE}sw.js`, 'navigate'), SCOPE)).toBe('network');
     expect(api.strategyFor(request('https://telegram.org/js/telegram-web-app.js'), SCOPE)).toBe('network');
     expect(api.strategyFor(request('https://owner.github.io/Other/app.js'), SCOPE)).toBe('network');
     expect(api.strategyFor(request(`${SCOPE}assets/index-1.js`, 'cors', 'POST'), SCOPE)).toBe('network');

@@ -28,6 +28,10 @@
 // accent contrast check, the native buttons pinned to it) and their texts add 5.6 KB
 // (198.9 KB, measured against 193.3 KB). Lazy-loading the two sheets it adds (install
 // instructions, the link fallback) would win back only ≈ 0.7 KB, so they stay in the bundle.
+// Package 13 (all thirteen themes, review follow-ups: the fastest level's mini in «Рекорды», the
+// shared html.paused hook, the installed-app check, the shortcut request guard) keeps the
+// budget: 199.2 KB, about 0.8 KB of headroom. The next package that adds initial-load code
+// should lazy-load those sheets or raise the budget with a reason.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

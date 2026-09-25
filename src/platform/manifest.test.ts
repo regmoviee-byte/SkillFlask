@@ -29,6 +29,8 @@ describe('manifest.webmanifest', () => {
     background_color: string;
     theme_color: string;
     icons: { src: string; sizes: string; type: string; purpose?: string }[];
+    related_applications?: { platform: string; url: string }[];
+    prefer_related_applications?: boolean;
   };
 
   it('has what browsers need to install the app, with relative paths', () => {
@@ -43,6 +45,12 @@ describe('manifest.webmanifest', () => {
     // The light tokens' background (tokens.css --color-bg).
     expect(manifest.background_color).toBe('#f2f2f7');
     expect(manifest.theme_color).toBe('#f2f2f7');
+  });
+
+  it('names itself as its related web app, so a browser tab can tell it is installed (homeScreen.ts)', () => {
+    // Relative to the manifest's own URL, like the icons; never preferred over itself.
+    expect(manifest.related_applications).toEqual([{ platform: 'webapp', url: 'manifest.webmanifest' }]);
+    expect(manifest.prefer_related_applications).toBe(false);
   });
 
   it('lists 192 and 512 PNGs, a maskable 512 and the SVG, all present at their sizes', () => {

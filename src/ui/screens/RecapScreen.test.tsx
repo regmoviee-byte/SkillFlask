@@ -180,6 +180,8 @@ describe('Entry points', () => {
     // 22nd and 23rd in a row.
     expect(within(row('Лучшая серия')).getByText('2 дня подряд')).toBeTruthy();
     expect(row('Самый быстрый уровень').getAttribute('href')).toBe(`/skills/${skillId}`);
+    // Drawn as the finished level in its skill's theme (a flask here), gold as on «Пройдено».
+    expect(row('Самый быстрый уровень').querySelector('.info-row-icon--level .mini-flask.is-complete')).not.toBeNull();
     // No timed action: no «Самое длинное занятие».
     expect(within(section).queryByText('Самое длинное занятие')).toBeNull();
   });

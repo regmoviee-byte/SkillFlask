@@ -306,3 +306,11 @@ html[data-motion='reduced'] .rainbow-arc,
 .rainbow-mini--reduced .rainbow-arc {
   transition: none;
 }
+
+/* A 320 px phone: the hero draws at 120 px (styles.css, .hero--marks), so the captions start
+   further left; margin and caption width leave the numbers column about 88 px. */
+@media (max-width: 359px) {
+  .rainbow--hero.rainbow--marked {
+    margin-right: 64px;
+  }
+}

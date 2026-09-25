@@ -3,7 +3,8 @@ import { Link } from 'react-router';
 import { weekStart } from '../../lib/dates';
 import { RECORD_KINDS, type RecordKind, type Records } from '../../domain/records';
 import { copy } from '../copy';
-import { copyForSkill } from '../progress/registry';
+import { ProgressMini } from '../progress/ProgressHero';
+import { copyForSkill, skillTheme } from '../progress/registry';
 import { Icon, type IconName } from './Icon';
 
 // Personal records («Рекорды»): rows of an icon, what the record is, then its value with where
@@ -20,6 +21,8 @@ export interface InfoRowSpec {
   value?: string;
   /** Opens this route; a plain row without it. */
   to?: string;
+  /** A finished level drawn in its skill's theme in place of the icon (the fastest level). */
+  level?: { theme: string; level: number };
 }
 
 const ICONS: Record<RecordKind, IconName> = {
@@ -70,7 +73,9 @@ export function recordRow(
     }
     case 'fastestFlask': {
       const r = records.fastestFlask;
-      return r && row(copyForSkill({ theme: skillThemes[r.skillId] }).record(name(r.skillId), r.flask, r.date), t.flaskDays(r.days), `/skills/${r.skillId}`);
+      if (!r) return null;
+      const theme = skillThemes[r.skillId];
+      return { ...row(copyForSkill({ theme }).record(name(r.skillId), r.flask, r.date), t.flaskDays(r.days), `/skills/${r.skillId}`), level: { theme, level: r.flask } };
     }
   }
 }
@@ -91,9 +96,16 @@ export function InfoList({ rows }: { rows: readonly InfoRowSpec[] }) {
 function InfoRow({ row }: { row: InfoRowSpec }) {
   const body = (
     <>
-      <span className="info-row-icon" aria-hidden="true">
-        <Icon name={row.icon} size={20} />
-      </span>
+      {row.level ? (
+        <span className="info-row-icon info-row-icon--level" aria-hidden="true">
+          {/* Gold, as the finished levels on the home tile «Пройдено». */}
+          <ProgressMini theme={skillTheme(row.level.theme)} fill={1} state="complete" size={32} level={row.level.level} />
+        </span>
+      ) : (
+        <span className="info-row-icon" aria-hidden="true">
+          <Icon name={row.icon} size={20} />
+        </span>
+      )}
       <span className="info-row-text">
         <span className="info-row-title">{row.title}</span>
         {/* The value leads the second line, so a narrow row wraps the details, never the value. */}

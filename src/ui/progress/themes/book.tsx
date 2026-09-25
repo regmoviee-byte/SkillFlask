@@ -5,6 +5,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type Ani
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMark, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './book.css';
 
 // «Книжка»: an open book seen from the front and a little from above. The read pages pile up
@@ -349,16 +350,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden, so the idle corner lift stops (motion.css). */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const lift = (h: number) => `translateY(${(-h).toFixed(2)}px)`;

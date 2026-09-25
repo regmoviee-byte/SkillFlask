@@ -563,3 +563,15 @@ html[data-motion='reduced'] .moon-lit-top,
 html[data-motion='reduced'] .moon-lit-low {
   transition: none;
 }
+
+/* A 320 px phone: the hero draws at 120 px (styles.css, .hero--marks), so the captions start
+   further left; margin and caption width leave the numbers column about 88 px. */
+@media (max-width: 359px) {
+  .moon--hero.moon--marked {
+    margin-right: 72px;
+  }
+
+  .moon-mark-caption {
+    max-width: 78px;
+  }
+}

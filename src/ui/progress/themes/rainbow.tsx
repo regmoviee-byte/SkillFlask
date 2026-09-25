@@ -4,6 +4,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type Ani
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './rainbow.css';
 
 // «Радуга»: a coloring-book rainbow of seven arcs standing on two clouds. The arcs are colored
@@ -319,15 +320,6 @@ function animate(el: Element | null, keyframes: Keyframe[], options: KeyframeAni
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const dashOffset = (k: number, share: number) => `${(LENGTHS[k]! - drawnLength(share, LENGTHS[k]!, ...TAILS[k]!)).toFixed(2)}px`;

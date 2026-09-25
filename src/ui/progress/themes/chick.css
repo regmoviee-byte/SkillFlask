@@ -1070,3 +1070,11 @@ html[data-motion='reduced'] .chick--hero .chick-part {
   51.22% { transform: translate(0px, 0px) rotate(0deg); }
   100% { transform: translate(0px, 0px) rotate(0deg); }
 }
+
+/* A 320 px phone: the hero draws at 120 px (styles.css, .hero--marks), so the captions start
+   further left; margin and caption width leave the numbers column about 88 px. */
+@media (max-width: 359px) {
+  .chick--hero.chick--marked {
+    margin-right: 64px;
+  }
+}

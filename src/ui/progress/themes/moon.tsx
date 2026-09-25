@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type AnimationState, type PhaseTiming } from '../../components/flaskAnimation';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './moon.css';
 
 // «Луна»: a night sky panel with a large Moon that waxes from a new moon (fill 0, only a faint
@@ -673,16 +674,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
     // An easing the engine does not parse: plain ease-out keeps the choreography going.
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden: the twinkle (.anim-decor) stops burning frames. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 // Craters: darker spots of the lit colour; on the unlit part they vanish into the shadow.

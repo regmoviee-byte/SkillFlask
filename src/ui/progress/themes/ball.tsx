@@ -6,6 +6,7 @@ import { FINISH_FALLBACK_MS, MAX_CYCLES } from '../../components/flaskAnimation'
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './ball.css';
 
 // «Мяч в корзину»: `fill` is how far the ball has flown along the arc from the hands to the hoop;
@@ -621,16 +622,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden, as for the flask. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 // Static drawing

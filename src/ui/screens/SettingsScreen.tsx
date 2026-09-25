@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatDateTime, formatDateTimeRelative } from '../../lib/dates';
@@ -41,6 +41,10 @@ import { InstallSheet } from '../sheets/InstallSheet';
 
 const t = copy.settings;
 const ERRORS_SHOWN = 20;
+/** How long a shortcut request started here waits for Telegram's homeScreenAdded. */
+const SHORTCUT_PENDING_MS = 60_000;
+/** A second tap this soon after the first is the same request (Telegram's dialog is opening). */
+const SHORTCUT_DOUBLE_TAP_MS = 1500;
 
 const kb = (bytes: number | null) => Math.max(1, Math.round((bytes ?? 0) / 1024));
 
@@ -105,13 +109,24 @@ export function SettingsScreen() {
   }, []);
 
   // «Ярлык добавлен» only for an add started here: a status read on opening says nothing.
+  // Telegram reports a cancelled dialog with no event at all, so a request started here counts
+  // for SHORTCUT_PENDING_MS only; a shortcut added later through Telegram's own menu gets no toast.
   const addingShortcut = useRef(false);
+  const shortcutTimer = useRef<number | undefined>(undefined);
+  /** The browser's install prompt is open, or the last tap was a moment ago. */
+  const shortcutInFlight = useRef(false);
+  const shortcutTapAt = useRef(0);
+  const endShortcutRequest = useCallback(() => {
+    addingShortcut.current = false;
+    window.clearTimeout(shortcutTimer.current);
+  }, []);
+  useEffect(() => endShortcutRequest, [endShortcutRequest]);
   useEffect(() => {
     if (homeScreen.kind !== 'added' || !addingShortcut.current) return;
-    addingShortcut.current = false;
+    endShortcutRequest();
     haptics.success();
     showToast(t.homeScreenAddedToast);
-  }, [homeScreen.kind, showToast]);
+  }, [homeScreen.kind, showToast, endShortcutRequest]);
 
   // An error logged while Settings is open (a failed cloud save) shows up in «Ошибки (n)».
   useEffect(() => onErrorsChange(() => setErrors(getErrors())), []);
@@ -263,13 +278,26 @@ export function SettingsScreen() {
       setInstallOs(homeScreen.os);
       return;
     }
+    // A double tap, or a tap while the browser's prompt is open, does not ask twice. A tap after
+    // a cancelled Telegram dialog (which reports nothing) asks again.
+    const now = Date.now();
+    if (shortcutInFlight.current || now - shortcutTapAt.current < SHORTCUT_DOUBLE_TAP_MS) return;
+    shortcutTapAt.current = now;
+    shortcutInFlight.current = true;
+    endShortcutRequest();
     addingShortcut.current = true;
-    const outcome = await addToHomeScreen();
+    let outcome: Awaited<ReturnType<typeof addToHomeScreen>>;
+    try {
+      outcome = await addToHomeScreen();
+    } finally {
+      shortcutInFlight.current = false;
+    }
     if (outcome === 'instructions') {
-      addingShortcut.current = false;
+      endShortcutRequest();
       setInstallOs('other');
     }
-    if (outcome === 'dismissed') addingShortcut.current = false;
+    if (outcome === 'dismissed') endShortcutRequest();
+    if (outcome === 'requested') shortcutTimer.current = window.setTimeout(endShortcutRequest, SHORTCUT_PENDING_MS);
   }
 
   function setHaptics(on: boolean) {

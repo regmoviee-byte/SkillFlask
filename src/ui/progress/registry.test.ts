@@ -88,6 +88,21 @@ describe('every shipped theme file', () => {
       expect(def!.markPoint(1.5), key).toEqual(def!.markPoint(1));
     }
   });
+
+  it('lays marks along one continuous path that goes somewhere (each theme tests its own direction)', () => {
+    for (const { key, def } of shipped) {
+      const points = Array.from({ length: 201 }, (_, i) => def!.markPoint(i / 200));
+      // No jump between neighbouring heights (0.5 % of a level apart), and not one spot for all
+      // (the length, not the distance end to end: the pizza's path runs round the plate).
+      let length = 0;
+      for (let i = 1; i < points.length; i++) {
+        const step = Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.y - points[i - 1]!.y);
+        expect(step, `${key} jumps at ${i / 200}`).toBeLessThan(12);
+        length += step;
+      }
+      expect(length, key).toBeGreaterThan(60);
+    }
+  });
 });
 
 describe('the flask theme', () => {

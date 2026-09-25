@@ -6,6 +6,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type Ani
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './tower.css';
 
 // «Башня»: toy blocks stack up on a patch of ground. Eight blocks make a level: floor(fill × 8)
@@ -411,16 +412,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
     // An easing the engine does not parse: plain ease-out keeps the choreography going.
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden: the idle bird and flag stop burning frames. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const ty = (y: number) => `translateY(${y.toFixed(2)}px)`;

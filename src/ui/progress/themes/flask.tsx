@@ -6,6 +6,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, phaseTiming, refillTar
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMark, ProgressMiniProps, ProgressThemeDefinition } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import { THEME_TEXT } from '../texts';
 
 // «Колба», the default progress theme and the reference implementation of the contract: the
@@ -129,16 +130,6 @@ function animate(el: Element, keyframes: Keyframe[], options: KeyframeAnimationO
     // An easing the engine does not parse: plain ease-out keeps the choreography going.
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden: idle animations (.anim-decor) stop burning frames. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 /** The hero flask (contract: ProgressHeroProps). `marks` are the current flask's, oldest first. */

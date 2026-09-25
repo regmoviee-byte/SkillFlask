@@ -109,6 +109,23 @@ describe.each(themes.map((def) => [def.key, def] as const))('theme %s', (_key, d
       expect(normalized(container)).toBe(normalized(fresh.container));
     });
   }
+
+  // «Меньше анимации»: a short crossfade instead of the choreography, the same end state.
+  for (const { from, to, levels } of CASES) {
+    it(`ends a reduced-motion level-up ${from} → ${to} exactly as a fresh hero, calling onOverflow once`, async () => {
+      const ref = createRef<ProgressHeroHandle>();
+      const { container, rerender } = render(<Hero ref={ref} fill={0.9} level={from} capacity={100} motion="reduced" />);
+      const onOverflow = vi.fn();
+      await act(async () => {
+        flushSync(() => rerender(<Hero ref={ref} fill={0.1} level={to} capacity={100} motion="reduced" />));
+        await ref.current!.playLevelUp({ fromFill: 0.9, toFill: 0.1, levels, onOverflow });
+        await settle();
+      });
+      expect(onOverflow).toHaveBeenCalledTimes(1);
+      const fresh = render(<Hero fill={0.1} level={to} capacity={100} motion="reduced" />);
+      expect(normalized(container)).toBe(normalized(fresh.container));
+    });
+  }
 });
 
 // ---- Through the app: CelebrationProvider + useCelebrationStage ----

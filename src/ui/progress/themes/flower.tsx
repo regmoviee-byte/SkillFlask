@@ -6,6 +6,7 @@ import { DONE_EVENT, IDLE, MAX_CYCLES, nextPhase, refillTarget, type AnimationSt
 import { scaleTicks } from '../../components/flaskScale';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './flower.css';
 
 // The flower («Цветок»): every level grows its own species in a terracotta pot — a daisy, a
@@ -886,15 +887,6 @@ function animate(el: Element | null | undefined, keyframes: Keyframe[], options:
       return null;
     }
   }
-}
-
-let pauseInstalled = false;
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const spClass = (sp: Species) => `fsp fsp-${sp.key}${sp.skill ? ' fsp--skill' : ''}${sp.tone ? ` fsp--${sp.tone}` : ''}`;

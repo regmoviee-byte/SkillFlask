@@ -6,6 +6,7 @@ import { DONE_EVENT, FINISH_FALLBACK_MS, IDLE, nextPhase, refillTarget, type Ani
 import { copy } from '../../copy';
 import { useMotion } from '../../hooks/useMotion';
 import type { ProgressHeroHandle, ProgressHeroProps, ProgressMiniProps, ProgressThemeDefinition, ProgressThemeText } from '../contract';
+import { installPauseWhenHidden } from '../pauseWhenHidden';
 import './climber.css';
 
 // «Альпинист»: a grey mountain with a snow cap fills the box; a switchback trail zig-zags from
@@ -298,16 +299,6 @@ function animate(el: Element | null, keyframes: Keyframe[], options: KeyframeAni
   } catch {
     return el.animate(keyframes, { ...options, easing: 'ease-out' });
   }
-}
-
-let pauseInstalled = false;
-/** html.paused while the page is hidden: the drifting cloud (.anim-decor) stops. */
-function installPauseWhenHidden(): void {
-  if (pauseInstalled || typeof document === 'undefined') return;
-  pauseInstalled = true;
-  const sync = () => document.documentElement.classList.toggle('paused', document.visibilityState === 'hidden');
-  document.addEventListener('visibilitychange', sync);
-  sync();
 }
 
 const place = (p: Point) => `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px)`;

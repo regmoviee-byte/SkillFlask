@@ -1579,6 +1579,17 @@ html[data-motion='reduced'] .liquid-bar-fill {
   }
 }
 
+/* A 320 px phone with captioned marks: the drawing (not its captions) shrinks to 120 px, so the
+   captions beside it and the numbers column (at least ~88 px) both fit. Every theme's hero root
+   is `<key>--hero`; captions are placed in % of it and keep their font size. A theme whose
+   captions start right of its box narrows its own margin and captions below 360 px. */
+@media (max-width: 359px) {
+  .hero--marks .hero-flask > [class*='--hero'] {
+    width: 120px;
+    height: 195px;
+  }
+}
+
 /* Under 375 px the numeral is 48 px (tokens.css) and the column may wrap its lines. */
 @media (max-width: 374px) {
   .hero {
@@ -3922,6 +3933,11 @@ html[data-motion='reduced'] .ach-card-medal {
   border-radius: 50%;
   background: var(--color-accent-soft);
   color: var(--color-accent);
+}
+
+/* The fastest level's own picture (a gold mini) stands without the icon's disc. */
+.info-row-icon--level {
+  background: none;
 }
 
 .info-row-text {

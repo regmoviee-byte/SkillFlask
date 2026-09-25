@@ -125,6 +125,25 @@ describe('home screen in a browser', () => {
     expect(isIosNonSafari()).toBe(false);
   });
 
+  it('says «Уже на главном экране» in a browser tab of an installed app (getInstalledRelatedApps)', async () => {
+    setUserAgent('Mozilla/5.0 (Linux; Android 14) Chrome/140 Mobile');
+    const nav = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> };
+    try {
+      nav.getInstalledRelatedApps = async () => [];
+      stop = initHomeScreen();
+      await flush();
+      expect(homeScreenOffer()).toEqual({ kind: 'instructions', os: 'other' });
+      stop();
+      resetHomeScreen();
+      nav.getInstalledRelatedApps = async () => [{ platform: 'webapp', url: 'https://example.org/manifest.webmanifest' }];
+      stop = initHomeScreen();
+      await flush();
+      expect(homeScreenOffer()).toEqual({ kind: 'added' });
+    } finally {
+      delete nav.getInstalledRelatedApps;
+    }
+  });
+
   it('offers nothing inside the installed app', () => {
     setStandalone(true);
     stop = initHomeScreen();

@@ -45,7 +45,8 @@ road), and settles on the state derived from the props when it ends. `onOverflow
 called once per played level; the app acts on the first call.
 `themes.contract.test.tsx` checks this for every theme file: the hero after a level-up 4 → 5
 and 4 → 7 equals a fresh hero at the new level and fill, directly and through
-CelebrationProvider (where it fails without the `flushSync`).
+CelebrationProvider (where it fails without the `flushSync`), and under reduced motion (the
+crossfade ends in the same state and calls `onOverflow` exactly once).
 
 ## Rules
 
@@ -77,7 +78,8 @@ CelebrationProvider (where it fails without the `flushSync`).
    (about 38–74 %) that reads on light, dark and purple pages, and a faint `--color-fg` rim
    outlines every planet so a dark one stays visible on a dark page.
 4. **Motion.** Animate only `transform`, `opacity` and `stroke-dashoffset`. Idle motion is
-   optional, one element at most, class `anim-decor` (stops under `html.paused` and reduced
+   optional, one element at most, class `anim-decor` (stops under `html.paused` — the hero calls
+   `installPauseWhenHidden()` from `pauseWhenHidden.ts` in an effect — and reduced
    motion). A backdrop of past levels may add calm ambient life on top (the tower's city lights
    its windows at night): CSS opacity keyframes of several seconds with seeded phases, never a
    flicker, ≤ ~150 animated elements, all `anim-decor`, a static mix under reduced motion.

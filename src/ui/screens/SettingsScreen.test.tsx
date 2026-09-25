@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDays, localDate } from '../../lib/dates';
 import { clearErrors, logError } from '../../platform/errorLog';
 import { exportBackup } from '../../data/backup';
@@ -234,6 +234,42 @@ describe('SettingsScreen', () => {
     expect(await screen.findByText('Уже на главном экране')).toBeTruthy();
     expect(await screen.findByText('Ярлык добавлен на главный экран')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Добавить на главный экран' })).toBeNull();
+  });
+
+  it('toasts only for a shortcut request still pending here; a double tap asks once, a later tap asks again', async () => {
+    fake = installFakeTelegram('8.0');
+    stopHomeScreen = initHomeScreen();
+    // The request's window (60 s) is closed by hand: the timers of the database stay real.
+    const lapse: Array<() => void> = [];
+    const realTimeout = window.setTimeout.bind(window);
+    const spy = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
+      if (ms === 60_000) {
+        lapse.push(fn);
+        return 0;
+      }
+      return realTimeout(fn, ms);
+    }) as typeof window.setTimeout);
+    try {
+      renderSettings();
+      const add = await screen.findByRole('button', { name: 'Добавить на главный экран' });
+      fireEvent.click(add);
+      fireEvent.click(add);
+      await waitFor(() => expect(lapse).toHaveLength(1));
+      expect(fake.calls.filter((call) => call === 'addToHomeScreen()')).toHaveLength(1);
+      // Telegram's dialog was cancelled (no event): a tap a little later asks again.
+      const later = Date.now() + 5000;
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(later);
+      fireEvent.click(add);
+      clock.mockRestore();
+      expect(fake.calls.filter((call) => call === 'addToHomeScreen()')).toHaveLength(2);
+      // Cancelled again; the shortcut then comes from Telegram's own menu, long after.
+      act(() => lapse.forEach((fn) => fn()));
+      act(() => fake!.emit('homeScreenAdded'));
+      expect(await screen.findByText('Уже на главном экране')).toBeTruthy();
+      expect(screen.queryByText('Ярлык добавлен на главный экран')).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('in a browser without an install prompt opens the instructions', async () => {
