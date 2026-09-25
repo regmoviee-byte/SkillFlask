@@ -18,5 +18,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./src/test-setup.ts'],
+    // Above test-setup's 5 s findBy*/waitFor budget: a query that never matches fails as itself,
+    // with the DOM it searched, instead of as an anonymous «Test timed out».
+    testTimeout: 20000,
   },
 });

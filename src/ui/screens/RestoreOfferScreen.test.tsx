@@ -73,6 +73,9 @@ describe('restore offer on start', () => {
     await seedCloudCopy();
     app();
     await screen.findByText(/^Найдена резервная копия/, undefined, SLOW);
+    // A press before the effect registers the button's listener would go nowhere; the listener
+    // is attached before setParams, so the «Восстановить» params mean the press will land.
+    await waitFor(() => expect(fake.calls.some((call) => call.startsWith('MainButton.setParams') && call.includes('Восстановить'))).toBe(true));
     fake.click('MainButton');
     expect(await screen.findByText('приложение', undefined, SLOW)).toBeTruthy();
     expect((await db.skills.toArray()).map((s) => s.name)).toEqual(['Английский']);
