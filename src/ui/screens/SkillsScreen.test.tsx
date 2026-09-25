@@ -52,10 +52,19 @@ const chip = (name: string) => within(filterGroup()!).getByRole('button', { name
 const cardNames = () => [...document.querySelectorAll('.skill-card .skill-card-name')].map((n) => n.textContent);
 
 describe('SkillsScreen', () => {
-  it('starts with one skill and the template example', async () => {
+  it('starts with the templates: popular ones as chips, all of them, or the empty form', async () => {
     renderHome();
     expect(await screen.findByText('Первый навык')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Пример: Английский B1 → C1' }).getAttribute('href')).toBe('/skills/new?template=english');
+    expect(screen.getByText('Выберите, чем занимаетесь, — очки и действия уже настроены')).toBeTruthy();
+    const chips = within(screen.getByRole('list', { name: 'Популярные шаблоны' })).getAllByRole('link');
+    expect(chips.map((chip) => [chip.textContent, chip.getAttribute('href')])).toEqual([
+      ['Английский', '/skills/new/english'],
+      ['Бег', '/skills/new/running'],
+      ['Чтение', '/skills/new/reading'],
+      ['Гитара', '/skills/new/guitar'],
+    ]);
+    expect(screen.getByRole('link', { name: 'Все шаблоны' }).getAttribute('href')).toBe('/skills/new');
+    expect(screen.getByRole('link', { name: 'Свой навык' }).getAttribute('href')).toBe('/skills/new/custom');
     expect(filterGroup()).toBeNull();
   });
 

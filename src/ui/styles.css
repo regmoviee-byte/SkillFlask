@@ -4876,3 +4876,232 @@ html[data-motion='reduced'] .timer-dial .ring-value {
 .minutes-date {
   margin-top: var(--sp-4);
 }
+
+/* ---------- Skill templates (v0.5 package 16) ---------- */
+
+/* The first run's empty states: popular templates as chips, between the text and «Все шаблоны». */
+.first-run-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  max-width: 340px;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.first-run-chips .chip {
+  text-decoration: none;
+}
+
+.first-run-custom {
+  margin-top: var(--sp-1);
+}
+
+/* «Новый навык»: «Свой навык» and the twelve templates, two cards a row down to 320 px. */
+.template-intro {
+  margin: 0 var(--sp-1) var(--sp-4);
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+.template-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: var(--r-m);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+:root[data-theme='dark'] .template-card {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+/* The card the form came back from: marked, so the choice is not lost — in every mode (the dark
+   hairline above must not win over it). */
+.template-card.is-chosen,
+:root[data-theme='dark'] .template-card.is-chosen {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* Every card's art sits on the same tile, tinted with the template's colour: the minis differ in
+   size and weight (a sprout, a full car tile), the tiles keep the grid even. */
+.template-card-art {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 2px;
+  border-radius: var(--r-s);
+  /* Without color-mix (Android WebView before Chrome 111) the tile is the neutral sunken one. */
+  background: var(--color-bg-sunken);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .template-card-art {
+    background: color-mix(in srgb, var(--liquid-mid) 16%, transparent);
+  }
+}
+
+.template-card-art--custom {
+  border: 1.5px dashed var(--color-fg-tertiary);
+  background: none;
+  color: var(--color-link);
+}
+
+.template-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  /* A word wider than a card breaks at its soft hyphens (TemplateChooser), else by the
+     language's rules (lang="ru"); never wider than the card. */
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
+.template-card-text {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-fg-secondary);
+}
+
+@media (max-width: 360px) {
+  .template-grid {
+    gap: var(--sp-2);
+  }
+
+  .template-card {
+    padding: var(--sp-3);
+  }
+
+  .template-card-name {
+    font-size: 15px;
+  }
+}
+
+/* «Действия из шаблона» in the new-skill form: a checkbox, the name and its points and schedule, «Изменить». */
+.template-action {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-1) 0 var(--card-padding);
+}
+
+.template-action-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.template-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.template-action-name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.template-action-meta {
+  font-size: 13px;
+  color: var(--color-fg-secondary);
+}
+
+.template-action.is-off .template-action-text {
+  opacity: 0.5;
+}
+
+.template-action-edit {
+  flex: none;
+}
+
+.checkbox {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 2px solid var(--color-fg-tertiary);
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.checkbox::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  margin-top: -2px;
+  border: solid var(--color-on-accent);
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform var(--dur-fast) ease;
+}
+
+.checkbox:checked {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.checkbox:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.checkbox:disabled {
+  opacity: 0.5;
+}
+
+.template-actions-plan {
+  margin: 0 var(--sp-1);
+}
+
+html[data-motion='reduced'] .checkbox::after,
+html[data-motion='reduced'] .template-action-text {
+  transition: none;
+}
+
+@media (max-width: 360px) {
+  .template-action {
+    padding-left: var(--sp-3);
+  }
+
+  .template-action-edit {
+    padding: 0 var(--sp-1);
+    font-size: 15px;
+  }
+}

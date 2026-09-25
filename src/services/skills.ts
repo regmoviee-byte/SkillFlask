@@ -7,11 +7,12 @@ import type { Milestone, Skill } from '../domain/types';
 import { publishEarned } from './achievements';
 import { afterWrite, syncInTransaction } from './afterWrite';
 import { journalTables, requireActiveSkill, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
+import { newStepRow, validateNewStep, type NewStepInput } from './steps';
 
 // Skill lifecycle. Steps live in ./steps.ts and the journal in ./completions.ts; both are
 // re-exported here so existing importers keep one entry point.
 export { ValidationError } from './core';
-export { createStep, getStep, setStepActive, updateStep, type StepInput, type StepPatch } from './steps';
+export { createStep, getStep, setStepActive, updateStep, type NewStepInput, type StepInput, type StepPatch } from './steps';
 export { archiveSkill, restartSkill, restoreSkill } from './lifecycle';
 export {
   cancelCompletion,
@@ -75,8 +76,14 @@ async function replaceThresholds(skillId: string, capacities: number[]): Promise
   );
 }
 
-export async function createSkill(raw: SkillInput): Promise<string> {
+/**
+ * Creates a skill with its milestone and capacities and, when given, its first actions (the
+ * checked actions of a template, package 16) — all in one transaction: an action that fails
+ * leaves no skill behind. Every input is validated before anything is written.
+ */
+export async function createSkill(raw: SkillInput, steps: readonly NewStepInput[] = []): Promise<string> {
   const input = validateSkillInput(raw);
+  const stepFields = steps.map(validateNewStep);
   const now = nowIso();
   const skill: Skill = {
     id: newId(),
@@ -109,6 +116,8 @@ export async function createSkill(raw: SkillInput): Promise<string> {
     await db.skills.add(skill);
     await db.milestones.add(milestone);
     await replaceThresholds(skill.id, input.manualCapacities);
+    // One timestamp each (nowIso strictly increases): the actions keep the template's order.
+    for (const fields of stepFields) await db.steps.add(newStepRow(skill.id, fields, nowIso()));
     return syncInTransaction({ skillId: skill.id, now });
   });
   await afterWrite();

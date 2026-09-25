@@ -8,6 +8,8 @@ import { PROGRESS_THEME_KEYS } from './progress/contract';
 import { THEME_TEXT } from './progress/texts';
 import { insightsCopy } from './insights/strings';
 import { timerCopy } from './timer/strings';
+import { templatesCopy } from './templates/strings';
+import { TEMPLATES } from '../domain/templates';
 
 const flask = levelCopy(THEME_TEXT.flask);
 
@@ -65,6 +67,16 @@ describe('copy dictionary', () => {
   strings.push(['insightsCopy.forecast.required()', required(7, [])]);
   // The live timer (ui/timer/strings.ts).
   collect(timerCopy, 'timerCopy', strings);
+  // The skill templates (package 16): the chooser and form strings, the plan line in every
+  // theme's words, and the catalogue's own texts (names, lines, labels, milestones, actions).
+  const { plan, ...actions } = templatesCopy.actions;
+  collect({ ...templatesCopy, actions }, 'templatesCopy', strings);
+  for (const key of PROGRESS_THEME_KEYS) strings.push([`templatesCopy.actions.plan(${key})`, plan(THEME_TEXT[key], 8, 95)]);
+  for (const template of TEMPLATES) {
+    const { key, theme: _theme, color: _color, steps, ...texts } = template;
+    collect(texts, `TEMPLATES.${key}`, strings);
+    for (const step of steps) strings.push([`TEMPLATES.${key}.steps`, step.name]);
+  }
 
   it('contains strings', () => {
     expect(strings.length).toBeGreaterThan(80);
@@ -78,6 +90,17 @@ describe('copy dictionary', () => {
   it('limits emoji and exclamation marks to the skill-completed toast', () => {
     const loud = new Set(strings.filter(([, text]) => /[!\u{1F300}-\u{1FAFF}]/u.test(text)).map(([path]) => path.replace(/\(.*$/, '')));
     expect([...loud].sort()).toEqual(['copy.toast.skillCompleted']);
+  });
+
+  it('promises a template’s plan in the theme’s words, rounded to what a plan can promise', () => {
+    const plain = (text: string) => text.replace(/\u00a0/g, ' ');
+    expect(plain(plan(THEME_TEXT.flask, 8, 95))).toBe('По плану колба 1 заполнится примерно за 8 дней, веха — примерно за 3 месяца');
+    expect(plan(THEME_TEXT.flask, 8, 95)).toContain('8\u00a0дней');
+    expect(plain(plan(THEME_TEXT.car, 9, 63))).toBe('По плану поездка 1 завершится примерно за 9 дней, веха — примерно за 9 недель');
+    expect(plain(plan(THEME_TEXT.book, 21, 22))).toBe('По плану книга 1 будет прочитана примерно за 21 день, веха — примерно за 3 недели');
+    expect(plain(templatesCopy.actions.metaTimed(0.5, 30, '3 раза в неделю'))).toBe('0,5/мин · 30 мин · 3 раза в неделю');
+    expect(plain(templatesCopy.actions.metaTimed(0.5, null, 'вручную'))).toBe('0,5/мин · вручную');
+    expect(templatesCopy.actions.metaPoints(5, 'каждый день')).toBe('+5 · каждый день');
   });
 
   it('names the filled flasks and the way back in the history', () => {

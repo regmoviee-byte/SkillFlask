@@ -69,26 +69,40 @@ async function requireStep(id: string): Promise<StepDefinition> {
   return step;
 }
 
-export async function createStep(raw: StepInput): Promise<string> {
+/** A new step's input without its skill: createSkill's first actions (a template's, package 16). */
+export type NewStepInput = Omit<StepInput, 'skillId'>;
+
+type NewStepFields = Pick<StepDefinition, 'name' | 'type' | 'points' | 'pointsPerMinute' | 'defaultMinutes' | 'schedule'>;
+
+/** A new step's stored fields, validated before anything is written (throws ValidationError); shared by createStep and createSkill. */
+export function validateNewStep(raw: NewStepInput): NewStepFields {
   const name = requireName(raw.name, 'название действия');
   const definition = validateDefinition(raw.type ?? 'BOOLEAN', raw);
   const schedule = checkedSchedule(raw.schedule ?? { kind: 'MANUAL' });
+  return { name, ...definition, schedule };
+}
+
+/** The row of a new step of `skillId`: active, planned from today on. */
+export function newStepRow(skillId: string, fields: NewStepFields, now: string): StepDefinition {
+  return {
+    id: newId(),
+    skillId,
+    ...fields,
+    // The schedule plans from today on: a new step never shows up on past dates.
+    scheduleFrom: localDate(),
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export async function createStep(raw: StepInput): Promise<string> {
+  const fields = validateNewStep(raw);
   const now = nowIso();
   const { id, earned } = await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(raw.skillId);
     requireActiveSkill(skill);
-    const step: StepDefinition = {
-      id: newId(),
-      skillId: skill.id,
-      name,
-      ...definition,
-      schedule,
-      // The schedule plans from today on: a new step never shows up on past dates.
-      scheduleFrom: localDate(),
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const step = newStepRow(skill.id, fields, now);
     await db.steps.add(step);
     return { id: step.id, earned: await syncInTransaction({ skillId: skill.id, now }) };
   });

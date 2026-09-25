@@ -1,5 +1,5 @@
-import { useRef, useState, type FormEvent } from 'react';
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSkillFormData } from '../../services/queries';
 import { archiveSkill } from '../../services/lifecycle';
@@ -8,6 +8,7 @@ import type { SkillStatus } from '../../domain/types';
 import { DEFAULT_PROGRESS_THEME, isProgressTheme, isSkillColor, normalizeColor } from '../../domain/appearance';
 import { DEFAULT_MILESTONE_FLASKS } from '../../domain/milestone';
 import { DEFAULT_CAPACITY_BASE, DEFAULT_CAPACITY_INCREMENT, flaskCapacity, pointsToFill } from '../../domain/progression';
+import { CUSTOM_TEMPLATE, isTemplateKey, type TemplateKey } from '../../domain/templateKeys';
 import { formatNumber } from '../../lib/format';
 import { useUnsavedGuard } from '../../platform/buttons';
 import { dialogs } from '../../platform/dialogs';
@@ -15,10 +16,15 @@ import { haptics } from '../../platform/haptics';
 import { Icon } from '../components/Icon';
 import { Screen, useGoBack } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
+import { patchOf, type EstimatePlan } from '../components/StepFields';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 import { AppearancePicker, type Appearance } from '../progress/AppearancePicker';
 import { levelCopyOf, skillTheme } from '../progress/registry';
+import { draftOf, dropDraft, keepDraft } from '../templates/drafts';
+import { loadTemplate, type LoadedTemplate } from '../templates/lazy';
+import type { SkillTemplate } from '../../domain/templates';
+import type { StepChoice } from '../templates/TemplateActions';
 
 const t = copy.skillForm;
 
@@ -78,10 +84,8 @@ function toInput(form: FormState): SkillInput {
   };
 }
 
-/** `?template=english` on /skills/new: a filled-in example the user only has to confirm. */
-function templateForm(name: string | null): FormState {
-  if (name !== 'english') return emptyForm;
-  const template = t.templates.english;
+/** The form a template fills in: its name, labels, milestone, capacities, theme and colour. */
+function templateForm(template: SkillTemplate): FormState {
   return {
     ...emptyForm,
     name: template.name,
@@ -89,15 +93,48 @@ function templateForm(name: string | null): FormState {
     targetLabel: template.targetLabel,
     milestoneName: template.milestoneName,
     milestoneTarget: String(template.milestoneTarget),
+    capacityBase: String(template.capacityBase),
+    capacityIncrement: String(template.capacityIncrement),
+    theme: template.theme,
+    color: template.color,
   };
 }
 
+/** The template of `/skills/new/<key>` (a lazy chunk): undefined while it loads, null without one or when it failed to load. */
+function useTemplate(key: TemplateKey | null): LoadedTemplate | null | undefined {
+  const [loaded, setLoaded] = useState<{ key: TemplateKey; value: LoadedTemplate | null } | null>(null);
+  const { showToast } = useToast();
+  useEffect(() => {
+    if (!key) return;
+    let alive = true;
+    void loadTemplate(key).then((value) => {
+      if (!alive) return;
+      setLoaded({ key, value });
+      // The owner tapped a template and gets the empty form: say why, so it is not a mystery.
+      if (!value) showToast(t.templateFailed, { durationMs: 6000 });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [key, showToast]);
+  if (!key) return null;
+  return loaded?.key === key ? loaded.value : undefined;
+}
+
+/**
+ * `/skills/new/<key>` — a new skill from a template, or «Свой навык» (`custom`): the chooser
+ * (`/skills/new`, ui/templates) opens it in its own place, and «Назад» goes back to the chooser
+ * with the card marked; choosing it again brings the edits back (ui/templates/drafts).
+ * `/skills/:skillId/edit` — the skill's settings.
+ */
 export function SkillFormScreen() {
-  const { skillId } = useParams();
-  const [params] = useSearchParams();
+  const { skillId, templateKey } = useParams();
   const editing = skillId !== undefined;
   const existing = useLiveQuery(async () => (skillId ? getSkillFormData(skillId) : null), [skillId]);
+  const template = useTemplate(!editing && isTemplateKey(templateKey) ? templateKey : null);
 
+  // An unknown template (an old link) goes to the chooser.
+  if (!editing && templateKey !== CUSTOM_TEMPLATE && !isTemplateKey(templateKey)) return <Navigate to="/skills/new" replace />;
   if (editing && existing === null) {
     return (
       <Screen title={copy.common.skill} back="/skills">
@@ -108,7 +145,7 @@ export function SkillFormScreen() {
   // Archived and completed skills are read-only: the form is not offered, not even by URL.
   if (editing && existing && existing.skill.status !== 'ACTIVE') return <Navigate to={`/skills/${skillId}`} replace />;
 
-  // Undefined while the skill is still loading: the form renders its skeleton meanwhile.
+  // Undefined while the skill (or the template) is still loading: the form renders its skeleton meanwhile.
   const initial: FormState | undefined = existing
     ? {
         name: existing.skill.name,
@@ -123,37 +160,74 @@ export function SkillFormScreen() {
         theme: typeof existing.skill.theme === 'string' ? existing.skill.theme : DEFAULT_PROGRESS_THEME,
         color: typeof existing.skill.color === 'string' ? existing.skill.color : '',
       }
-    : editing
+    : editing || template === undefined
       ? undefined
-      : templateForm(params.get('template'));
+      : template
+        ? templateForm(template.template)
+        : emptyForm;
   // Capacities re-interpret the whole journal; they stay fixed once a skill left the active state.
   const capacityLocked = existing ? existing.skill.status !== 'ACTIVE' : false;
 
-  return <SkillForm key={skillId ?? 'new'} skillId={skillId} initial={initial} capacityLocked={capacityLocked} status={existing?.skill.status} />;
+  return (
+    <SkillForm
+      key={skillId ?? templateKey}
+      skillId={skillId}
+      templateKey={templateKey ?? CUSTOM_TEMPLATE}
+      template={template ?? null}
+      initial={initial}
+      capacityLocked={capacityLocked}
+      status={existing?.skill.status}
+    />
+  );
+}
+
+/** The capacities typed so far, for the template actions' estimate and plan; null while one is not a number. */
+function estimatePlan(form: FormState): EstimatePlan | null {
+  const manual = parseManual(form.manualCapacities);
+  const base = Number(form.capacityBase);
+  const increment = Number(form.capacityIncrement || 0);
+  const target = Number(form.milestoneTarget);
+  if (!manual || !(base > 0) || !(target > 0) || !Number.isInteger(increment)) return null;
+  return { config: { base, increment, manual }, target, theme: skillTheme(form.theme) };
 }
 
 interface SkillFormProps {
   skillId: string | undefined;
+  /** A new skill: the template it starts from, or `custom`; «Назад» returns to the chooser with it marked. */
+  templateKey: string;
+  /** The loaded template with its actions; null for the empty form and the edit form. */
+  template: LoadedTemplate | null;
   initial: FormState | undefined;
   capacityLocked: boolean;
   /** Status of the edited skill; «Архивировать навык» is offered only for an active one. */
   status: SkillStatus | undefined;
 }
 
-function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps) {
+function SkillForm({ skillId, templateKey, template, initial, capacityLocked, status }: SkillFormProps) {
+  // A new skill's form keeps its edits for this session (templates/drafts): «Назад» to the
+  // chooser and the same card again bring them back.
+  const draftKey = skillId ? null : templateKey;
   // The form is the loaded values plus the user's edits, so it can mount (and keep its
   // skeleton mounted) before the values arrive; nothing can be typed while they are hidden.
-  const [edits, setEdits] = useState<Partial<FormState>>({});
+  const [edits, setEdits] = useState<Partial<FormState>>(() => (draftKey ? draftOf<FormState>(draftKey)?.edits : undefined) ?? {});
   const form: FormState = { ...(initial ?? emptyForm), ...edits };
+  // The template's actions as the owner left them (checked, edited); null — as the template has them.
+  const [stepEdits, setStepEdits] = useState<StepChoice[] | null>(() => (draftKey ? draftOf<FormState>(draftKey)?.stepEdits : undefined) ?? null);
+  useEffect(() => {
+    if (draftKey) keepDraft<FormState>(draftKey, { edits, stepEdits });
+  }, [draftKey, edits, stepEdits]);
+  const choices = stepEdits ?? template?.choices ?? null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  const back = skillId ? `/skills/${skillId}` : '/skills';
+  // A new skill's form took the chooser's place: «Назад» puts the chooser back, with this card marked.
+  const back = skillId ? `/skills/${skillId}` : `/skills/new?chosen=${templateKey}`;
   const goBack = useGoBack(back);
   const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const loading = initial === undefined;
-  const dirty = !busy && !loading && JSON.stringify(form) !== JSON.stringify(initial);
+  const dirty =
+    !busy && !loading && (JSON.stringify(form) !== JSON.stringify(initial) || (stepEdits !== null && JSON.stringify(stepEdits) !== JSON.stringify(template?.choices)));
   useUnsavedGuard(dirty);
 
   // Functional updates: two fields changed in the same tick must not overwrite each other.
@@ -185,7 +259,9 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
         showToast(copy.common.saved);
         goBack();
       } else {
-        const id = await createSkill(input);
+        // The checked template actions are created with the skill, in the same transaction.
+        const id = await createSkill(input, choices?.filter((choice) => choice.on).map((choice) => patchOf(choice.draft)) ?? []);
+        dropDraft(templateKey);
         haptics.success();
         navigate(`/skills/${id}`, { replace: true });
       }
@@ -245,6 +321,7 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
     <Screen
       title={skillId ? t.titleEdit : t.titleNew}
       back={back}
+      replaceBack={!skillId}
       primary={loading ? undefined : { text: skillId ? copy.common.save : t.create, onClick: () => formRef.current?.requestSubmit(), loading: busy }}
     >
       <Skeleton layout="form" loading={loading}>
@@ -267,6 +344,8 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
             </label>
           </div>
           <CapacityPreview form={form} />
+
+          {template && choices && <template.Actions choices={choices} onChange={setStepEdits} plan={estimatePlan(form)} disabled={busy} />}
 
           <section className="form-section" aria-labelledby="appearance-title">
             <h2 className="section-title" id="appearance-title">

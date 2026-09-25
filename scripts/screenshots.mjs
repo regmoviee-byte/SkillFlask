@@ -113,6 +113,8 @@ const skillMenu = async (item) => {
   await menu.waitFor({ state: 'detached' });
 };
 const markSheet = page.locator('.mark-sheet');
+// The chooser's first card: the empty form (package 16).
+const customCard = () => page.getByRole('list', { name: 'Шаблоны навыков' }).getByRole('link', { name: /^Свой навык/ });
 
 // `/` opens the skills while there is no action to tap, «Сегодня» afterwards.
 await page.goto(baseUrl);
@@ -124,7 +126,10 @@ await page.getByText('Начните с навыка').waitFor();
 await shot('today-empty');
 await tab('Навыки').click();
 
-await page.getByRole('link', { name: 'Создать навык' }).click();
+// The first run leads to the templates (package 16): «Все шаблоны» opens the chooser, whose
+// first card «Свой навык» is the empty form (the template walk has its own context below).
+await page.getByRole('link', { name: 'Все шаблоны' }).click();
+await customCard().click();
 await page.getByLabel('Название', { exact: true }).fill('Английский');
 await page.getByLabel('Сейчас').fill('B1');
 await page.getByLabel('Цель').fill('C1');
@@ -422,6 +427,7 @@ await page.locator('.skill-card.is-completed').first().screenshot({ path: `${out
 // A second skill whose single 25-point action fills flasks 1 (10) and 2 (15) at once:
 // the toast must name both filled flasks. The action starts from an example chip.
 await page.getByRole('link', { name: 'Новый навык' }).first().click();
+await customCard().click();
 await page.getByLabel('Название', { exact: true }).fill('Тренировки');
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('5');
@@ -514,6 +520,7 @@ await page.locator('.completion-sheet').waitFor({ state: 'detached' });
 await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
 await tab('Навыки').click();
 await page.getByRole('link', { name: 'Новый навык' }).first().click();
+await customCard().click();
 await page.getByLabel('Название', { exact: true }).fill('Чтение');
 await page.getByRole('button', { name: 'Создать навык' }).click();
 await page.getByRole('button', { name: 'Создать первое действие' }).click();
@@ -1212,12 +1219,134 @@ function cloudStoreFor(json) {
   await criosContext.close();
 }
 
+// Skill templates (v0.5 package 16), in their own context: a first run on an empty database
+// leads to the templates — popular chips in the empty states, the chooser (390 and 320 px), the
+// template «Бег» prefilled with its actions, one switched off and one edited in the sheet, «Назад»
+// back to the chooser with the card marked, the same card with those edits kept, the skill
+// created with its actions — and «Свой
+// навык» still opens the empty form.
+{
+  const templateContext = await browser.newContext(contextOptions);
+  await setupContext(templateContext);
+  page = await openPage(templateContext);
+  const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const scrollToHeading = (locator) =>
+    locator.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  const popular = page.getByRole('list', { name: 'Популярные шаблоны' });
+  await page.goto(baseUrl);
+  await popular.waitFor();
+  await shot('first-run-templates');
+  await tab('Сегодня').click();
+  await page.getByText('Начните с навыка').waitFor();
+  await popular.waitFor();
+  await shot('first-run-today');
+
+  const templates = page.getByRole('list', { name: 'Шаблоны навыков' });
+  const templateCard = (name) => templates.getByRole('link', { name: new RegExp(`^${name}`) });
+  // Every card's text fits its card: nothing cut, nothing sideways.
+  const clippedCards = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.template-card-name, .template-card-text')].filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => el.textContent),
+    );
+  const minisLoaded = () => page.waitForFunction(() => document.querySelectorAll('.template-card .progress-mini-placeholder').length === 0);
+  await page.getByRole('link', { name: 'Все шаблоны' }).click();
+  await templates.waitFor();
+  await minisLoaded();
+  if ((await templates.getByRole('link').count()) !== 13) errors.push('the chooser does not list «Свой навык» and 12 templates');
+  await shot('template-chooser');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('template-chooser-end');
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  if ((await sideways()) > 0) errors.push(`the template chooser scrolls sideways by ${await sideways()}px at 320 px`);
+  if ((await clippedCards()).length) errors.push(`template cards cut at 320 px: ${await clippedCards()}`);
+  await shot('template-chooser-320');
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // «Бег»: the form prefilled, its actions all on, what they bring as planned.
+  await templateCard('Бег').click();
+  const actionsHeading = page.getByRole('heading', { name: 'Действия из шаблона' });
+  await actionsHeading.waitFor();
+  if ((await page.getByLabel('Название', { exact: true }).inputValue()) !== 'Бег') errors.push('the template «Бег» did not fill the name');
+  if ((await page.getByRole('checkbox', { checked: true }).count()) !== 3) errors.push('the template actions are not all on');
+  await settled();
+  await shot('template-form');
+  await scrollToHeading(actionsHeading);
+  await page.getByText(/^По плану поездка 1\s+завершится/).waitFor();
+  await shot('template-form-actions');
+  await page.getByRole('checkbox', { name: /^Растяжка после бега/ }).click();
+  await page.getByRole('button', { name: 'Изменить: Пробежка' }).click();
+  const actionSheet = page.locator('.template-action-sheet');
+  await actionSheet.getByLabel('Очков за минуту').waitFor();
+  await settled();
+  await shot('template-action-sheet');
+  await actionSheet.getByLabel('Очков за минуту').fill('0,6');
+  await actionSheet.getByRole('button', { name: 'Готово' }).click();
+  await actionSheet.waitFor({ state: 'detached' });
+  await page.getByText(/^0,6\/мин/).waitFor();
+  await scrollToHeading(actionsHeading);
+  await page.waitForTimeout(300);
+  await shot('template-form-edited');
+  await page.setViewportSize({ width: 320, height: 700 });
+  await scrollToHeading(actionsHeading);
+  await page.waitForTimeout(300);
+  if ((await sideways()) > 0) errors.push(`the template form scrolls sideways by ${await sideways()}px at 320 px`);
+  await shot('template-form-320');
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // «Назад» puts the chooser back with «Бег» marked; the same card opens the template again.
+  await page.getByRole('button', { name: 'Назад' }).click();
+  await templates.waitFor();
+  await minisLoaded();
+  if ((await templateCard('Бег').getAttribute('aria-current')) !== 'true') errors.push('«Назад» from the template form lost the chosen card');
+  // …and marked visibly in every mode (a dark-mode hairline once overrode the ring).
+  const chosenRing = await templateCard('Бег').evaluate((card) => getComputedStyle(card).boxShadow);
+  if (!/\b2px inset|inset .*\b2px\b/.test(chosenRing)) errors.push(`the chosen template card has no 2px ring: ${chosenRing}`);
+  await page.waitForTimeout(400);
+  await shot('template-chooser-back');
+  // The same card brings the form back as it was left: «Растяжка» off, «Пробежка» at 0,6/мин.
+  // «Растяжка» goes back on, so the skill gets all three actions.
+  await templateCard('Бег').click();
+  await actionsHeading.waitFor();
+  const stretching = page.getByRole('checkbox', { name: /^Растяжка после бега/ });
+  if (await stretching.isChecked()) errors.push('choosing «Бег» again lost the unchecked action');
+  if (!(await page.getByText(/^0,6\/мин/).count())) errors.push('choosing «Бег» again lost the edited action');
+  await stretching.click();
+  await page.getByRole('button', { name: 'Создать навык' }).click();
+  // The skill screen with its three actions. Its cards come and go: «Первый навык», then
+  // «Набор инструментов» (three actions on one skill's list).
+  await page.waitForURL(/#\/skills\/(?!new)[^/?]+$/);
+  await page.locator('.step-row', { hasText: 'Длинная пробежка' }).waitFor();
+  for (const title of ['Первый навык', 'Набор инструментов']) {
+    await achCard(title).waitFor({ timeout: 15000 });
+    await achCard(title).waitFor({ state: 'detached', timeout: 15000 });
+  }
+  await shot('template-skill');
+  await scrollToHeading(page.getByRole('heading', { name: 'Действия', exact: true }));
+  await page.waitForTimeout(300);
+  await shot('template-skill-actions');
+  if ((await page.locator('.step-row').count()) !== 3) errors.push(`the template skill has ${await page.locator('.step-row').count()} actions, not 3`);
+
+  // «Свой навык» is still the empty form.
+  await page.goto(`${baseUrl}#/skills`);
+  await page.getByRole('link', { name: 'Новый навык' }).first().click();
+  await templates.waitFor();
+  await customCard().click();
+  await page.getByRole('heading', { name: 'Оформление' }).waitFor();
+  if ((await page.getByLabel('Название', { exact: true }).inputValue()) !== '') errors.push('«Свой навык» did not open the empty form');
+  if (await actionsHeading.count()) errors.push('«Свой навык» shows template actions');
+  await settled();
+  await shot('template-custom-form');
+  await templateContext.close();
+}
+
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
 // to fit instead of being cut (own context, so the walk above keeps its data).
 const bigContext = await browser.newContext({ ...contextOptions, viewport: { width: 320, height: 700 } });
 await setupContext(bigContext);
 page = await openPage(bigContext);
-await page.goto(`${baseUrl}#/skills/new`);
+await page.goto(`${baseUrl}#/skills/new/custom`);
 await page.getByLabel('Название', { exact: true }).fill('Очень длинное название навыка для проверки');
 await page.getByText('Дополнительно').click();
 await page.getByLabel('Колб', { exact: true }).fill('3');
@@ -1265,7 +1394,7 @@ await bigContext.close();
   const recapContext = await browser.newContext(contextOptions);
   await setupContext(recapContext);
   page = await openPage(recapContext);
-  await page.goto(`${baseUrl}#/skills/new`);
+  await page.goto(`${baseUrl}#/skills/new/custom`);
   // Dates from the browser's clock (SHIFT_DAYS moves it), as local YYYY-MM-DD.
   const today = await page.evaluate(() => {
     const d = new Date();
@@ -1485,7 +1614,7 @@ await bigContext.close();
 
   // A new skill: nothing forecast, the map empty on purpose.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${baseUrl}#/skills/new`);
+  await page.goto(`${baseUrl}#/skills/new/custom`);
   await page.getByLabel('Название', { exact: true }).fill('Гитара');
   await page.getByRole('button', { name: 'Создать навык' }).click();
   await page.getByRole('button', { name: 'Создать первое действие' }).waitFor();
@@ -1578,7 +1707,7 @@ await bigContext.close();
     await page.locator('.ach-card').waitFor({ state: 'detached', timeout: 15000 });
     await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
   };
-  await page.goto(`${baseUrl}#/skills/new`);
+  await page.goto(`${baseUrl}#/skills/new/custom`);
   await page.getByLabel('Название', { exact: true }).fill('Гитара');
   const themeGroup = page.getByRole('group', { name: 'Образ' });
   const colorGroup = page.getByRole('group', { name: 'Цвет' });
@@ -1757,7 +1886,7 @@ await bigContext.close();
   await shot('theme-home');
   // A 320 px phone: the picker's grid and swatches still fit.
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto(`${baseUrl}#/skills/new`);
+  await page.goto(`${baseUrl}#/skills/new/custom`);
   await page.getByRole('heading', { name: 'Оформление' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
   await page.waitForTimeout(1200);
   const narrowPicker = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

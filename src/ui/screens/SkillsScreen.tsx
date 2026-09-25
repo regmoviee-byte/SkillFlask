@@ -7,7 +7,7 @@ import { formatNumber } from '../../lib/format';
 import { getHomeView, type HomeView } from '../../services/queries';
 import type { LastWeekLine } from '../../services/recap';
 import { haptics } from '../../platform/haptics';
-import { EmptyState } from '../components/EmptyState';
+import { FirstRunEmpty } from '../components/FirstRun';
 import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
@@ -97,19 +97,7 @@ interface HomeContentProps {
 
 function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
   if (home.summaries.length === 0) {
-    return (
-      <EmptyState
-        illustration="skills"
-        title={t.emptyTitle}
-        text={t.emptyText}
-        action={{ label: t.create, to: '/skills/new' }}
-        secondary={
-          <Link to="/skills/new?template=english" className="text-button">
-            {t.example}
-          </Link>
-        }
-      />
-    );
+    return <FirstRunEmpty illustration="skills" title={t.emptyTitle} />;
   }
 
   const counts = { ACTIVE: 0, COMPLETED: 0, ARCHIVED: 0 };

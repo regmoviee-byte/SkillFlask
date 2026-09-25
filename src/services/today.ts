@@ -54,6 +54,8 @@ export interface DayPlan {
   weekActivity: number[];
   /** Active skills, most recently worked on first (the empty states name them). */
   skills: HomeSkillSummary[];
+  /** Any skill on the device, archived and completed ones too: without one «Сегодня» is the first run. */
+  hasSkills: boolean;
 }
 
 /** ACTIVE completions per date of the week starting `monday`, from rows that cover it. */
@@ -148,6 +150,7 @@ export async function getDayPlan(date: string): Promise<DayPlan> {
       totalDone: dueOnDate.filter((row) => row.state === 'DONE').length,
       weekActivity: countWeek(range, monday),
       skills: active,
+      hasSkills: summaryRows.skills.length > 0,
     };
   });
 }

@@ -243,7 +243,8 @@ export async function hasActiveSteps(): Promise<boolean> {
  * usual rule (hasActiveSteps) for no link or a skill that is not on this device.
  */
 export async function resolveStartPath(link: StartLink | null): Promise<string> {
-  if (link?.kind === 'route') return startLinkPath(link);
+  // A route or a new skill (the chooser, a template's form) needs nothing on this device.
+  if (link?.kind === 'route' || link?.kind === 'new') return startLinkPath(link);
   if (link?.kind === 'skill') {
     const skill = await db.skills.get(link.skillId);
     if (skill) return startLinkPath({ ...link, add: link.add && skill.status === 'ACTIVE' });

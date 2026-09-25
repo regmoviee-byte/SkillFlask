@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
+import { TEMPLATE_KEYS } from '../domain/templateKeys';
 import { installFakeTelegram, type FakeTelegram } from '../test/fakeTelegram';
 import {
   decodeSkillId,
@@ -44,6 +45,18 @@ describe('start parameter', () => {
     expect(startLinkPath(parseStartParam('recap')!)).toBe('/recap');
   });
 
+  it('opens the template chooser by new and a template by new_<key>', () => {
+    expect(parseStartParam('new')).toEqual({ kind: 'new', template: null });
+    expect(parseStartParam('new_running')).toEqual({ kind: 'new', template: 'running' });
+    expect(startLinkPath(parseStartParam('new')!)).toBe('/skills/new');
+    expect(startLinkPath(parseStartParam('new_running')!)).toBe('/skills/new/running');
+    // Every key of the catalogue fits Telegram's alphabet and length.
+    for (const key of TEMPLATE_KEYS) {
+      expect(parseStartParam(`new_${key}`), key).toEqual({ kind: 'new', template: key });
+      expect(`new_${key}`).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+    }
+  });
+
   it('keeps an older id that is not a UUID as it is', () => {
     expect(parseStartParam('skill_skill-english')).toEqual({ kind: 'skill', skillId: 'skill-english', add: false });
   });
@@ -64,6 +77,15 @@ describe('start parameter', () => {
       'skill_%2Fsettings',
       `skill_${'a'.repeat(59)}`, // 65 characters: over Telegram's limit
       'recap?x=1',
+      // Only the catalogue's keys: «Свой навык» and anything else is the usual entry.
+      'new_',
+      'new_custom',
+      'new_Running',
+      'new_running_',
+      'new-running',
+      'New',
+      'new_constructor',
+      'new___proto__',
       // Keys every object inherits: they fit the alphabet but are no screen.
       'constructor',
       'hasOwnProperty',

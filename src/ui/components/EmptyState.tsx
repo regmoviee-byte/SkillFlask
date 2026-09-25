@@ -9,14 +9,17 @@ interface EmptyStateProps {
   /** One primary button: a link when `to` is set, otherwise a click handler. */
   action?: { label: string; to?: string; onClick?(): void; replace?: boolean };
   secondary?: ReactNode;
+  /** Content between the text and the button (the first run's template chips). */
+  children?: ReactNode;
 }
 
-export function EmptyState({ illustration, title, text, action, secondary }: EmptyStateProps) {
+export function EmptyState({ illustration, title, text, action, secondary, children }: EmptyStateProps) {
   return (
     <div className="empty-state">
       <Illustration name={illustration} />
       <p className="t-title-m">{title}</p>
       {text && <p className="empty-state-text">{text}</p>}
+      {children}
       {action &&
         (action.to ? (
           <Link to={action.to} className="button button-primary empty-state-action" replace={action.replace}>

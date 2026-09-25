@@ -9,6 +9,7 @@ import { fromDeci, toDeci } from '../../domain/points';
 import { logError } from '../../platform/errorLog';
 import { CoachChip } from '../components/CoachChip';
 import { EmptyState } from '../components/EmptyState';
+import { FirstRunEmpty } from '../components/FirstRun';
 import { Icon } from '../components/Icon';
 import { Ring } from '../components/Ring';
 import { colorScope } from '../progress/registry';
@@ -74,7 +75,10 @@ function TodayContent({ plan, today, date, onPick, coach }: TodayContentProps) {
   const isToday = plan.date === today;
 
   if (plan.skills.length === 0) {
-    return <EmptyState illustration="today" title={t.emptyTitle} text={t.emptyText} action={{ label: t.create, to: '/skills/new' }} />;
+    // The templates' first run only on a device without any skill; a returning owner whose skills
+    // are all archived or reached gets one way to a new skill.
+    if (!plan.hasSkills) return <FirstRunEmpty illustration="today" title={t.emptyTitle} />;
+    return <EmptyState illustration="today" title={t.noActiveTitle} text={t.noActiveText} action={{ label: copy.home.newSkill, to: '/skills/new' }} />;
   }
 
   if (plan.due.length === 0 && plan.quota.length === 0 && plan.extra.length === 0) {

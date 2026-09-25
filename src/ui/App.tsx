@@ -21,6 +21,7 @@ import { SkillsScreen } from './screens/SkillsScreen';
 import { StepFormScreen } from './screens/StepFormScreen';
 import { TodayScreen } from './screens/TodayScreen';
 import { StartRedirect } from './StartRedirect';
+import { TemplateChooserRoute } from './templates/lazy';
 import { TimerLayer } from './timer/TimerLayer';
 
 // The styleguide exists only in development builds; the dead branch keeps it out of the bundle.
@@ -67,7 +68,9 @@ function Shell() {
                   <Route path="/" element={<StartRedirect />} />
                   <Route path="/today" element={<TodayScreen />} />
                   <Route path="/skills" element={<SkillsScreen />} />
-                  <Route path="/skills/new" element={<SkillFormScreen />} />
+                  {/* A new skill: the template chooser (lazy), then the form — from a template or «Свой навык». */}
+                  <Route path="/skills/new" element={<TemplateChooserRoute />} />
+                  <Route path="/skills/new/:templateKey" element={<SkillFormScreen />} />
                   <Route path="/skills/:skillId" element={<SkillScreen />} />
                   <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
                   <Route path="/skills/:skillId/add" element={<AddActionScreen />} />

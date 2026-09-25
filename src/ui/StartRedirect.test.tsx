@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { resetLaunchStartLink, skillStartParam } from '../platform/deeplink';
 import { installFakeTelegram, type FakeTelegram } from '../test/fakeTelegram';
@@ -44,11 +44,17 @@ async function landing(entry: string | string[] = '/'): Promise<string> {
         <Route path="/recap" element={<p>recap</p>} />
         <Route path="/skills/:skillId" element={<p>skill</p>} />
         <Route path="/skills/:skillId/add" element={<p>add</p>} />
+        <Route path="/skills/new" element={<p>chooser</p>} />
+        <Route path="/skills/new/:templateKey" element={<Template />} />
         <Route path="*" element={<StartRedirect />} />
       </Routes>
     </MemoryRouter>,
   );
-  return (await screen.findByText(/^(today|skills|recap|skill|add)$/)).textContent!;
+  return (await screen.findByText(/^(today|skills|recap|skill|add|chooser|template \w+)$/)).textContent!;
+}
+
+function Template() {
+  return <p>template {useParams().templateKey}</p>;
 }
 
 /** A Telegram launch opened by `startapp=<param>`. */
@@ -110,6 +116,18 @@ describe('StartRedirect', () => {
     it('opens the linked screen', async () => {
       launchWith('recap');
       expect(await landing(launch)).toBe('recap');
+    });
+
+    it('opens the template chooser, or the form of a template, on an empty database too', async () => {
+      launchWith('new');
+      expect(await landing(launch)).toBe('chooser');
+      cleanup();
+      launchWith('new_running', 'h2');
+      expect(await landing(launch)).toBe('template running');
+      cleanup();
+      // An unknown template decides as usual.
+      launchWith('new_custom', 'h3');
+      expect(await landing(launch)).toBe('skills');
     });
 
     it('a skill that is not on this device, or a malformed link, decides as usual', async () => {

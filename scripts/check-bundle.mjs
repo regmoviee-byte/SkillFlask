@@ -53,12 +53,22 @@
 // (services/timer.ts, domain/timerRow.ts), the context the rows read, the ▶ itself with its
 // three glyphs, the date field of «Сколько минут?» that a timer's start day fills in, and the
 // fallback toast for a timer chunk that fails to load. 201.4 KB measured.
+// 203 KB since v0.5 package 16 (skill templates, +0.9 KB): the catalogue, the chooser, the form's
+// «Действия из шаблона» with its sheet and their strings are lazy chunks (≈ 6 KB), but a new
+// user's first paint is the empty state, which now leads to the templates — the popular chips
+// and their names, «Все шаблоны», «Свой навык» — and the routes `/skills/new` (the chooser's
+// lazy wrapper, whose fallback keeps the empty form reachable) and `/skills/new/<key>` (the form
+// waits for its template chunk, fills its fields from it and creates the checked actions with
+// the skill), the template keys the deep link `new_<key>` checks strictly, and the step
+// fields' estimate against capacities typed in a form, and the session's new-skill drafts (a
+// form's edits kept across «Назад» to the chooser). 202.6 KB measured: 0.4 KB of headroom, so
+// the next packages' UI goes into lazy chunks.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 202);
+const LIMIT_KB = Number(process.argv[2] ?? 203);
 const LAZY_LIMIT_KB = 14;
 const dir = 'dist/assets';
 const manifestPath = 'dist/.vite/manifest.json';

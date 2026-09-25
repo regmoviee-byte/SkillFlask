@@ -50,7 +50,19 @@ describe('TodayScreen', () => {
   it('asks for a skill first', async () => {
     renderToday();
     expect(await screen.findByText('Начните с навыка')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Создать навык' }).getAttribute('href')).toBe('/skills/new');
+    // The first run leads to the templates (package 16): popular ones as chips, all of them, or the empty form.
+    expect(screen.getByRole('link', { name: 'Все шаблоны' }).getAttribute('href')).toBe('/skills/new');
+    expect(screen.getByRole('link', { name: 'Бег' }).getAttribute('href')).toBe('/skills/new/running');
+    expect(screen.getByRole('link', { name: 'Свой навык' }).getAttribute('href')).toBe('/skills/new/custom');
+  });
+
+  it('is not a first run when every skill is archived: one way to a new skill, no template chips', async () => {
+    await archiveSkill(await createSkill(input('Гитара')));
+    renderToday();
+    expect(await screen.findByText('Активных навыков нет')).toBeTruthy();
+    expect(screen.queryByText('Начните с навыка')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Все шаблоны' })).toBeNull();
+    expect(screen.getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Новый навык', '/skills/new']]);
   });
 
   it('offers the skills without actions, three at most', async () => {

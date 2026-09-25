@@ -50,7 +50,7 @@ function renderAt(entry: string) {
       <ToastProvider>
         <Routes>
           <Route path="/skills" element={<SkillsScreen />} />
-          <Route path="/skills/new" element={<SkillFormScreen />} />
+          <Route path="/skills/new/:templateKey" element={<SkillFormScreen />} />
           <Route path="/skills/:skillId" element={<SkillScreen />} />
           <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
         </Routes>
@@ -146,7 +146,7 @@ describe('the home card', () => {
 
 describe('the skill form', () => {
   it('creates a skill with the chosen theme and colour; the milestone field follows the theme', async () => {
-    renderAt('/skills/new');
+    renderAt('/skills/new/custom');
     fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Гитара' } });
     const themes = screen.getByRole('group', { name: 'Образ' });
     expect((within(themes).getByRole('radio', { name: /^Колба\./ }) as HTMLInputElement).checked).toBe(true);

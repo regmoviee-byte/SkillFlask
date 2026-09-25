@@ -3,13 +3,20 @@
 // launch URL); only the first route after the launch follows it (StartRedirect), later
 // navigation is normal. Outside Telegram the hash routes (`#/skills/<id>`) are the links.
 //
-// Parameters: `today`, `skills`, `achievements`, `recap`, `skill_<id>` (the skill screen) and
-// `add_<id>` («Задним числом» for that skill). Telegram allows [A-Za-z0-9_-], at most 64
-// characters, so a UUID travels without its dashes (32 hex characters).
+// Parameters: `today`, `skills`, `achievements`, `recap`, `skill_<id>` (the skill screen),
+// `add_<id>` («Задним числом» for that skill), `new` (the template chooser) and `new_<key>`
+// (the new-skill form filled from that template, domain/templateKeys.ts). Telegram allows
+// [A-Za-z0-9_-], at most 64 characters, so a UUID travels without its dashes (32 hex characters).
+
+import { isTemplateKey, type TemplateKey } from '../domain/templateKeys';
 
 export type StartRoute = '/today' | '/skills' | '/achievements' | '/recap';
 
-export type StartLink = { kind: 'route'; path: StartRoute } | { kind: 'skill'; skillId: string; add: boolean };
+export type StartLink =
+  | { kind: 'route'; path: StartRoute }
+  | { kind: 'skill'; skillId: string; add: boolean }
+  /** A new skill: the chooser (`template` null) or the form filled from a template. */
+  | { kind: 'new'; template: TemplateKey | null };
 
 /** What Telegram accepts as a start parameter. */
 const PARAM = /^[A-Za-z0-9_-]{1,64}$/;
@@ -56,6 +63,12 @@ export function parseStartParam(raw: string | null | undefined): StartLink | nul
   if (typeof raw !== 'string' || !PARAM.test(raw)) return null;
   // Own keys only: `constructor`, `toString`, `__proto__`… fit the alphabet too.
   if (Object.prototype.hasOwnProperty.call(ROUTES, raw)) return { kind: 'route', path: ROUTES[raw]! };
+  if (raw === 'new') return { kind: 'new', template: null };
+  if (raw.startsWith('new_')) {
+    // Only a key of the catalogue: `new_`, `new_custom` or an unknown key is the usual entry.
+    const key = raw.slice(4);
+    return isTemplateKey(key) ? { kind: 'new', template: key } : null;
+  }
   const match = /^(skill|add)_(.+)$/.exec(raw);
   if (!match) return null;
   const skillId = decodeSkillId(match[2]!);
@@ -65,6 +78,7 @@ export function parseStartParam(raw: string | null | undefined): StartLink | nul
 /** The app route a link opens. */
 export function startLinkPath(link: StartLink): string {
   if (link.kind === 'route') return link.path;
+  if (link.kind === 'new') return link.template ? `/skills/new/${link.template}` : '/skills/new';
   const path = `/skills/${encodeURIComponent(link.skillId)}`;
   return link.add ? `${path}/add` : path;
 }

@@ -16,6 +16,7 @@
 import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate, MONTHS_IN } from '../lib/dates';
 import { formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
 import type { SkillColor } from '../domain/appearance';
+import type { TemplateKey } from '../domain/templateKeys';
 import type { LevelText } from './progress/texts';
 
 /** The native bottom button's limit (MAX_BUTTON_TEXT in platform/buttons.ts; copy.test.ts keeps them equal). */
@@ -83,9 +84,6 @@ export const copy = Object.freeze({
     milestoneReached: 'веха достигнута',
     todayPoints: (points: number) => `+${formatNumber(points)} сегодня`,
     emptyTitle: 'Первый навык',
-    emptyText: 'Создайте навык, добавьте действия и набирайте очки за каждое.',
-    create: 'Создать навык',
-    example: 'Пример: Английский B1 → C1',
     /** The heat map of every skill (ui/insights). */
     activity: 'Активность · все навыки',
   },
@@ -103,8 +101,9 @@ export const copy = Object.freeze({
     donePoints: (points: number) => `+${formatNumber(points)}`,
     doneCount: (n: number) => `×${n}`,
     emptyTitle: 'Начните с навыка',
-    emptyText: 'Создайте навык и добавьте действия — они появятся здесь.',
-    create: 'Создать навык',
+    /** No active skill, but some in the archive or reached: not a first run, one way to a new skill. */
+    noActiveTitle: 'Активных навыков нет',
+    noActiveText: 'Начните новый навык — его действия появятся здесь. Архив и достигнутые навыки — на экране «Навыки».',
     noStepsTitle: 'Добавьте первое действие',
     noStepsText: 'Действия всех навыков собираются здесь, отметка — одним нажатием.',
     toSkill: (name: string) => `К навыку «${name}»`,
@@ -137,6 +136,23 @@ export const copy = Object.freeze({
     coach: 'Нажмите на кнопку с очками — они сразу достанутся навыку. Ошиблись? «Отменить» в подсказке снизу.',
     /** The chip is one button: its name says it is a hint and that a tap closes it. */
     coachLabel: 'Подсказка: нажмите на кнопку с очками — они сразу достанутся навыку. Ошиблись? «Отменить» в подсказке снизу. Закрыть подсказку',
+  },
+  /**
+   * The empty states of a device without skills (home, «Сегодня»): the templates first (v0.5
+   * package 16). The rest of the chooser's words are lazy (ui/templates/strings.ts).
+   */
+  firstRun: {
+    text: 'Выберите, чем занимаетесь, — очки и действия уже настроены',
+    popularLabel: 'Популярные шаблоны',
+    /** Chips straight to a template's form; the names are the catalogue's (templates.test.ts). */
+    popular: [
+      { key: 'english', name: 'Английский' },
+      { key: 'running', name: 'Бег' },
+      { key: 'reading', name: 'Чтение' },
+      { key: 'guitar', name: 'Гитара' },
+    ] satisfies { key: TemplateKey; name: string }[],
+    allTemplates: 'Все шаблоны',
+    custom: 'Свой навык',
   },
   lifecycle: {
     archivedSince: (date: string) => `В архиве с ${formatDate(date)}`,
@@ -389,9 +405,8 @@ export const copy = Object.freeze({
     manualInvalid: 'Свои ёмкости: целые положительные числа через запятую',
     advanced: 'Дополнительно',
     capacityHint: 'Изменение ёмкости пересчитает уровни по всей истории',
-    templates: {
-      english: { name: 'Английский', startLabel: 'B1', targetLabel: 'C1', milestoneName: 'Достичь C1', milestoneTarget: 10 },
-    },
+    /** The template's chunk did not load (offline, a new build): the form opens empty. */
+    templateFailed: 'Шаблон не загрузился — заполните форму сами или попробуйте ещё раз',
     remove: 'Удалить навык',
     removeConfirmButton: 'Удалить',
     confirmRemove: 'Навык и вся его история будут удалены без возможности восстановления. Удалить?',
