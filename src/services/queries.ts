@@ -5,6 +5,7 @@ import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig,
 import { newestMarksFirst } from '../domain/marks';
 import type { LevelThreshold, Mark, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
+import { getLastWeekLine, type LastWeekLine } from './recap';
 
 // Read models for the UI. Everything is derived from the journal on every read (principle 8),
 // inside a read transaction so a mutation in flight never produces a half-updated view.
@@ -96,6 +97,8 @@ export interface HomeView {
   lastMilestone: { skillId: string; skillName: string; name: string; reachedAt: string } | null;
   /** The wide tile: the last achievement, or the closest next one. */
   achievements: HomeAchievementLine;
+  /** «Итоги недели» for the previous week, all through this one; null when it had no completion. */
+  lastWeek: LastWeekLine | null;
 }
 
 const newestFirst = (a: string | null, b: string | null): number => (a === b ? 0 : a === null ? 1 : b === null ? -1 : a < b ? 1 : -1);
@@ -196,7 +199,11 @@ export const overviewTables = () => [db.skills, db.milestones, db.levelThreshold
  */
 export async function getHomeView(today: string = localDate()): Promise<HomeView> {
   return db.transaction('r', overviewTables(), async () => {
-    const [{ summaries, todayPoints, weekActivity }, achievements] = await Promise.all([readOverview(today), getHomeAchievementLine()]);
+    const [{ summaries, todayPoints, weekActivity }, achievements, lastWeek] = await Promise.all([
+      readOverview(today),
+      getHomeAchievementLine(),
+      getLastWeekLine(today),
+    ]);
     const reached = summaries
       .filter((s) => s.milestone?.reachedAt)
       .sort((a, b) => newestFirst(a.milestone!.reachedAt, b.milestone!.reachedAt))[0];
@@ -209,6 +216,7 @@ export async function getHomeView(today: string = localDate()): Promise<HomeView
         ? { skillId: reached.skill.id, skillName: reached.skill.name, name: reached.milestone!.name, reachedAt: reached.milestone!.reachedAt! }
         : null,
       achievements,
+      lastWeek,
     };
   });
 }

@@ -11,12 +11,15 @@
 // card, the ⋯ menu, marks on the hero flask and in the history, the service, the schema-3
 // backup checks and their texts bring it to 183.0 KB (measured); the final v0.3 polish
 // (toast guards, review follow-ups) to 183.8 KB.
+// 192 KB since package 10: personal records and «Итоги недели» — the pure records/recap
+// functions, the recap screen with its week switcher, the records section on «Ачивки», the
+// home row, the hero-or-card rule for a level-up and their texts add 4.4 KB (188.2 KB).
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 185);
+const LIMIT_KB = Number(process.argv[2] ?? 192);
 const dir = 'dist/assets';
 
 let total = 0;

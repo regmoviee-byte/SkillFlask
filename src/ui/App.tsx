@@ -12,6 +12,7 @@ import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
 import { AchievementsScreen } from './screens/AchievementsScreen';
+import { RecapScreen } from './screens/RecapScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
@@ -66,6 +67,8 @@ function Shell() {
                 <Route path="/steps/new" element={<StepFormScreen />} />
                 <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
                 <Route path="/achievements" element={<AchievementsScreen />} />
+                <Route path="/recap" element={<RecapScreen />} />
+                <Route path="/recap/:weekStart" element={<RecapScreen />} />
                 <Route path="/settings" element={<SettingsScreen />} />
                 <Route path="/todo" element={<Navigate to="/today" replace />} />
                 <Route path="/account" element={<Navigate to="/settings" replace />} />

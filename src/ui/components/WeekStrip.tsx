@@ -12,12 +12,12 @@ import { copy } from '../copy';
 interface WeekStripProps {
   /** Monday..Sunday: true on a date with an ACTIVE completion (getHomeView). */
   days: boolean[];
-  /** Local date the strip is for; its weekday gets the outline. */
-  today: string;
+  /** Local date the strip is for; its weekday gets the outline. None for a past week («Итоги недели»). */
+  today?: string;
 }
 
 export function WeekStrip({ days, today }: WeekStripProps) {
-  const todayIndex = isoWeekday(today) - 1;
+  const todayIndex = today ? isoWeekday(today) - 1 : -1;
   const active = days.filter(Boolean).length;
   return (
     <div className="week-strip" role="img" aria-label={copy.today.week(active)}>

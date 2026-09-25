@@ -3391,8 +3391,9 @@ html[data-motion='reduced'] .ach-card-medal {
   white-space: nowrap;
 }
 
-/* The home tile: «Последняя ачивка» with its medal, or «Следующая» with a bar. */
-.tile--achievement .tile-text {
+/* The home tile: «Последняя ачивка» with its medal, or «Следующая» with a bar; «Итоги недели». */
+.tile--achievement .tile-text,
+.tile--recap .tile-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -3830,6 +3831,186 @@ html[data-motion='reduced'] .ach-card-medal {
 /* Inactive dots of the home strip: the sunken tone sinks into a dark tile. */
 :root[data-theme='dark'] .week-day:not(.is-active) .week-dot {
   background: var(--color-border);
+}
+
+/* ---------- Records and «Итоги недели» (package 10) ---------- */
+
+.records,
+.recap-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.records .section-title,
+.recap-section .section-title {
+  margin-bottom: 0;
+}
+
+/* A row: a tinted icon, what it is, then «value · where and when», a chevron when it opens
+   something. */
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--row-min-height);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--card-padding);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.info-row-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.info-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info-row-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.info-row-meta {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--color-fg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.info-row-value {
+  color: var(--color-fg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.info-row-chevron {
+  flex: none;
+  color: var(--color-fg-tertiary);
+}
+
+.records-by-skill > summary {
+  padding: 0 var(--sp-1);
+}
+
+.records-by-skill > .info-list {
+  margin-top: var(--sp-1);
+}
+
+/* The home row «Итоги недели»: the laurel in a medal-sized disc, so its text lines up with the
+   achievement tile above; its numbers wrap rather than being cut on a narrow phone. */
+.tile--recap .tile-ach-title {
+  white-space: normal;
+}
+
+.tile-recap-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ‹ 14–20 сентября › — the range in the middle, «Неделя ещё идёт» under it. */
+.recap-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: calc(-1 * var(--sp-2));
+}
+
+.recap-switcher .icon-button:disabled {
+  opacity: 0.35;
+}
+
+.recap-switcher-label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.recap-switcher-note {
+  font-size: 14px;
+  color: var(--color-fg-secondary);
+}
+
+.tile--days .week-strip {
+  margin-top: auto;
+  padding-top: var(--sp-2);
+}
+
+/* In the user's favour only (tone rule 5): the positive tone, never a warning. */
+.recap-compare {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-1);
+  color: var(--color-positive-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.recap-compare svg {
+  flex: none;
+}
+
+.recap-ach {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recap-ach > li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.recap-ach-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-target);
+  padding: 4px var(--sp-3) 4px 4px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+:root[data-theme='dark'] .recap-ach-chip {
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
+}
+
+.recap-ach-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Reduced motion ---------- */

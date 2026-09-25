@@ -57,7 +57,8 @@ export function AddActionScreen() {
     try {
       const result = await completeStep(selectedStep.id, { date, minutes: timed ? (validMinutes ?? undefined) : undefined });
       // The toast carries «Отменить» and outlives the navigation back to the skill; a filled
-      // flask is told by the TopCard (the flask itself is not on this screen).
+      // flask is told on the skill's hero once it is back on screen (the pill «Колба N»), by the
+      // TopCard when it is not (the flask itself is not on this screen).
       announceCompletion(result, selectedStep.name, showToast);
       void celebrateResult(result, { skillId, flaskRef: null, afterNavigation: true });
       goBack();

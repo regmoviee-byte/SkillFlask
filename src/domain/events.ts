@@ -97,6 +97,15 @@ export function minutesForPoints(points: number, rate: number): number | null {
 const dayOf = (iso: string): string => localDate(new Date(iso));
 
 /**
+ * The calendar day an operation belongs to: a completion's own date for its COMPLETION row
+ * (a backdated completion lives on the day it was done), the local write date for every other
+ * row. The moments an operation causes (a flask filled, the milestone) share its day.
+ */
+export function operationDate(t: Pick<PointTransaction, 'reason' | 'createdAt'>, completion: Pick<StepCompletion, 'date'> | undefined): string {
+  return t.reason === 'COMPLETION' && completion ? completion.date : dayOf(t.createdAt);
+}
+
+/**
  * Journal order in, events in the same (oldest-first) order out. Per transaction the fixed
  * sub-order is: the operation, then LEVEL_UP/LEVEL_DOWN when completedFlasks changed, then
  * MILESTONE_REACHED/LOST when the target was crossed — exactly once per crossing. The skill's
@@ -116,7 +125,7 @@ export function eventsFromTimeline(
     const { transaction: t, before, after } = entry;
     const completion = t.completionId ? completionsById.get(t.completionId) : undefined;
     const at = t.createdAt;
-    const date = t.reason === 'COMPLETION' && completion ? completion.date : dayOf(at);
+    const date = operationDate(t, completion);
 
     let minutes: TransactionEvent['minutes'] = null;
     if (completion) {

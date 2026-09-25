@@ -11,7 +11,7 @@
 //    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
-import { formatDate, formatDateTime, formatWeekdayDate } from '../lib/dates';
+import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate } from '../lib/dates';
 import { FLASKS, FLASKS_OF, formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
 
 /** The native bottom button's limit (MAX_BUTTON_TEXT in platform/buttons.ts; copy.test.ts keeps them equal). */
@@ -22,6 +22,7 @@ const SKILLS: [string, string, string] = ['навык', 'навыка', 'нав�
 const ACTIONS: [string, string, string] = ['действие', 'действия', 'действий'];
 const DAYS: [string, string, string] = ['день', 'дня', 'дней'];
 const ACHIEVEMENTS: [string, string, string] = ['ачивка', 'ачивки', 'ачивок'];
+const ACTIVE_DAYS: [string, string, string] = ['активный день', 'активных дня', 'активных дней'];
 
 /** Genitive after «из»: «из 1 очка», «из 10 очков», «из 21 очка». */
 const POINTS_OF: [string, string, string] = ['очка', 'очков', 'очков'];
@@ -30,6 +31,12 @@ const count = (n: number, forms: [string, string, string]) => `${formatNumber(n)
 
 /** «в сентябре»: the month of a quota period that is not the current one. */
 const MONTHS_IN = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
+
+/**
+ * A number never parts from the word after it («17 сентября», «2025 г.»), nor a range of days
+ * at its dash («14–20»): a narrow row wraps between the parts of a text, not inside a date.
+ */
+const keepNumbers = (text: string) => text.replace(/(\d) /g, '$1\u00a0').replace(/(\d)–(?=\d)/g, '$1–\u2060');
 
 /** «Колба 2: 45/150» — the flask state after an operation, as in the history. */
 const flaskState = (flask: number, points: number, capacity: number) =>
@@ -447,6 +454,64 @@ export const copy = Object.freeze({
     cardOverline: 'Новая ачивка',
     cardMore: (title: string, more: number) => `${title} и ещё ${more} ${plural(more, ACHIEVEMENTS)}`,
     cardOpen: (title: string) => `Новая ачивка: ${title}. Открыть «Ачивки»`,
+  },
+  recap: {
+    /** «Итоги недели»: facts of one week, compared only when it is in the user's favour. */
+    title: 'Итоги недели',
+    range: (monday: string) => formatWeek(monday),
+    /** The home row, all through the week after. */
+    homeLabel: (monday: string) => `Итоги недели · ${keepNumbers(formatWeek(monday))}`,
+    homeMeta: (points: number, days: number) => keepNumbers(`${formatPoints(points)} · ${count(days, ACTIVE_DAYS)}`),
+    switcher: 'Неделя',
+    previous: 'Предыдущая неделя',
+    next: 'Следующая неделя',
+    inProgress: 'Неделя ещё идёт',
+    tilePoints: 'Очки',
+    pointsCaption: (n: number) => plural(n, POINTS),
+    tileDays: 'Активные дни',
+    daysCaption: (n: number) => plural(n, DAYS),
+    tileCompletions: 'Выполнено',
+    completionsCaption: (n: number) => plural(n, ACTIONS),
+    tileFlasks: 'Заполнено',
+    flasksCaption: (n: number) => plural(n, FLASKS),
+    morePoints: 'Больше очков, чем на прошлой неделе',
+    moreDays: 'Больше активных дней, чем на прошлой неделе',
+    best: 'Лучшее за неделю',
+    topSkill: 'Больше всего очков',
+    topAction: 'Чаще всего',
+    topActionMeta: (actionName: string, skillName: string) => `${actionName} · ${skillName}`,
+    topActionValue: (n: number) => `×${n}`,
+    milestone: (name: string) => `Веха «${name}» достигнута`,
+    milestoneMeta: (skillName: string, date: string) => `${skillName} · ${keepNumbers(formatDate(date))}`,
+    /** A record set this week: «Рекорд · 15 сентября». */
+    recordMeta: (detail: string) => `Рекорд · ${detail}`,
+    achievements: 'Ачивки недели',
+    emptyTitle: 'В эту неделю отметок нет',
+    emptyText: 'Итоги собираются из отметок: очки, активные дни, колбы и рекорды.',
+    emptyCurrentTitle: 'Отметки этой недели появятся здесь',
+  },
+  records: {
+    title: 'Рекорды',
+    bestDay: 'Лучший день',
+    bestWeek: 'Лучшая неделя',
+    mostCompletions: 'Больше всего действий за день',
+    bestStreak: 'Лучшая серия',
+    // «Самое длинное», not «долгое»: the tone test rejects every word starting with «долг».
+    longestSession: 'Самое длинное занятие',
+    fastestFlask: 'Самая быстрая колба',
+    points: (n: number) => formatPoints(n),
+    completions: (n: number) => count(n, ACTIONS),
+    streak: (days: number) => `${count(days, DAYS)} подряд`,
+    minutes: (n: number) => formatMinutes(n),
+    /** Days between the fills of two flasks, both ends counted: 0 (the same day) is «за 1 день». */
+    flaskDays: (days: number) => `за ${count(days + 1, DAYS)}`,
+    date: (date: string) => keepNumbers(formatDate(date)),
+    week: (monday: string) => keepNumbers(formatWeek(monday)),
+    /** A run of days: «5–7 сентября». */
+    streakDates: (start: string, days: number) => keepNumbers(formatDaySpan(start, days)),
+    withSkill: (skillName: string, detail: string) => `${skillName} · ${detail}`,
+    flask: (skillName: string, flask: number, date: string) => `${skillName} · Колба\u00a0${flask} · ${keepNumbers(formatDate(date))}`,
+    bySkill: (n: number) => `Лучший день по навыкам · ${n}`,
   },
   settings: {
     title: 'Настройки',

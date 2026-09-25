@@ -77,6 +77,7 @@ describe('getHomeView', () => {
       weekActivity: Array(7).fill(false),
       totalFlasks: 0,
       lastMilestone: null,
+      lastWeek: null,
       achievements: { last: null, next: expect.objectContaining({ current: 0, target: 1 }) },
     });
     expect((await getHomeView(TODAY)).achievements.next?.def.id).toBe('first-skill');

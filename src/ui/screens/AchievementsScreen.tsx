@@ -9,15 +9,17 @@ import { getAchievementsView, markAchievementsSeen, type AchievementsView } from
 import { AchievementSheet } from '../achievements/AchievementSheet';
 import { Badge, badgeState } from '../components/Badge';
 import { LadderCard, tierState } from '../components/LadderCard';
+import { RecordsSection } from '../components/RecordList';
 import { Ring } from '../components/Ring';
 import { Screen } from '../components/Screen';
 import { Skeleton } from '../components/Skeleton';
 import { copy } from '../copy';
 
-// «Ачивки»: a summary with the ring and the last unlock, a filter, the seven ladders and the
-// badge tiles. Everything comes from the engine through one live query; opening the tab marks
-// the new unlocks as seen after a moment (the tab's dot goes out). Nothing here is ever
-// «failed»: an achievement is earned, on its way or ahead.
+// «Ачивки»: a summary with the ring and the last unlock, the personal records («Рекорды», not
+// filtered: they are not achievements), a filter, the ladders and the badge tiles. Everything
+// comes from the engine through one live query; opening the tab marks the new unlocks as seen
+// after a moment (the tab's dot goes out). Nothing here is ever «failed»: an achievement is
+// earned, on its way or ahead.
 
 const t = copy.achievements;
 
@@ -89,6 +91,8 @@ function Content({ view, filter, focus, onFilter, onOpen }: ContentProps) {
   return (
     <>
       <Summary view={view} onOpen={onOpen} />
+
+      <RecordsSection records={view.records} skillNames={view.skillNames} />
 
       <div className="filter-chips" role="group" aria-label={t.filterLabel}>
         {FILTERS.map((f) => (

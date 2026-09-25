@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { SkillStatus } from '../../domain/types';
 import { formatNumber } from '../../lib/format';
 import { getHomeView, type HomeView } from '../../services/queries';
+import type { LastWeekLine } from '../../services/recap';
 import { haptics } from '../../platform/haptics';
 import { EmptyState } from '../components/EmptyState';
 import { Badge } from '../components/Badge';
@@ -16,8 +17,9 @@ import { copy } from '../copy';
 import { useToday } from '../hooks/useToday';
 
 // Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
-// dots, the flasks filled so far, the last achievement (or the next one) — then the skill
-// cards. Facts only: no charts, no targets, nothing about days without activity.
+// dots, the flasks filled so far, the last achievement (or the next one), «Итоги недели» for
+// the week before — then the skill cards. Facts only: no charts, no targets, nothing about
+// days without activity.
 
 const t = copy.home;
 
@@ -111,6 +113,7 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
           )}
         </Tile>
         <AchievementTile home={home} />
+        {home.lastWeek && <RecapTile line={home.lastWeek} />}
       </div>
 
       {showChips && (
@@ -147,6 +150,22 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
         )}
       </ul>
     </>
+  );
+}
+
+/** «Итоги недели · 14–20 сентября»: the previous week, all through this one, when it had a completion. */
+function RecapTile({ line }: { line: LastWeekLine }) {
+  return (
+    <Link to="/recap" className="tile tile--wide tile--recap pressable">
+      <span className="tile-recap-icon" aria-hidden="true">
+        <Icon name="laurel" size={20} />
+      </span>
+      <span className="tile-text">
+        <span className="tile-ach-label">{copy.recap.homeLabel(line.weekStart)}</span>
+        <span className="tile-ach-title">{copy.recap.homeMeta(line.points, line.activeDays)}</span>
+      </span>
+      <Icon name="chevron-right" size={20} className="tile-chevron" />
+    </Link>
   );
 }
 

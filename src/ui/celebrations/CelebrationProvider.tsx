@@ -15,17 +15,19 @@ import { copy } from '../copy';
 import { flyPoints, onScreen } from '../hooks/usePointsFly';
 import { AchievementCard, type AchievementCardContent } from './AchievementCard';
 import { MilestoneSheet } from './MilestoneSheet';
-import { orderCelebrations, type CelebrationEvent, type LevelUpPlay } from './orderCelebrations';
+import { levelUpPlace, orderCelebrations, type CelebrationEvent, type LevelUpPlay } from './orderCelebrations';
 import { TopCard, type TopCardContent } from './TopCard';
 
 // One place for reward moments. Screens that show a skill's flask register a stage; mutations
 // hold that stage before they write (so the live query cannot move the flask first) and hand
 // the service result over. Then, in order: the points fly into the glass, the flask plays its
-// level-up (or a TopCard says so where the flask is not on screen), the milestone sheet opens.
+// level-up (or, for a write made away from it, the pill on the hero it returns to; or a TopCard
+// where no flask of the skill is on screen — levelUpPlace), the milestone sheet opens.
 // New achievements come last, as cards at the top on a queue of their own (400 ms apart, one
 // card for more than two from one write), so a quick next tap never waits for them; a card
-// waits until no sheet is open and the TopCard has left. Achievements of writes without a
-// MutationResult (a new skill or step, completing a skill) arrive through onAchievementsEarned.
+// waits until no sheet is open, the TopCard has left and the pill «Колба N» has gone.
+// Achievements of writes without a MutationResult (a new skill or step, completing a skill)
+// arrive through onAchievementsEarned.
 // Never an overlay, never confetti; nothing plays unless this session wrote something.
 
 export interface CelebrationStage {
@@ -43,7 +45,8 @@ export interface CelebrateContext {
   skillId: string;
   /**
    * The flask to play on; the registered stage's flask when omitted. An explicit null means
-   * the write happened away from the flask («Задним числом»): a level-up shows the TopCard.
+   * the write happened away from the flask («Задним числом»): a level-up is told on the skill's
+   * hero when the screen after the write shows it (levelUpPlace), by the TopCard otherwise.
    */
   flaskRef?: FlaskHandle | null;
   /** Where the «+N» flies from (the ✓); no flight without it. */
@@ -88,6 +91,8 @@ const CARD_GAP_MS = 400;
 /** More achievements than this from one write are told in one card: «… и ещё 2 ачивки». */
 const CARD_MAX_SEPARATE = 2;
 const POLL_MS = 100;
+/** How long a write made away from the flask waits for the skill screen it returns to. */
+const HERO_WAIT_MS = 1500;
 
 /**
  * A sheet pushes a history entry; another sheet still closing (the completion sheet after
@@ -132,6 +137,8 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   // Set together with the state (not from a render), so a card queued right after sees them.
   const topCardShown = useRef(false);
   const milestoneShown = useRef(false);
+  /** Until when a stage's pill «Колба N» is on (performance.now()). */
+  const pillUntil = useRef(0);
 
   // ---- Achievement cards: their own queue ----
   const cards = useRef<AchievementState[][]>([]);
@@ -151,8 +158,10 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     pumping.current = true;
     try {
       for (let queued = cards.current.shift(); queued && mounted.current; queued = cards.current.shift()) {
-        // Not over a sheet (the milestone sheet, a confirmation) nor over the level-up card.
-        while (mounted.current && (openSheetCount() > 0 || milestoneShown.current || topCardShown.current)) await wait(POLL_MS);
+        // Not over a sheet (the milestone sheet, a confirmation), the level-up card, nor the
+        // hero while its pill «Колба N» is on: the card sits right over that flask.
+        const busy = () => openSheetCount() > 0 || milestoneShown.current || topCardShown.current || performance.now() < pillUntil.current;
+        while (mounted.current && busy()) await wait(POLL_MS);
         if (!mounted.current) break;
         // An undo in the meantime may have taken some of them away again.
         const batch = await filterStillUnlocked(queued);
@@ -212,25 +221,49 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /**
+   * The skill's hero stage when its flask is on screen. After a navigation the screen may still
+   * be loading its data, so a write made away from the flask waits for it a moment.
+   */
+  const heroStage = useCallback(async (skillId: string, patient: boolean): Promise<CelebrationStage | null> => {
+    const until = performance.now() + (patient ? HERO_WAIT_MS : 0);
+    for (;;) {
+      const stage = stages.current.get(skillId);
+      if (stage && onScreen(stage.flask()?.element())) return stage;
+      if (performance.now() >= until) return null;
+      await wait(POLL_MS);
+    }
+  }, []);
+
   const playLevelUp = useCallback(async (play: LevelUpPlay, ctx: CelebrateContext, stage: CelebrationStage | undefined, flask: FlaskHandle | null, withTopCard: boolean) => {
     const overflow = () => {
       haptics.levelUp(play.levels);
       if (ctx.after) stage?.show(ctx.after);
+      if (stage) pillUntil.current = performance.now() + PILL_MS;
       stage?.announce(play.newFlask - 1, play.newFlask);
     };
-    if (flask && onScreen(flask.element())) {
-      await flask.playLevelUp({ fromFill: play.fromFill, toFill: play.toFill, levels: play.levels, onOverflow: overflow });
+    const hero = flask ? null : await heroStage(ctx.skillId, ctx.afterNavigation === true);
+    const place = levelUpPlace({ flask: !flask ? 'none' : onScreen(flask.element()) ? 'on-screen' : 'off-screen', heroOnScreen: hero !== null });
+    if (place === 'flask') {
+      await flask!.playLevelUp({ fromFill: play.fromFill, toFill: play.toFill, levels: play.levels, onOverflow: overflow });
       return;
     }
-    // The flask is not on screen (Today, «Задним числом», scrolled away): a card at the top.
     haptics.levelUp(play.levels);
+    if (place === 'hero') {
+      // The hero already shows the new flask (its data was read after the write): the pill
+      // names it on the glass instead of a card over it.
+      pillUntil.current = performance.now() + PILL_MS;
+      hero!.announce(play.newFlask - 1, play.newFlask);
+      return;
+    }
+    // The flask is not on screen (Today, scrolled away): a card at the top.
     if (ctx.after) stage?.show(ctx.after);
     if (withTopCard) {
       topKey.current += 1;
       topCardShown.current = true;
       setTopCard({ key: topKey.current, fromFill: play.fromFill, flask: play.newFlask - 1, skillName: ctx.skillName ?? '' });
     }
-  }, []);
+  }, [heroStage]);
 
   const run = useCallback(
     async (events: CelebrationEvent[], ctx: CelebrateContext, navigated: Promise<void> | null) => {

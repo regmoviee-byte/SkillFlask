@@ -71,6 +71,31 @@ export function formatDate(value: string): string {
   return (date.getFullYear() === nowDate().getFullYear() ? dateFormat : dateFormatWithYear).format(date);
 }
 
+/**
+ * A span of local dates, the year only when it is not the current one: «15–21 сентября»,
+ * «29 сентября – 5 октября», «29 декабря 2025 г. – 4 января 2026 г.». Accepts YYYY-MM-DD.
+ */
+export function formatDateRange(from: string, to: string): string {
+  if (!isValidLocalDate(from) || !isValidLocalDate(to)) throw new RangeError(`Invalid date range ${from}..${to}`);
+  if (from === to) return formatDate(to);
+  const [fy, fm] = parts(from);
+  const [ty, tm] = parts(to);
+  if (fy !== ty) return `${dateFormatWithYear.format(toDate(from))} – ${dateFormatWithYear.format(toDate(to))}`;
+  if (fm !== tm) return `${dateFormat.format(toDate(from))} – ${formatDate(to)}`;
+  return `${Number(from.slice(8))}–${formatDate(to)}`;
+}
+
+/** `days` consecutive dates from `start` (formatDateRange): «5–7 сентября» for three. */
+export function formatDaySpan(start: string, days: number): string {
+  if (!isValidLocalDate(start)) throw new RangeError(`Invalid date ${start}`);
+  return formatDateRange(start, addDays(start, Math.max(1, days) - 1));
+}
+
+/** A Monday..Sunday week named by its Monday: «14–20 сентября». */
+export function formatWeek(monday: string): string {
+  return formatDaySpan(monday, 7);
+}
+
 /** «четверг, 24 сентября» — the second line of «Сегодня». Accepts YYYY-MM-DD. */
 export function formatWeekdayDate(date: string): string {
   return weekdayFormat.format(toDate(date));

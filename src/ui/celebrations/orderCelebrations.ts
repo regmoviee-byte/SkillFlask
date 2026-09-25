@@ -94,3 +94,21 @@ export function orderCelebrations(
   }
   return byPriority(events);
 }
+
+/**
+ * Where a level-up is told:
+ * - 'flask' — on the flask the write was made at, when it is on screen: the whole choreography;
+ * - 'hero'  — the write was made away from any flask («Задним числом», which then goes back to
+ *   the skill) and the skill's hero flask is on screen after it: the pill «Колба N» on the hero
+ *   and the level-up vibration. A card at the top would cover that very flask for 3.5 s;
+ * - 'card'  — nowhere on screen (Today, a scrolled skill screen): the TopCard, which then
+ *   covers nothing of the skill's flask.
+ */
+export type LevelUpPlace = 'flask' | 'hero' | 'card';
+
+export function levelUpPlace({ flask, heroOnScreen }: { flask: 'on-screen' | 'off-screen' | 'none'; heroOnScreen: boolean }): LevelUpPlace {
+  if (flask === 'on-screen') return 'flask';
+  // An off-screen flask is the hero itself, scrolled away: nothing to cover, the card tells it.
+  if (flask === 'none' && heroOnScreen) return 'hero';
+  return 'card';
+}

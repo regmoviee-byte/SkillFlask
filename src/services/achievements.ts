@@ -15,6 +15,7 @@ import { nowIso } from '../lib/dates';
 import { CATALOG, LADDERS } from '../domain/achievements/catalog';
 import { evaluateWithStats, type Evaluation } from '../domain/achievements/evaluate';
 import type { HistorySnapshot } from '../domain/achievements/events';
+import { computeRecords, type Records } from '../domain/records';
 import type { AchievementState, LadderDef } from '../domain/achievements/types';
 import type { AchievementUnlock } from '../domain/types';
 import { logError } from '../platform/errorLog';
@@ -39,17 +40,25 @@ export async function loadSnapshot(): Promise<HistorySnapshot> {
 
 // ---- Evaluation cache ----
 
-let cached: { db: SkillFlaskDb; key: string; evaluation: Evaluation } | null = null;
+/** One read of the history: the snapshot, the engine's result and, once asked for, the records. */
+export interface HistoryRead {
+  snapshot: HistorySnapshot;
+  evaluation: Evaluation;
+  /** Personal records of the same snapshot (domain/records.ts), computed on first use. */
+  records(): Records;
+}
+
+let cached: { db: SkillFlaskDb; key: string; read: HistoryRead } | null = null;
 
 /**
- * The engine's result for the current database, re-evaluated only when the history changed.
- * The key holds the four small tables whole, and the size and newest row of the journal: a
- * completion never changes in a way the rules read without a journal row (a completion writes
- * one even when worth 0 points; cancel and restore write one; a change of minutes writes a
- * CORRECTION even when the points stay the same; a note edit writes none and matters to no
- * rule). Runs inside a transaction covering snapshotTables().
+ * The history and the engine's result for the current database, re-read and re-evaluated only
+ * when the history changed. The key holds the four small tables whole, and the size and newest
+ * row of the journal: a completion never changes in a way the rules or the records read without
+ * a journal row (a completion writes one even when worth 0 points; cancel and restore write one;
+ * a change of minutes writes a CORRECTION even when the points stay the same; a note edit writes
+ * none and matters to no rule). Runs inside a transaction covering snapshotTables().
  */
-async function evaluate(): Promise<Evaluation> {
+export async function readHistory(): Promise<HistoryRead> {
   const [skills, milestones, thresholds, steps, completionCount, transactionCount, lastRow] = await Promise.all([
     db.skills.toArray(),
     db.milestones.toArray(),
@@ -60,11 +69,13 @@ async function evaluate(): Promise<Evaluation> {
     db.transactions.orderBy('createdAt').last(),
   ]);
   const key = JSON.stringify([skills, milestones, thresholds, steps, completionCount, transactionCount, lastRow?.id ?? null]);
-  if (cached && cached.db === db && cached.key === key) return cached.evaluation;
+  if (cached && cached.db === db && cached.key === key) return cached.read;
   const [completions, transactions] = await Promise.all([db.completions.toArray(), db.transactions.toArray()]);
-  const evaluation = evaluateWithStats({ skills, milestones, thresholds, steps, completions, transactions });
-  cached = { db, key, evaluation };
-  return evaluation;
+  const snapshot: HistorySnapshot = { skills, milestones, thresholds, steps, completions, transactions };
+  let records: Records | null = null;
+  const read: HistoryRead = { snapshot, evaluation: evaluateWithStats(snapshot), records: () => (records ??= computeRecords(snapshot)) };
+  cached = { db, key, read };
+  return read;
 }
 
 /** Test hook: forget the cached evaluation. */
@@ -88,7 +99,7 @@ export interface SyncResult {
  * write; anything older only appeared (it is filed quietly, the tab's dot tells about it).
  */
 export async function syncAchievements(now: string): Promise<SyncResult> {
-  const { states } = await evaluate();
+  const { states } = (await readHistory()).evaluation;
   const rows = new Map((await db.achievementUnlocks.toArray()).map((row) => [row.id, row]));
   const put: AchievementUnlock[] = [];
   const earnedNow: AchievementState[] = [];
@@ -216,8 +227,10 @@ export interface AchievementsView {
   lastUnlocked: AchievementState | null;
   /** Ledger rows not seen on the tab yet. */
   unseenCount: number;
-  /** Names of the skills unlocks are credited to. */
+  /** Names of the skills, for the unlocks and the records credited to them. */
   skillNames: Record<string, string>;
+  /** Personal records («Рекорды»). */
+  records: Records;
 }
 
 const latestFirst = (a: AchievementState, b: AchievementState) => (a.unlockedAt! < b.unlockedAt! ? 1 : a.unlockedAt! > b.unlockedAt! ? -1 : 0);
@@ -253,11 +266,12 @@ async function skillNames(): Promise<Record<string, string>> {
 
 export async function getAchievementsView(): Promise<AchievementsView> {
   return db.transaction('r', achievementTables(), async () => {
-    const [{ states, stats }, unseenCount, names] = await Promise.all([
-      evaluate(),
+    const [history, unseenCount, names] = await Promise.all([
+      readHistory(),
       db.achievementUnlocks.filter((row) => row.seenAt === null).count(),
       skillNames(),
     ]);
+    const { states, stats } = history.evaluation;
     const ladders = LADDERS.map((def): LadderView => {
       const tiers = states.filter((s) => s.def.ladderId === def.id);
       const current = def.value(stats);
@@ -273,6 +287,7 @@ export async function getAchievementsView(): Promise<AchievementsView> {
       lastUnlocked: lastOf(states),
       unseenCount,
       skillNames: names,
+      records: history.records(),
     };
   });
 }
@@ -285,7 +300,7 @@ export interface HomeAchievementLine {
 /** The home tile's line; runs inside the caller's transaction when there is one (getHomeView). */
 export async function getHomeAchievementLine(): Promise<HomeAchievementLine> {
   return db.transaction('r', snapshotTables(), async () => {
-    const { states } = await evaluate();
+    const { states } = (await readHistory()).evaluation;
     return { last: lastOf(states), next: nextOf(states) };
   });
 }

@@ -199,6 +199,51 @@ describe('CelebrationProvider', () => {
     expect(screen.getByText(/^Колба \d+ заполнена$/)).toBeTruthy();
   });
 
+  it('tells a fill made away from the flask on the hero it returns to, never by a card over it', async () => {
+    let navigate: (to: string) => void = () => {};
+    function Navigator() {
+      const go = useNavigate();
+      useEffect(() => {
+        navigate = go;
+      }, [go]);
+      return null;
+    }
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <CelebrationProvider>
+            <Probe live={progress(1, 1)} />
+            <Navigator />
+          </CelebrationProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    // «Задним числом»: the write happens on its own screen, which then goes back to the skill.
+    const done = api.celebrateResult(result({ before: progress(0, 96), after: progress(1, 1), levelChange: 1, achievements: [earned('first-flask')] }), {
+      skillId: 's1',
+      afterNavigation: true,
+      flaskRef: null,
+    });
+    act(() => navigate('/skills/s1'));
+    // The skill screen's hero appears once its data has loaded, a moment after the route change.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 150)));
+    const glass = document.createElement('div');
+    glass.getBoundingClientRect = () => ({ x: 120, y: 120, top: 120, left: 120, right: 260, bottom: 320, width: 140, height: 200, toJSON: () => ({}) });
+    const playLevelUp = vi.fn(async () => {});
+    stage.flaskRef.current = { playLevelUp, element: () => glass };
+    await act(() => done);
+    expect(screen.queryByText(/^Колба \d+ заполнена$/)).toBeNull();
+    expect(stage.pill?.flask).toBe(2);
+    expect(stage.announcement).toBe('Колба 1 заполнена');
+    expect(haptics.levelUp).toHaveBeenCalledWith(1);
+    // Its data was read after the write: nothing to replay on the glass.
+    expect(playLevelUp).not.toHaveBeenCalled();
+    // The achievement card would sit right over the hero: it waits for the pill to go.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(screen.queryByText('Новая ачивка')).toBeNull();
+    expect(await screen.findByText('Первая колба', undefined, { timeout: 4000 })).toBeTruthy();
+  });
+
   it('announces a new achievement with a card at the top, after the flask, and opens it on the tab', async () => {
     renderProvider();
     await act(() =>

@@ -438,18 +438,22 @@ await page.locator('.level-pill', { hasText: 'Колба 3' }).waitFor();
 await page.getByRole('status').getByText('+25 · Тренировка').waitFor();
 await shot('levelup-two-flasks');
 
-// «Задним числом»: the full-screen form for another date. A fill recorded there is told by
-// the TopCard on the way back (the flask is not on that screen).
+// «Задним числом»: the full-screen form for another date. A fill recorded there is told on
+// the hero it goes back to — the pill «Колба N» on the glass; a card at the top would cover
+// that very flask (the TopCard stays for screens without it: «Сегодня» below).
 await idleCheck.waitFor();
+// The two-flask write above earned «Двойное дно»: its card plays first, so the hero is clear below.
+await page.locator('.ach-card').waitFor();
+await page.locator('.ach-card').waitFor({ state: 'detached', timeout: 10000 });
 await page.getByRole('link', { name: 'Задним числом' }).click();
 await page.getByRole('button', { name: 'Отметить выполненным' }).waitFor();
 await page.getByText('Тренировка', { exact: true }).click();
 await shot('backdate');
 await page.getByRole('button', { name: 'Отметить выполненным' }).click();
-await page.locator('.top-card', { hasText: /Колба \d+ заполнена/ }).waitFor();
-await page.waitForTimeout(500);
-await shot('topcard');
-await levelCard.waitFor({ state: 'detached' });
+await page.locator('.level-pill', { hasText: /Колба \d+/ }).waitFor();
+await shot('backdate-levelup');
+if (await page.locator('.top-card:not(.ach-card)').count()) errors.push('a backdated fill covered the hero flask with the level-up card');
+await page.locator('.level-pill').waitFor({ state: 'detached' });
 
 // Edit form (through the ⋯ menu): the delete confirmation is a danger sheet; cancel it.
 await skillMenu('Изменить навык');
@@ -977,6 +981,134 @@ await page.waitForTimeout(1200);
 if ((await clippedTiles()).length) errors.push(`tile numbers cut at 320 px on the home screen: ${await clippedTiles()}`);
 await shot('home-big-320');
 await bigContext.close();
+
+// Records and «Итоги недели» (package 10), in their own context: a history written through
+// «Задним числом» — one completion three weeks back, nothing the week after, a full last week
+// (three flasks, a timed hour) — so the recap, an empty week and the records all show.
+{
+  const recapContext = await browser.newContext(contextOptions);
+  await setupContext(recapContext);
+  page = await openPage(recapContext);
+  await page.goto(`${baseUrl}#/skills/new`);
+  // Dates from the browser's clock (SHIFT_DAYS moves it), as local YYYY-MM-DD.
+  const today = await page.evaluate(() => {
+    const d = new Date();
+    return [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((v) => String(v).padStart(2, '0')).join('-');
+  });
+  const shiftDate = (date, days) => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  };
+  const isoWeekday = ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  /** Monday of the week `back` weeks before the current one. */
+  const mondayOf = (back) => shiftDate(today, 1 - isoWeekday - 7 * back);
+
+  await page.getByLabel('Название', { exact: true }).fill('Английский');
+  await page.getByText('Дополнительно').click();
+  await page.getByLabel('Первая колба').fill('20');
+  await page.getByLabel('Прирост за уровень', { exact: true }).fill('10');
+  await page.getByRole('button', { name: 'Создать навык' }).click();
+  await page.getByRole('button', { name: 'Создать первое действие' }).click();
+  await page.getByLabel('Название', { exact: true }).fill('Разговорная практика');
+  await page.getByLabel('Очки за выполнение').fill('10');
+  await page.getByRole('button', { name: 'Создать действие' }).click();
+  await page.locator('.check-button').first().waitFor();
+  await page.getByRole('link', { name: 'Новое действие' }).click();
+  await page.getByLabel('Название', { exact: true }).fill('Чтение вслух');
+  await page.getByRole('group', { name: 'Тип' }).getByRole('button', { name: 'По времени' }).click();
+  await page.getByLabel('Очков за минуту').fill('0,5');
+  await page.getByRole('button', { name: 'Создать действие' }).click();
+  await page.getByRole('button', { name: /^Отметить: Чтение вслух/ }).waitFor();
+  const skillPath = new URL(page.url()).hash.replace(/^#/, '');
+
+  const backdate = async (step, date, minutes) => {
+    await page.goto(`${baseUrl}#${skillPath}/add`);
+    await page.getByText(step, { exact: true }).click();
+    await page.getByLabel('Когда выполнено').fill(date);
+    if (minutes) await page.getByRole('group', { name: 'Частые значения' }).getByRole('button', { name: `${minutes} мин` }).click();
+    // The same action on the same date within 1.5 s is refused as a double tap.
+    await page.waitForTimeout(1000);
+    await page.getByRole('button', { name: minutes ? /^Записать / : 'Отметить выполненным' }).click();
+    await page.waitForURL((url) => url.hash === `#${skillPath}`);
+    // Let a filled flask be told on the hero before the next write.
+    await page.locator('.hero').waitFor();
+    await page.waitForTimeout(600);
+  };
+  /** Scrolls a section's heading to just under the sticky header. */
+  const scrollToHeading = (locator) =>
+    locator.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  const talk = 'Разговорная практика';
+  await backdate(talk, shiftDate(mondayOf(3), 1));
+  for (const [offset, step, minutes] of [[0, talk], [0, talk], [2, talk], [3, 'Чтение вслух', 60], [5, talk], [5, talk]]) {
+    await backdate(step, shiftDate(mondayOf(1), offset), minutes);
+  }
+
+  // Home: «Итоги недели» for the last week, all through this one.
+  if (await page.locator('.top-card:not(.ach-card)').count()) errors.push('a backdated fill covered the hero flask with the level-up card');
+  await page.goto(`${baseUrl}#/skills`);
+  const recapTile = page.locator('.tile--recap');
+  await recapTile.waitFor();
+  await page.locator('.top-card').waitFor({ state: 'detached', timeout: 10000 });
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  await shot('home-recap');
+  await recapTile.click();
+  await page.waitForURL(/#\/recap$/);
+  await page.getByRole('heading', { name: 'Лучшее за неделю' }).waitFor();
+  if (await page.getByText(/меньше|хуже|пропущ/i).count()) errors.push('the recap compares against the user');
+  await page.waitForTimeout(700); // the count-up
+  await shot('recap');
+  await scrollToHeading(page.getByRole('heading', { name: 'Лучшее за неделю' }));
+  await shot('recap-best');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  // The week before: nothing was marked, said plainly.
+  await page.getByRole('button', { name: 'Предыдущая неделя' }).click();
+  await page.getByText('В эту неделю отметок нет').waitFor();
+  await shot('recap-empty');
+  // The first week with a completion is as far back as the switcher goes.
+  await page.getByRole('button', { name: 'Предыдущая неделя' }).click();
+  await page.getByRole('heading', { name: 'Лучшее за неделю' }).waitFor();
+  if (!(await page.getByRole('button', { name: 'Предыдущая неделя' }).isDisabled())) errors.push('the recap goes back past the first completion');
+  // The current week: still going, with the achievements the writes of today earned.
+  await page.goto(`${baseUrl}#/recap/${mondayOf(0)}`);
+  await page.getByText('Неделя ещё идёт').waitFor();
+  await page.getByRole('heading', { name: 'Ачивки недели' }).waitFor();
+  if (!(await page.getByRole('button', { name: 'Следующая неделя' }).isDisabled())) errors.push('the recap goes past the current week');
+  await shot('recap-current');
+
+  // «Рекорды» on «Ачивки», under the summary.
+  await page.goto(`${baseUrl}#/achievements`);
+  const records = page.getByRole('heading', { name: 'Рекорды' });
+  await records.waitFor();
+  for (const title of ['Лучший день', 'Лучшая неделя', 'Больше всего действий за день', 'Лучшая серия', 'Самое длинное занятие', 'Самая быстрая колба']) {
+    if (!(await page.locator('.records .info-row', { hasText: title }).count())) errors.push(`the records miss «${title}»`);
+  }
+  await scrollToHeading(records);
+  await page.waitForTimeout(300);
+  await shot('records');
+  await page.locator('.records .info-row', { hasText: 'Лучшая неделя' }).click();
+  await page.waitForURL(new RegExp(`#/recap/${mondayOf(1)}$`));
+  await page.getByRole('heading', { name: 'Лучшее за неделю' }).waitFor();
+
+  // A 320 px phone: nothing scrolls sideways, nothing is cut.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.waitForTimeout(700);
+  const recapOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (recapOverflow > 0) errors.push(`the recap scrolls sideways by ${recapOverflow}px at 320 px`);
+  await shot('recap-320');
+  await scrollToHeading(page.getByRole('heading', { name: 'Лучшее за неделю' }));
+  await shot('recap-best-320');
+  await page.goto(`${baseUrl}#/achievements`);
+  await records.waitFor();
+  await scrollToHeading(records);
+  const recordsOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (recordsOverflow > 0) errors.push(`the records scroll sideways by ${recordsOverflow}px at 320 px`);
+  await page.waitForTimeout(300);
+  await shot('records-320');
+  await page.goto(`${baseUrl}#/skills`);
+  await recapTile.waitFor();
+  await shot('home-recap-320');
+  await recapContext.close();
+}
 
 const tgContext = await browser.newContext(contextOptions);
 await setupContext(tgContext);

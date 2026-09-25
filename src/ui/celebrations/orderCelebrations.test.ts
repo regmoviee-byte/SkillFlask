@@ -3,7 +3,7 @@ import { CATALOG } from '../../domain/achievements/catalog';
 import type { AchievementState } from '../../domain/achievements/types';
 import type { Progress } from '../../domain/progression';
 import type { MutationResult } from '../../services/completions';
-import { byPriority, daysSince, orderCelebrations, type CelebrationEvent } from './orderCelebrations';
+import { byPriority, daysSince, levelUpPlace, orderCelebrations, type CelebrationEvent } from './orderCelebrations';
 
 const progress = (completed: number, points: number, capacity: number): Progress => ({
   totalPoints: completed * 100 + points,
@@ -92,5 +92,24 @@ describe('orderCelebrations', () => {
   it('counts the days of the milestone from the creation day, both ends included', () => {
     expect(daysSince('2026-09-24T08:00:00', '2026-09-24T20:00:00')).toBe(1);
     expect(daysSince('2026-09-01T08:00:00', '2026-09-24T20:00:00')).toBe(24);
+  });
+});
+
+describe('levelUpPlace', () => {
+  it('plays on the flask the write was made at when it is on screen', () => {
+    expect(levelUpPlace({ flask: 'on-screen', heroOnScreen: true })).toBe('flask');
+    expect(levelUpPlace({ flask: 'on-screen', heroOnScreen: false })).toBe('flask');
+  });
+
+  it('tells a write made away from the flask on the hero it returns to, so no card covers it', () => {
+    // «Задним числом» → back to the skill screen, whose hero flask is at the top.
+    expect(levelUpPlace({ flask: 'none', heroOnScreen: true })).toBe('hero');
+  });
+
+  it('uses the TopCard only where no flask of the skill is on screen', () => {
+    // «Сегодня»: no flask at all.
+    expect(levelUpPlace({ flask: 'none', heroOnScreen: false })).toBe('card');
+    // The skill screen scrolled down to its actions: the card at the top covers no flask.
+    expect(levelUpPlace({ flask: 'off-screen', heroOnScreen: false })).toBe('card');
   });
 });

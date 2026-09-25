@@ -3,6 +3,9 @@ import { setClock } from './clock';
 import {
   addDays,
   diffDays,
+  formatDateRange,
+  formatDaySpan,
+  formatWeek,
   formatDateTime,
   formatDateTimeRelative,
   formatDayLabel,
@@ -99,5 +102,20 @@ describe('clock', () => {
     const b = nowIso();
     expect(a).toBe(fixed.toISOString());
     expect(b > a).toBe(true);
+  });
+});
+
+describe('formatDateRange', () => {
+  it('names a week inside a month, across months and across years', () => {
+    setClock(() => new Date('2026-09-25T12:00:00'));
+    expect(formatDateRange('2026-09-14', '2026-09-20')).toBe('14–20 сентября');
+    expect(formatDateRange('2026-09-28', '2026-10-04')).toBe('28 сентября – 4 октября');
+    expect(formatDateRange('2025-12-29', '2026-01-04')).toBe('29 декабря 2025 г. – 4 января 2026 г.');
+    expect(formatDateRange('2025-09-15', '2025-09-21')).toBe('15–21 сентября 2025 г.');
+    expect(formatDateRange('2026-09-24', '2026-09-24')).toBe('24 сентября');
+    expect(formatWeek('2026-09-28')).toBe('28 сентября – 4 октября');
+    expect(() => formatWeek('2026-13-01')).toThrow(RangeError);
+    expect(formatDaySpan('2026-09-05', 3)).toBe('5–7 сентября');
+    expect(formatDaySpan('2026-09-05', 1)).toBe('5 сентября');
   });
 });
