@@ -4,6 +4,7 @@ import { syncAchievementsOnStart } from '../services/achievements';
 import { flushCloudBackup } from '../services/backupSync';
 import { getSetting } from '../services/settings';
 import { useAppLifecycle } from '../platform/telegram';
+import { isAppearance, setAppearancePreference } from '../platform/theme';
 import { CelebrationProvider } from './celebrations/CelebrationProvider';
 import { DialogHost } from './components/DialogHost';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -40,6 +41,9 @@ function Shell() {
   useEffect(() => {
     // The «Уменьшить движение» setting (package 4) is applied on top of prefers-reduced-motion.
     getSetting<MotionPreference>('motion', 'system').then(setMotionPreference, () => {});
+    // «Тема» (package 12): the settings table is the source of truth; this restores the
+    // localStorage mirror the inline boot script reads (cleared storage, an old mirror).
+    getSetting<unknown>('appearance', 'auto').then((value) => setAppearancePreference(isAppearance(value) ? value : 'auto'), () => {});
     // Files unlocks that appeared without a write (a catalogue entry added in an update):
     // quietly, never celebrated. Idempotent, so StrictMode's second run changes nothing.
     void syncAchievementsOnStart();

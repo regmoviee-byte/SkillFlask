@@ -55,6 +55,7 @@ export const DEVICE_SETTINGS = [
   'cloudBackupHash',
   'lastFileBackupAt',
   'motion',
+  'appearance',
 ] as const satisfies readonly SettingKey[];
 
 /** Schema version that introduced a table; tables absent here exist since version 1. */
@@ -395,7 +396,7 @@ export async function importBackup(file: BackupFile): Promise<BackupStats> {
  * hash) does not: a cloud copy kept through the wipe no longer describes this device, so the
  * automatic backup treats it as someone else's and never replaces it silently.
  */
-const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion'] as const satisfies readonly SettingKey[];
+const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance'] as const satisfies readonly SettingKey[];
 
 /** «Удалить все данные»: clears every table, keeping the install id and the device switches. */
 export async function wipeAllData(): Promise<void> {

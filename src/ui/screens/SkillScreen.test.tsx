@@ -90,6 +90,60 @@ describe('SkillScreen lifecycle', () => {
   });
 });
 
+describe('SkillScreen link', () => {
+  const nav = navigator as unknown as { clipboard?: unknown };
+  afterEach(() => {
+    delete nav.clipboard;
+  });
+
+  it('copies a link that opens the skill («Ссылка на навык»)', async () => {
+    const id = await createSkill(input);
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderSkill(id);
+    fireEvent.click(await screen.findByRole('button', { name: 'Меню навыка' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ссылка на навык' }));
+    expect(await screen.findByText('Ссылка скопирована')).toBeTruthy();
+    // A browser: the page itself with the skill's hash route.
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/#/skills/${id}`);
+  });
+
+  it('shows the link to copy by hand where the clipboard refuses', async () => {
+    const id = await createSkill(input);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => Promise.reject(new Error('denied')) }, configurable: true });
+    renderSkill(id);
+    fireEvent.click(await screen.findByRole('button', { name: 'Меню навыка' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ссылка на навык' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Ссылка на навык' });
+    expect((within(sheet).getByLabelText('Ссылка') as HTMLTextAreaElement).value).toBe(`${window.location.origin}/#/skills/${id}`);
+    // «Скопировать» tries again in its own tap; refused again, it selects the link.
+    const field = within(sheet).getByLabelText('Ссылка') as HTMLTextAreaElement;
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Скопировать' }));
+    await waitFor(() => expect(field.selectionEnd).toBe(field.value.length));
+    expect(document.activeElement).toBe(field);
+    // Allowed this time: the sheet closes on the toast.
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Скопировать' }));
+    expect(await screen.findByText('Ссылка скопирована')).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/#/skills/${id}`);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ссылка на навык' })).toBeNull());
+  });
+
+  it('starts the copy in the tap itself, before the menu closes (iOS needs the gesture)', async () => {
+    const id = await createSkill(input);
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderSkill(id);
+    fireEvent.click(await screen.findByRole('button', { name: 'Меню навыка' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ссылка на навык' }));
+    // Synchronously within the click, with no await in between.
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Ссылка скопирована')).toBeTruthy();
+    expect(writeText).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SkillScreen marks', () => {
   /** 10-point flasks: 3 completions of 3 put 9 points into flask 1. */
   async function skillWithProgress() {

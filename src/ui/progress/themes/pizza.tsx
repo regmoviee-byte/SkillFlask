@@ -371,7 +371,7 @@ function Slice({ index, bite, clip, sliceRef }: { index: number; bite: number; c
   );
 }
 
-// ---- WAAPI helpers (guarded like Flask.tsx) ----
+// ---- WAAPI helpers (guarded like progress/themes/flask.tsx) ----
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 

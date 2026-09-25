@@ -45,7 +45,18 @@ export type TelegramEvent =
   | 'popupClosed'
   | 'activated'
   | 'deactivated'
-  | 'fullscreenChanged';
+  | 'fullscreenChanged'
+  | 'homeScreenAdded'
+  | 'homeScreenChecked';
+
+/** What `checkHomeScreenStatus` reports (Bot API 8.0). */
+export type HomeScreenStatus = 'unsupported' | 'unknown' | 'added' | 'missed';
+
+/** The launch parameters Telegram passes unsigned; only what the app reads. */
+export interface InitDataUnsafe {
+  /** The `startapp` parameter of the link that opened the app ([A-Za-z0-9_-], ≤ 64). */
+  start_param?: string;
+}
 
 export interface BottomButtonParams {
   text?: string;
@@ -126,6 +137,9 @@ export interface TelegramWebApp {
   headerColor?: string;
   backgroundColor?: string;
   bottomBarColor?: string;
+  /** The signed launch data as a query string (its `hash` differs on every launch). */
+  initData?: string;
+  initDataUnsafe?: InitDataUnsafe;
   ready(): void;
   expand(): void;
   close(): void;
@@ -144,6 +158,8 @@ export interface TelegramWebApp {
   showConfirm(message: string, cb?: (ok: boolean) => void): void;
   showAlert(message: string, cb?: () => void): void;
   showPopup(params: PopupParams, cb?: (buttonId?: string) => void): void;
+  addToHomeScreen(): void;
+  checkHomeScreenStatus(cb?: (status: HomeScreenStatus) => void): void;
   BackButton: SimpleButton;
   SettingsButton: SimpleButton;
   MainButton: BottomButton;
@@ -163,6 +179,8 @@ export const API = Object.freeze({
   backButton: '6.1',
   haptics: '6.1',
   headerColor: '6.1',
+  // setBackgroundColor takes #RRGGBB since 6.1, setHeaderColor only since 6.9 (keywords before).
+  headerColorHex: '6.9',
   confirm: '6.2',
   popup: '6.2',
   closingConfirmation: '6.2',
@@ -174,6 +192,7 @@ export const API = Object.freeze({
   fullscreen: '8.0',
   safeArea: '8.0',
   activation: '8.0',
+  homeScreen: '8.0',
 });
 
 /** The WebApp object when the page runs inside a Telegram client. Typed as the full API: callers gate with `supports`. */

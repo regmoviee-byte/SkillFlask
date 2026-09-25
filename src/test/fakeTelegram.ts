@@ -2,7 +2,7 @@
 // object at every version; methods introduced later than `version` are simply absent, so an
 // ungated call throws TypeError — exactly what `supports()` must prevent.
 
-import type { TelegramWebApp } from '../platform/telegram';
+import type { HomeScreenStatus, TelegramWebApp } from '../platform/telegram';
 
 export type FakeButton = 'BackButton' | 'MainButton' | 'SecondaryButton' | 'SettingsButton';
 
@@ -11,6 +11,8 @@ export interface FakeTelegram {
   calls: string[];
   /** CloudStorage contents (Bot API ≥ 6.9); tests may seed or tamper with it directly. */
   cloud: FakeCloud;
+  /** What checkHomeScreenStatus answers (Bot API ≥ 8.0); tests may change it. */
+  homeScreen: { status: HomeScreenStatus };
   emit(event: string, ...args: unknown[]): void;
   /** Presses a native button: runs every handler registered through its onClick. */
   click(button: FakeButton): void;
@@ -100,6 +102,7 @@ export function fakeCloudStorage(cloud: FakeCloud) {
 export function installFakeTelegram(version: string, overrides: Partial<TelegramWebApp> = {}): FakeTelegram {
   const calls: string[] = [];
   const cloud: FakeCloud = { store: new Map(), log: [], failNext: null };
+  const homeScreen: { status: HomeScreenStatus } = { status: 'missed' };
   const listeners = new Map<string, Set<Listener>>();
   const handlers = new Map<string, Set<Listener>>();
   const record =
@@ -195,6 +198,16 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
       : {}),
     ...(at('7.7') ? { disableVerticalSwipes: record('disableVerticalSwipes'), enableVerticalSwipes: record('enableVerticalSwipes') } : {}),
     ...(at('7.10') ? { setBottomBarColor: record('setBottomBarColor') } : {}),
+    ...(at('8.0')
+      ? {
+          addToHomeScreen: record('addToHomeScreen'),
+          // Answers asynchronously, like the client (it asks the OS).
+          checkHomeScreenStatus: (cb?: (status: HomeScreenStatus) => void) => {
+            calls.push('checkHomeScreenStatus()');
+            queueMicrotask(() => cb?.(homeScreen.status));
+          },
+        }
+      : {}),
     ...(at('8.0') ? { safeAreaInset: { top: 47, bottom: 34, left: 0, right: 0 }, contentSafeAreaInset: { top: 46, bottom: 0, left: 0, right: 0 } } : {}),
     ...overrides,
   } as unknown as TelegramWebApp;
@@ -204,6 +217,7 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
     tg,
     calls,
     cloud,
+    homeScreen,
     emit: (event, ...args) => listeners.get(event)?.forEach((cb) => cb(...args)),
     click: (name) => handlers.get(name)?.forEach((cb) => cb()),
     uninstall: () => {

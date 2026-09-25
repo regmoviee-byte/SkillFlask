@@ -4078,3 +4078,109 @@ html[data-motion='reduced'] .ach-card-medal {
     animation: none;
   }
 }
+
+/* ---------- Package 12: «Тема», the home-screen shortcut, the link to a skill ---------- */
+
+.settings-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+}
+
+/* «Тема»: segments as wide as their labels, so «Как в системе» / «Как в Telegram» keeps one
+   line next to the short «Светлая» / «Тёмная»; below 360 px a touch smaller, and it may wrap. */
+.settings-segmented button {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 var(--sp-2);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+@media (max-width: 359px) {
+  .settings-segmented button {
+    padding: 0 var(--sp-1);
+    font-size: 13px;
+    white-space: normal;
+  }
+}
+
+.settings-row-check {
+  display: block;
+  color: var(--color-positive-text);
+}
+
+.install-sheet .sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.install-art {
+  display: block;
+  width: 132px;
+  height: 104px;
+  margin: 0 auto;
+  color: var(--color-accent);
+}
+
+.install-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--r-m);
+  background: var(--color-bg-sunken);
+}
+
+.install-step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--row-min-height);
+  padding: var(--sp-2) var(--card-padding);
+}
+
+.install-step + .install-step {
+  border-top: 1px solid var(--color-border);
+}
+
+.install-step-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-full);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.install-step-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.install-step-icon {
+  flex: none;
+  color: var(--color-link);
+}
+
+/* The theme switch crossfades through a view transition; reduced motion switches at once
+   (theme.ts does not start one, this covers a system setting that changes meanwhile). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+
+:root[data-motion='reduced']::view-transition-old(root),
+:root[data-motion='reduced']::view-transition-new(root) {
+  animation: none;
+}

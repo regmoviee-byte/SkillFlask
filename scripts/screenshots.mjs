@@ -8,10 +8,12 @@
 // Uses the Chromium that Playwright ships; PLAYWRIGHT_CHROMIUM overrides the executable path.
 // The last part runs the app inside a fake Telegram (Bot API 7.10 with CloudStorage kept in
 // localStorage and the native buttons drawn as a bar) to walk the cloud backup and the
-// restore offer; the backup file downloaded in the browser part seeds its cloud.
+// restore offer; the backup file downloaded in the browser part seeds its cloud. A second
+// fake at Bot API 8.0 is launched with `startapp=skill_<id>` (deep link), offers the
+// home-screen shortcut and forces the opposite «Тема» inside the Telegram theme.
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
 
@@ -54,7 +56,8 @@ async function applyTheme(ctx) {
     const apply = () => {
       const root = document.documentElement;
       for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
-      root.dataset.theme = 'dark';
+      // A forced «Тема» (data-appearance, set by the app's boot script) wins over the theme.
+      if (!root.dataset.appearance) root.dataset.theme = 'dark';
     };
     if (document.documentElement) apply();
     else document.addEventListener('DOMContentLoaded', apply);
@@ -828,6 +831,81 @@ await page.getByText('Импортировано').waitFor();
 await page.getByText('Тренировки').first().waitFor();
 await shot('import-done');
 
+// ---- Package 12 in the browser: the hash route as a link, «Ссылка на навык», the home-screen
+// instructions, «Тема», the service worker ----
+const backupSkills = JSON.parse(readFileSync(backupPath, 'utf8')).tables.skills;
+const linkedSkill = backupSkills.find((skill) => skill.status === 'ACTIVE');
+// Outside Telegram the hash routes are the deep links: opened directly, the skill.
+await page.goto(`${baseUrl}#/skills/${linkedSkill.id}`);
+await page.locator('h1.screen-title', { hasText: linkedSkill.name }).waitFor();
+await page.locator('.hero').waitFor();
+await shot('deeplink-direct');
+await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(baseUrl).origin });
+await skillMenu('Ссылка на навык');
+await page.getByText('Ссылка скопирована').waitFor();
+await shot('skill-link-toast');
+const copiedLink = await page.evaluate(() => navigator.clipboard.readText());
+if (copiedLink !== `${new URL(baseUrl).origin}${new URL(baseUrl).pathname}#/skills/${linkedSkill.id}`) errors.push(`«Ссылка на навык» copied ${copiedLink}`);
+// Where the clipboard refuses (Telegram iOS), the link is shown to copy by hand.
+await page.evaluate(() => {
+  navigator.clipboard.writeText = () => Promise.reject(new Error('denied'));
+});
+await skillMenu('Ссылка на навык');
+const linkSheet = page.locator('.link-sheet');
+await linkSheet.waitFor();
+if ((await linkSheet.getByLabel('Ссылка').inputValue()) !== copiedLink) errors.push('the link sheet shows another link');
+await settled();
+await shot('skill-link-sheet');
+// «Скопировать» tries again in its own tap: with the clipboard back, the sheet closes on the toast.
+await page.evaluate(() => {
+  delete navigator.clipboard.writeText;
+  return navigator.clipboard.writeText('');
+});
+await linkSheet.getByRole('button', { name: 'Скопировать', exact: true }).click();
+await linkSheet.waitFor({ state: 'detached' });
+await page.getByText('Ссылка скопирована').waitFor();
+if ((await page.evaluate(() => navigator.clipboard.readText())) !== copiedLink) errors.push('«Скопировать» in the link sheet copied another link');
+
+// Settings: «Тема» and «Добавить на главный экран» (no install prompt here: the instructions).
+await page.goto(`${baseUrl}#/settings`);
+const themeGroup = page.getByRole('group', { name: 'Тема' });
+await themeGroup.getByRole('button', { name: 'Как в системе', exact: true }).waitFor();
+await themeGroup.scrollIntoViewIfNeeded();
+await shot('settings-theme');
+// A 320 px phone: the three segments fit, nothing scrolls sideways.
+await page.setViewportSize({ width: 320, height: 700 });
+await page.waitForTimeout(200);
+const themeOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+if (themeOverflow > 0) errors.push(`Settings scroll sideways by ${themeOverflow}px at 320 px`);
+// Centred: «if needed» counts a group half under the tab bar as visible.
+await themeGroup.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await shot('settings-theme-320');
+await page.setViewportSize(contextOptions.viewport);
+await page.getByRole('button', { name: 'Добавить на главный экран' }).click();
+const installSheet = page.locator('.install-sheet');
+await installSheet.getByText('Подтвердите добавление').waitFor();
+await settled();
+await shot('install-sheet');
+await installSheet.getByRole('button', { name: 'Понятно' }).click();
+await installSheet.waitFor({ state: 'detached' });
+// A forced theme applies at once and is there from the first paint after a reload.
+const forcedName = dark ? 'Светлая' : 'Тёмная';
+const forcedValue = dark ? 'light' : 'dark';
+await themeGroup.getByRole('button', { name: forcedName, exact: true }).click();
+await page.waitForFunction((v) => document.documentElement.dataset.appearance === v && document.documentElement.dataset.theme === v, forcedValue);
+await page.waitForTimeout(400); // the crossfade
+await shot('settings-theme-forced');
+await page.reload();
+if ((await page.evaluate(() => document.documentElement.dataset.appearance)) !== forcedValue) errors.push('a forced «Тема» was not applied after a reload');
+await themeGroup.getByRole('button', { name: forcedName, exact: true }).and(page.locator('[aria-pressed="true"]')).waitFor();
+await themeGroup.getByRole('button', { name: 'Как в системе', exact: true }).click();
+await page.waitForFunction(() => !document.documentElement.dataset.appearance);
+// The installed browser app opens offline: the worker is registered here (never in Telegram).
+const swScope = await page.evaluate(() =>
+  Promise.race([navigator.serviceWorker.ready.then((reg) => reg.scope), new Promise((resolve) => setTimeout(() => resolve(null), 5000))]),
+);
+if (swScope !== baseUrl) errors.push(`the service worker is not registered for ${baseUrl}: ${swScope}`);
+
 // Styleguide (dev server only): every component state on one page.
 await page.goto(`${baseUrl}#/styleguide`);
 await page.waitForTimeout(600);
@@ -937,6 +1015,80 @@ function cloudStoreFor(json) {
     completions: file.tables.completions.filter((c) => c.status === 'ACTIVE').length,
   });
   return store;
+}
+
+// The installed browser app starts offline (package 12): once the worker has precached the
+// build and controls the page, a reload with the network off still opens the app — with its
+// data: the backup is imported first (one skill in the pizza theme, a lazy chunk), then the
+// skill and Today are opened offline.
+{
+  const offlineBackup = JSON.parse(readFileSync(backupPath, 'utf8'));
+  const offlineSkill = offlineBackup.tables.skills.find((skill) => skill.status === 'ACTIVE');
+  offlineSkill.theme = 'pizza';
+  const offlineBackupPath = `${outDir}/backup-offline.json`;
+  writeFileSync(offlineBackupPath, JSON.stringify(offlineBackup));
+  const offlineContext = await browser.newContext(contextOptions);
+  await setupContext(offlineContext);
+  page = await openPage(offlineContext);
+  await page.goto(baseUrl);
+  await page.getByText('Первый навык').waitFor();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 15000 });
+  await tab('Настройки').click();
+  await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+  const offlineImport = page.locator('.import-sheet');
+  await offlineImport.locator('input[type="file"]').setInputFiles(offlineBackupPath);
+  await offlineImport.getByRole('button', { name: 'Заменить данные' }).click();
+  await page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) }).getByRole('button', { name: 'Заменить', exact: true }).click();
+  await page.getByText('Импортировано').waitFor();
+  await offlineContext.setOffline(true);
+  await page.goto(`${baseUrl}#/skills/${offlineSkill.id}`);
+  await page.reload();
+  await page.locator('h1.screen-title', { hasText: offlineSkill.name }).waitFor();
+  await page.locator('.pizza-svg').waitFor();
+  if (!(await page.evaluate(() => navigator.serviceWorker.controller !== null))) errors.push('the offline start was not served by the service worker');
+  await page.waitForTimeout(600);
+  await shot('offline-start-skill');
+  await page.goto(`${baseUrl}#/today`);
+  await page.locator('.today-group').first().waitFor();
+  await page.waitForTimeout(400);
+  await shot('offline-start-today');
+  await offlineContext.setOffline(false);
+  await offlineContext.close();
+}
+
+// Safari on an iPhone has no install prompt: the row opens the instructions (package 12).
+{
+  const iosContext = await browser.newContext({
+    ...contextOptions,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+  });
+  await setupContext(iosContext);
+  page = await openPage(iosContext);
+  await page.goto(`${baseUrl}#/settings`);
+  await page.getByRole('button', { name: 'Добавить на главный экран' }).click();
+  const iosSheet = page.locator('.install-sheet');
+  await iosSheet.getByText('Выберите «На экран „Домой“»').waitFor();
+  await settled();
+  await shot('install-sheet-ios');
+  await iosContext.close();
+}
+
+// Chrome on an iPhone: «Поделиться» is not at the bottom of Safari, the steps say so, and point to Safari.
+{
+  const criosContext = await browser.newContext({
+    ...contextOptions,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0.0.0 Mobile/15E148 Safari/604.1',
+  });
+  await setupContext(criosContext);
+  page = await openPage(criosContext);
+  await page.goto(`${baseUrl}#/settings`);
+  await page.getByRole('button', { name: 'Добавить на главный экран' }).click();
+  const criosSheet = page.locator('.install-sheet');
+  await criosSheet.getByText('Откройте меню «Поделиться» браузера').waitFor();
+  if (await criosSheet.getByText(/внизу Safari/).count()) errors.push('Chrome on iOS got Safari’s instructions');
+  await settled();
+  await shot('install-sheet-ios-chrome');
+  await criosContext.close();
 }
 
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
@@ -1293,141 +1445,195 @@ await bigContext.close();
   await themeContext.close();
 }
 
+/**
+ * A fake Telegram client in `ctx`: the WebApp object at `version` (methods of later versions
+ * absent, like a real client), CloudStorage in localStorage seeded with `seed`, the native
+ * buttons drawn as a bar, events that really dispatch, and calls recorded in __tgFake.calls.
+ */
+async function installFakeTelegramIn(ctx, { seed, scheme, version = '7.10', startParam = null, themeParams = {} }) {
+  await ctx.addInitScript(fakeTelegramInit, { seed, scheme, version, startParam, themeParams });
+}
+
+function fakeTelegramInit({ seed, scheme, version, startParam, themeParams }) {
+  // Like telegram-web-app.js: the theme's colours as --tg-theme-* on <html>.
+  const paint = () => {
+    for (const [key, value] of Object.entries(themeParams)) document.documentElement.style.setProperty(`--tg-theme-${key.replace(/_/g, '-')}`, value);
+  };
+  if (document.documentElement) paint();
+  else document.addEventListener('DOMContentLoaded', paint);
+  const KEY = '__fake_cloud';
+  if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(seed));
+  const load = () => JSON.parse(localStorage.getItem(KEY) || '{}');
+  const store = (next) => localStorage.setItem(KEY, JSON.stringify(next));
+  const later = (fn) => setTimeout(fn, 5);
+  // The bottom bar and its buttons in the colours the app sent, else the SDK's defaults
+  // (the MainButton in button_color, the SecondaryButton in the bar's colour, accent text).
+  const bar = { main: null, secondary: null, back: null, color: null };
+  const themeColor = (value) => (value && !value.startsWith('#') ? themeParams[value] : value);
+  function render() {
+    if (!document.body) return;
+    let el = document.getElementById('tg-bar');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'tg-bar';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;gap:8px;padding:8px 16px 12px;background:rgba(127,127,127,.18);font:600 16px system-ui';
+      document.body.append(el);
+      const back = document.createElement('button');
+      back.id = 'tg-back';
+      back.textContent = '‹ Назад';
+      back.style.cssText = 'position:fixed;top:8px;left:8px;z-index:1000;padding:6px 12px;border:0;border-radius:16px;background:rgba(127,127,127,.25);font:600 14px system-ui;color:inherit';
+      back.onclick = () => bar.back.handlers.forEach((cb) => cb());
+      document.body.append(back);
+    }
+    el.replaceChildren();
+    el.style.background = themeColor(bar.color) ?? 'rgba(127,127,127,.18)';
+    const accent = themeParams.button_color ?? '#2481cc';
+    const defaults = { 'tg-secondary': ['transparent', accent], 'tg-main': [accent, themeParams.button_text_color ?? '#fff'] };
+    for (const [id, b] of [['tg-secondary', bar.secondary], ['tg-main', bar.main]]) {
+      if (!b.isVisible) continue;
+      const button = document.createElement('button');
+      button.id = id;
+      button.textContent = b.isProgressVisible ? '…' : b.text;
+      button.disabled = !b.isActive;
+      button.style.cssText = `height:48px;border:0;border-radius:12px;background:${b.color ?? defaults[id][0]};color:${b.textColor ?? defaults[id][1]};font:inherit;opacity:${b.isActive ? 1 : 0.5}`;
+      button.onclick = () => b.isActive && b.handlers.forEach((cb) => cb());
+      el.append(button);
+    }
+    el.style.display = el.childElementCount ? 'flex' : 'none';
+    document.getElementById('tg-back').style.display = bar.back.isVisible ? '' : 'none';
+  }
+  const bottomButton = () => {
+    const b = { text: '', isVisible: false, isActive: true, isProgressVisible: false, color: null, textColor: null, handlers: new Set() };
+    Object.assign(b, {
+      setText: (text) => ((b.text = text), render()),
+      setParams: (p) => {
+        if ('text' in p) b.text = p.text;
+        if ('is_visible' in p) b.isVisible = p.is_visible;
+        if ('is_active' in p) b.isActive = p.is_active;
+        if ('color' in p) b.color = p.color;
+        if ('text_color' in p) b.textColor = p.text_color;
+        render();
+      },
+      onClick: (cb) => b.handlers.add(cb),
+      offClick: (cb) => b.handlers.delete(cb),
+      show: () => ((b.isVisible = true), render()),
+      hide: () => ((b.isVisible = false), render()),
+      enable: () => ((b.isActive = true), render()),
+      disable: () => ((b.isActive = false), render()),
+      showProgress: () => ((b.isProgressVisible = true), render()),
+      hideProgress: () => ((b.isProgressVisible = false), render()),
+    });
+    return b;
+  };
+  bar.main = bottomButton();
+  bar.secondary = bottomButton();
+  bar.back = { isVisible: false, handlers: new Set() };
+  Object.assign(bar.back, {
+    show: () => ((bar.back.isVisible = true), render()),
+    hide: () => ((bar.back.isVisible = false), render()),
+    onClick: (cb) => bar.back.handlers.add(cb),
+    offClick: (cb) => bar.back.handlers.delete(cb),
+  });
+  document.addEventListener('DOMContentLoaded', render);
+  const popups = [];
+  const calls = [];
+  const noop = () => {};
+  const record = (name) => (...args) => calls.push(`${name}(${args.map((a) => JSON.stringify(a)).join(',')})`);
+  const listeners = new Map();
+  const emit = (event, ...args) => (listeners.get(event) ?? []).forEach((cb) => cb(...args));
+  const atLeast = (v) => {
+    const [a, b] = [version, v].map((x) => x.split('.').map(Number));
+    return a[0] !== b[0] ? a[0] > b[0] : (a[1] ?? 0) >= (b[1] ?? 0);
+  };
+  const homeScreen = { status: 'missed' };
+  window.__tgFake = { popups, calls, emit, homeScreen };
+  // One signature per tab, as Telegram keeps its launch data across a reload of the webview.
+  const initData = sessionStorage.getItem('__fake_init_data') ?? `auth_date=${Date.now()}&hash=${Math.random().toString(16).slice(2)}`;
+  sessionStorage.setItem('__fake_init_data', initData);
+  window.Telegram = {
+    WebApp: {
+      version,
+      platform: 'android',
+      colorScheme: scheme,
+      themeParams,
+      initData,
+      initDataUnsafe: startParam ? { start_param: startParam } : {},
+      isExpanded: true,
+      viewportHeight: window.innerHeight,
+      viewportStableHeight: window.innerHeight,
+      isClosingConfirmationEnabled: false,
+      ready: noop,
+      expand: noop,
+      close: noop,
+      isVersionAtLeast: atLeast,
+      onEvent: (event, cb) => listeners.set(event, [...(listeners.get(event) ?? []), cb]),
+      offEvent: (event, cb) => listeners.set(event, (listeners.get(event) ?? []).filter((x) => x !== cb)),
+      setHeaderColor: record('setHeaderColor'),
+      setBackgroundColor: record('setBackgroundColor'),
+      setBottomBarColor: (color) => {
+        calls.push(`setBottomBarColor(${JSON.stringify(color)})`);
+        bar.color = color;
+        render();
+      },
+      // Bot API 8.0: the client asks the user, then reports homeScreenAdded.
+      ...(atLeast('8.0')
+        ? {
+            addToHomeScreen: () => {
+              calls.push('addToHomeScreen()');
+              later(() => {
+                homeScreen.status = 'added';
+                emit('homeScreenAdded');
+              });
+            },
+            checkHomeScreenStatus: (cb) => later(() => cb?.(homeScreen.status)),
+          }
+        : {}),
+      enableClosingConfirmation: noop,
+      disableClosingConfirmation: noop,
+      enableVerticalSwipes: noop,
+      disableVerticalSwipes: noop,
+      showAlert: (message, cb) => later(() => cb?.()),
+      showConfirm: (message, cb) => {
+        popups.push(message);
+        later(() => cb?.(true));
+      },
+      // Answers like a user who confirms: the destructive or «ok» button.
+      showPopup: (params, cb) => {
+        popups.push(params.message);
+        const button = params.buttons?.find((b) => b.type === 'destructive' || b.id === 'ok') ?? params.buttons?.[0];
+        later(() => cb?.(button?.id));
+      },
+      BackButton: bar.back,
+      SettingsButton: { isVisible: false, show: noop, hide: noop, onClick: noop, offClick: noop },
+      MainButton: bar.main,
+      SecondaryButton: bar.secondary,
+      HapticFeedback: { impactOccurred: noop, notificationOccurred: noop, selectionChanged: noop },
+      CloudStorage: {
+        setItem: (key, value, cb) => later(() => (store({ ...load(), [key]: value }), cb?.(null, true))),
+        getItem: (key, cb) => later(() => cb(null, load()[key] ?? '')),
+        getItems: (keys, cb) => later(() => cb(null, Object.fromEntries(keys.map((key) => [key, load()[key] ?? ''])))),
+        removeItem: (key, cb) => later(() => {
+          const next = load();
+          delete next[key];
+          store(next);
+          cb?.(null, true);
+        }),
+        removeItems: (keys, cb) => later(() => {
+          const next = load();
+          for (const key of keys) delete next[key];
+          store(next);
+          cb?.(null, true);
+        }),
+        getKeys: (cb) => later(() => cb(null, Object.keys(load()))),
+      },
+    },
+  };
+}
+
+const tgSeed = cloudStoreFor(readFileSync(backupPath, 'utf8'));
 const tgContext = await browser.newContext(contextOptions);
 await setupContext(tgContext);
-await tgContext.addInitScript(
-  ({ seed, scheme }) => {
-    const KEY = '__fake_cloud';
-    if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(seed));
-    const load = () => JSON.parse(localStorage.getItem(KEY) || '{}');
-    const store = (next) => localStorage.setItem(KEY, JSON.stringify(next));
-    const later = (fn) => setTimeout(fn, 5);
-    const bar = { main: null, secondary: null, back: null };
-    function render() {
-      if (!document.body) return;
-      let el = document.getElementById('tg-bar');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'tg-bar';
-        el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;gap:8px;padding:8px 16px 12px;background:rgba(127,127,127,.18);font:600 16px system-ui';
-        document.body.append(el);
-        const back = document.createElement('button');
-        back.id = 'tg-back';
-        back.textContent = '‹ Назад';
-        back.style.cssText = 'position:fixed;top:8px;left:8px;z-index:1000;padding:6px 12px;border:0;border-radius:16px;background:rgba(127,127,127,.25);font:600 14px system-ui;color:inherit';
-        back.onclick = () => bar.back.handlers.forEach((cb) => cb());
-        document.body.append(back);
-      }
-      el.replaceChildren();
-      for (const [id, b, bg] of [['tg-secondary', bar.secondary, 'transparent'], ['tg-main', bar.main, '#2481cc']]) {
-        if (!b.isVisible) continue;
-        const button = document.createElement('button');
-        button.id = id;
-        button.textContent = b.isProgressVisible ? '…' : b.text;
-        button.disabled = !b.isActive;
-        button.style.cssText = `height:48px;border:0;border-radius:12px;background:${bg};color:${id === 'tg-main' ? '#fff' : '#2481cc'};font:inherit;opacity:${b.isActive ? 1 : 0.5}`;
-        button.onclick = () => b.isActive && b.handlers.forEach((cb) => cb());
-        el.append(button);
-      }
-      el.style.display = el.childElementCount ? 'flex' : 'none';
-      document.getElementById('tg-back').style.display = bar.back.isVisible ? '' : 'none';
-    }
-    const bottomButton = () => {
-      const b = { text: '', isVisible: false, isActive: true, isProgressVisible: false, handlers: new Set() };
-      Object.assign(b, {
-        setText: (text) => ((b.text = text), render()),
-        setParams: (p) => {
-          if ('text' in p) b.text = p.text;
-          if ('is_visible' in p) b.isVisible = p.is_visible;
-          if ('is_active' in p) b.isActive = p.is_active;
-          render();
-        },
-        onClick: (cb) => b.handlers.add(cb),
-        offClick: (cb) => b.handlers.delete(cb),
-        show: () => ((b.isVisible = true), render()),
-        hide: () => ((b.isVisible = false), render()),
-        enable: () => ((b.isActive = true), render()),
-        disable: () => ((b.isActive = false), render()),
-        showProgress: () => ((b.isProgressVisible = true), render()),
-        hideProgress: () => ((b.isProgressVisible = false), render()),
-      });
-      return b;
-    };
-    bar.main = bottomButton();
-    bar.secondary = bottomButton();
-    bar.back = { isVisible: false, handlers: new Set() };
-    Object.assign(bar.back, {
-      show: () => ((bar.back.isVisible = true), render()),
-      hide: () => ((bar.back.isVisible = false), render()),
-      onClick: (cb) => bar.back.handlers.add(cb),
-      offClick: (cb) => bar.back.handlers.delete(cb),
-    });
-    document.addEventListener('DOMContentLoaded', render);
-    const popups = [];
-    const noop = () => {};
-    window.__tgFake = { popups };
-    window.Telegram = {
-      WebApp: {
-        version: '7.10',
-        platform: 'android',
-        colorScheme: scheme,
-        themeParams: {},
-        isExpanded: true,
-        viewportHeight: window.innerHeight,
-        viewportStableHeight: window.innerHeight,
-        isClosingConfirmationEnabled: false,
-        ready: noop,
-        expand: noop,
-        close: noop,
-        isVersionAtLeast: () => true,
-        onEvent: noop,
-        offEvent: noop,
-        setHeaderColor: noop,
-        setBackgroundColor: noop,
-        setBottomBarColor: noop,
-        enableClosingConfirmation: noop,
-        disableClosingConfirmation: noop,
-        enableVerticalSwipes: noop,
-        disableVerticalSwipes: noop,
-        showAlert: (message, cb) => later(() => cb?.()),
-        showConfirm: (message, cb) => {
-          popups.push(message);
-          later(() => cb?.(true));
-        },
-        // Answers like a user who confirms: the destructive or «ok» button.
-        showPopup: (params, cb) => {
-          popups.push(params.message);
-          const button = params.buttons?.find((b) => b.type === 'destructive' || b.id === 'ok') ?? params.buttons?.[0];
-          later(() => cb?.(button?.id));
-        },
-        BackButton: bar.back,
-        SettingsButton: { isVisible: false, show: noop, hide: noop, onClick: noop, offClick: noop },
-        MainButton: bar.main,
-        SecondaryButton: bar.secondary,
-        HapticFeedback: { impactOccurred: noop, notificationOccurred: noop, selectionChanged: noop },
-        CloudStorage: {
-          setItem: (key, value, cb) => later(() => (store({ ...load(), [key]: value }), cb?.(null, true))),
-          getItem: (key, cb) => later(() => cb(null, load()[key] ?? '')),
-          getItems: (keys, cb) => later(() => cb(null, Object.fromEntries(keys.map((key) => [key, load()[key] ?? ''])))),
-          removeItem: (key, cb) => later(() => {
-            const next = load();
-            delete next[key];
-            store(next);
-            cb?.(null, true);
-          }),
-          removeItems: (keys, cb) => later(() => {
-            const next = load();
-            for (const key of keys) delete next[key];
-            store(next);
-            cb?.(null, true);
-          }),
-          getKeys: (cb) => later(() => cb(null, Object.keys(load()))),
-        },
-      },
-    };
-  },
-  { seed: cloudStoreFor(readFileSync(backupPath, 'utf8')), scheme: dark ? 'dark' : 'light' },
-);
+await installFakeTelegramIn(tgContext, { seed: tgSeed, scheme: dark ? 'dark' : 'light' });
 page = await openPage(tgContext);
 const cloudKeys = () => page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('__fake_cloud') || '{}')).sort());
 const cloudMeta = () => page.evaluate(() => JSON.parse(JSON.parse(localStorage.getItem('__fake_cloud') || '{}').sf_meta || 'null'));
@@ -1453,6 +1659,9 @@ await shot('tg-restored');
 await tab('Настройки').click();
 await page.getByText(/^Сохранено сегодня в \d\d:\d\d · \d+ КБ$/).waitFor();
 await page.getByText(/^Копия: .+ · 4 навыка/).waitFor();
+// Bot API 7.10: no home-screen shortcut, and no service worker inside Telegram.
+if (await page.getByRole('button', { name: 'Добавить на главный экран' }).count()) errors.push('the home-screen row shows below Bot API 8.0');
+if (await page.evaluate(() => navigator.serviceWorker.getRegistration().then(Boolean))) errors.push('a service worker was registered inside Telegram');
 await shot('tg-settings');
 
 // A completion makes the copy stale; going to the background saves it at once.
@@ -1517,6 +1726,109 @@ await page.goto(tgLaunch.replace('/#', '/?relaunch#'));
 await page.getByText('Первый навык').waitFor();
 if (!/#\/skills$/.test(page.url())) errors.push(`a Telegram launch with no action did not open the skills: ${page.url()}`);
 await tgContext.close();
+
+// ---- Telegram 8.0, launched by a link: `startapp=skill_<id>` (package 12) ----
+// A fresh install: the cloud copy is offered first, and after «Восстановить» the launch link
+// opens its skill. Then the home-screen shortcut, and a forced «Тема» against Telegram's.
+{
+  const linked = JSON.parse(readFileSync(backupPath, 'utf8')).tables.skills.find((skill) => skill.status === 'ACTIVE');
+  const startParam = `skill_${linked.id.replace(/-/g, '')}`;
+  const tg8Context = await browser.newContext(contextOptions);
+  await setupContext(tg8Context);
+  // Telegram's own theme, painted as the SDK does: TG_THEME=purple matches its injected
+  // colours; otherwise Telegram's default light or dark theme, so a forced «Тема» is seen
+  // against real --tg-theme-* colours it must not mix in.
+  const themeParams =
+    tgTheme === 'purple'
+      ? { button_color: '#8774e1', button_text_color: '#ffffff', bg_color: '#1e1b2e', secondary_bg_color: '#151321', section_bg_color: '#1e1b2e', text_color: '#f0eefb', hint_color: '#9b95b8' }
+      : dark
+        ? { button_color: '#2ea6ff', button_text_color: '#ffffff', bg_color: '#212121', secondary_bg_color: '#181818', section_bg_color: '#212121', text_color: '#ffffff', hint_color: '#aaaaaa' }
+        : { button_color: '#2481cc', button_text_color: '#ffffff', bg_color: '#ffffff', secondary_bg_color: '#efeff4', section_bg_color: '#ffffff', text_color: '#000000', hint_color: '#999999' };
+  await installFakeTelegramIn(tg8Context, { seed: tgSeed, scheme: dark ? 'dark' : 'light', version: '8.0', startParam, themeParams });
+  page = await openPage(tg8Context);
+  await page.goto(`${baseUrl}#tgWebAppData=query_id%3DAAH&tgWebAppStartParam=${startParam}&tgWebAppVersion=8.0&tgWebAppPlatform=android`);
+  await page.getByText(/^Найдена резервная копия от/).waitFor();
+  await page.locator('#tg-main', { hasText: 'Восстановить' }).click();
+  await page.waitForURL((url) => url.hash === `#/skills/${linked.id}`);
+  await page.locator('h1.screen-title', { hasText: linked.name }).waitFor();
+  await page.locator('.hero').waitFor();
+  await shot('tg-deeplink-skill');
+  // Only the first route follows the link: the skills tab stays the skills tab.
+  await page.locator('#tg-back').click();
+  await page.waitForURL(/#\/skills$/);
+
+  await tab('Настройки').click();
+  const addRow = page.getByRole('button', { name: 'Добавить на главный экран' });
+  await addRow.waitFor();
+  await addRow.scrollIntoViewIfNeeded();
+  await shot('tg8-settings-home-screen');
+  await addRow.click();
+  await page.getByText('Ярлык добавлен на главный экран').waitFor();
+  await page.getByText('Уже на главном экране').waitFor();
+  if (!(await page.evaluate(() => window.__tgFake.calls.includes('addToHomeScreen()')))) errors.push('«Добавить на главный экран» did not call addToHomeScreen');
+  await shot('tg8-home-screen-added');
+
+  // «Тема» against Telegram's: dark inside a light Telegram, light inside a dark or purple one.
+  const tgThemeGroup = page.getByRole('group', { name: 'Тема' });
+  await tgThemeGroup.getByRole('button', { name: 'Как в Telegram', exact: true }).waitFor();
+  const forcedTg = dark ? { name: 'Светлая', value: 'light', bg: '#f2f2f7' } : { name: 'Тёмная', value: 'dark', bg: '#000000' };
+  await tgThemeGroup.scrollIntoViewIfNeeded();
+  await tgThemeGroup.getByRole('button', { name: forcedTg.name, exact: true }).click();
+  await page.waitForFunction((v) => document.documentElement.dataset.appearance === v && document.documentElement.dataset.theme === v, forcedTg.value);
+  const pageBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const expectedBg = forcedTg.value === 'dark' ? 'rgb(0, 0, 0)' : 'rgb(242, 242, 247)';
+  if (pageBg !== expectedBg) errors.push(`a forced «${forcedTg.name}» inside Telegram paints the page ${pageBg}`);
+  if (!(await page.evaluate((bg) => window.__tgFake.calls.includes(`setHeaderColor(${JSON.stringify(bg)})`), forcedTg.bg))) errors.push('the Telegram header was not painted with the forced palette');
+  await page.waitForTimeout(400); // the crossfade
+  await shot('tg8-theme-forced-settings');
+  // Telegram switching its own theme does not undo the choice.
+  await page.evaluate(() => window.__tgFake.emit('themeChanged'));
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== forcedTg.value) errors.push('themeChanged undid the forced «Тема»');
+  await tab('Навыки').click();
+  await page.locator('.skill-card').first().waitFor();
+  await page.waitForTimeout(600);
+  await shot('tg8-theme-forced-home');
+  await page.locator('.skill-card', { hasText: linked.name }).click();
+  await page.locator('.hero').waitFor();
+  await page.waitForTimeout(600);
+  await shot('tg8-theme-forced-skill');
+  await page.goto(`${baseUrl}#/today`);
+  await page.locator('.today-group').first().waitFor();
+  await page.waitForTimeout(600);
+  await shot('tg8-theme-forced-today');
+  // The native bottom buttons take the forced palette too (the target of an add_ link).
+  await page.goto(`${baseUrl}#/skills/${linked.id}/add`);
+  await page.locator('#tg-main').waitFor();
+  await page.locator('#tg-secondary').waitFor();
+  const nativeColors = await page.evaluate(() =>
+    ['tg-bar', 'tg-main', 'tg-secondary'].map((id) => {
+      const style = getComputedStyle(document.getElementById(id));
+      return [style.backgroundColor, style.color];
+    }),
+  );
+  const accentColor = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.color = 'var(--color-accent)';
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  const forcedElevated = forcedTg.value === 'dark' ? 'rgb(28, 28, 30)' : 'rgb(255, 255, 255)';
+  if (nativeColors[0][0] !== expectedBg) errors.push(`the forced bottom bar is ${nativeColors[0][0]}`);
+  if (nativeColors[1][0] !== accentColor) errors.push(`the native MainButton is ${nativeColors[1][0]}, the app accent ${accentColor}`);
+  if (nativeColors[2][0] !== forcedElevated || nativeColors[2][1] !== accentColor) errors.push(`the native SecondaryButton is ${nativeColors[2].join(' / ')} in a forced «Тема»`);
+  await page.waitForTimeout(400);
+  await shot('tg8-theme-forced-buttons');
+  await page.goto(`${baseUrl}#/today`);
+  await page.locator('.today-group').first().waitFor();
+  // A reload of the same launch keeps the screen (the link was followed) and the theme.
+  await page.reload();
+  await page.locator('.today-group').first().waitFor();
+  if (!/#\/today$/.test(page.url())) errors.push(`a reload followed the launch link again: ${page.url()}`);
+  if ((await page.evaluate(() => document.documentElement.dataset.appearance)) !== forcedTg.value) errors.push('the forced «Тема» was lost on reload');
+  await tg8Context.close();
+}
 
 await browser.close();
 if (errors.length) {

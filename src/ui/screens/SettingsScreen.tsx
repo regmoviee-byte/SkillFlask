@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatDateTime, formatDateTimeRelative } from '../../lib/dates';
@@ -20,18 +20,24 @@ import { CloudConflictError } from '../../platform/cloud';
 import { dialogs } from '../../platform/dialogs';
 import { clearErrors, getErrors, onErrorsChange, type LoggedError } from '../../platform/errorLog';
 import { haptics, isHapticsEnabled, setHapticsEnabled } from '../../platform/haptics';
+import { addToHomeScreen, refreshHomeScreen, useHomeScreenOffer, type InstallPlatform } from '../../platform/homeScreen';
+import { applyUpdate, checkForUpdate, useUpdateWaiting } from '../../platform/sw';
 import { isTelegram } from '../../platform/telegram';
+import { appearancePreference, setAppearancePreference, useAppearancePreference, type AppearancePreference } from '../../platform/theme';
 import { errorMessage } from '../completionFeedback';
+import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { SettingsGroup, SettingsRow } from '../components/Settings';
 import { useToast } from '../components/Toast';
 import { copy } from '../copy';
-import { setMotionPreference, type MotionPreference } from '../hooks/useMotion';
+import { motionMode, setMotionPreference, type MotionPreference } from '../hooks/useMotion';
 import { useToday } from '../hooks/useToday';
 import { BackupTextSheet } from '../sheets/BackupTextSheet';
 import { ImportSheet } from '../sheets/ImportSheet';
+import { InstallSheet } from '../sheets/InstallSheet';
 
-// «Настройки» (replaces «Аккаунт»): data and backups, appearance, about, danger zone.
+// «Настройки» (replaces «Аккаунт»): data and backups, appearance (the «Тема» choice, motion,
+// haptics), about (the home-screen shortcut, version, update), danger zone.
 
 const t = copy.settings;
 const ERRORS_SHOWN = 20;
@@ -77,6 +83,11 @@ export function SettingsScreen() {
   const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled);
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [errors, setErrors] = useState<LoggedError[]>(getErrors);
+  const [installOs, setInstallOs] = useState<InstallPlatform | null>(null);
+  const homeScreen = useHomeScreenOffer();
+  const updateWaiting = useUpdateWaiting();
+  // What is applied (the boot syncs it from the settings table): pressed at once on a tap.
+  const theme = useAppearancePreference();
   const { showToast } = useToast();
   const navigate = useNavigate();
   // Set synchronously on the first tap: the busy state lands a render later, too late for a
@@ -86,6 +97,21 @@ export function SettingsScreen() {
   useEffect(() => {
     if (cloudReady) void refreshCloudMeta();
   }, [cloudReady]);
+
+  useEffect(() => {
+    // A shortcut may have been removed, or a new version published, since the last visit.
+    refreshHomeScreen();
+    checkForUpdate();
+  }, []);
+
+  // «Ярлык добавлен» only for an add started here: a status read on opening says nothing.
+  const addingShortcut = useRef(false);
+  useEffect(() => {
+    if (homeScreen.kind !== 'added' || !addingShortcut.current) return;
+    addingShortcut.current = false;
+    haptics.success();
+    showToast(t.homeScreenAddedToast);
+  }, [homeScreen.kind, showToast]);
 
   // An error logged while Settings is open (a failed cloud save) shows up in «Ошибки (n)».
   useEffect(() => onErrorsChange(() => setErrors(getErrors())), []);
@@ -224,6 +250,28 @@ export function SettingsScreen() {
     await setSetting('motion', next).catch((error: unknown) => showToast(errorMessage(error)));
   }
 
+  async function setAppearance(next: AppearancePreference) {
+    if (next === appearancePreference()) return;
+    haptics.select();
+    // Applied at once (the mirror too); the settings table is written after.
+    setAppearancePreference(next, { animate: motionMode() === 'full' });
+    await setSetting('appearance', next).catch((error: unknown) => showToast(errorMessage(error)));
+  }
+
+  async function addShortcut() {
+    if (homeScreen.kind === 'instructions') {
+      setInstallOs(homeScreen.os);
+      return;
+    }
+    addingShortcut.current = true;
+    const outcome = await addToHomeScreen();
+    if (outcome === 'instructions') {
+      addingShortcut.current = false;
+      setInstallOs('other');
+    }
+    if (outcome === 'dismissed') addingShortcut.current = false;
+  }
+
   function setHaptics(on: boolean) {
     setHapticsEnabled(on);
     setHapticsOn(on);
@@ -298,6 +346,7 @@ export function SettingsScreen() {
       </SettingsGroup>
 
       <SettingsGroup title={t.groupAppearance}>
+        <ThemeRow value={theme} onChange={(next) => void setAppearance(next)} />
         <SettingsRow
           label={t.reduceMotion}
           hint={t.reduceMotionHint}
@@ -307,8 +356,18 @@ export function SettingsScreen() {
       </SettingsGroup>
 
       <SettingsGroup title={t.groupAbout}>
+        {homeScreen.kind === 'added' && <SettingsRow icon="home" label={t.homeScreenAdded} value={<Icon name="check" size={20} className="settings-row-check" />} />}
+        {(homeScreen.kind === 'telegram' || homeScreen.kind === 'prompt' || homeScreen.kind === 'instructions') && (
+          <SettingsRow
+            icon="home"
+            label={t.homeScreenAdd}
+            hint={homeScreen.kind === 'telegram' ? t.homeScreenHintTelegram : t.homeScreenHintBrowser}
+            tone="accent"
+            onClick={() => void addShortcut()}
+          />
+        )}
         <SettingsRow label={t.version(__APP_VERSION__)} />
-        <SettingsRow label={t.reload} hint={t.reloadHint} tone="accent" onClick={() => window.location.reload()} />
+        <SettingsRow label={t.reload} hint={updateWaiting ? t.updateReady : t.reloadHint} tone="accent" onClick={() => applyUpdate()} />
         <SettingsRow label={overview ? t.activeDays(overview.activeDays14) : copy.common.loading} />
         <SettingsRow label={t.errors(errors.length)} onClick={toggleErrors} chevron={errorsOpen ? 'up' : 'down'} expanded={errorsOpen} />
         {errorsOpen && <ErrorLog errors={errors} onClear={clearErrorLog} />}
@@ -320,7 +379,33 @@ export function SettingsScreen() {
 
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
       <BackupTextSheet text={exportText} onClose={() => setExportText(null)} />
+      <InstallSheet os={installOs} onClose={() => setInstallOs(null)} />
     </Screen>
+  );
+}
+
+const THEMES: AppearancePreference[] = ['auto', 'light', 'dark'];
+
+/** «Тема»: a segmented control under the label, the whole width of the card. */
+function ThemeRow({ value, onChange }: { value: AppearancePreference; onChange(next: AppearancePreference): void }) {
+  const labelId = useId();
+  const label = (theme: AppearancePreference) =>
+    theme === 'auto' ? t.themeAuto(isTelegram()) : theme === 'light' ? t.themeLight : t.themeDark;
+  return (
+    <li>
+      <div className="settings-row settings-row--stacked">
+        <span className="settings-row-label" id={labelId}>
+          {t.theme}
+        </span>
+        <div className="segmented settings-segmented" role="group" aria-labelledby={labelId}>
+          {THEMES.map((theme) => (
+            <button key={theme} type="button" className={value === theme ? 'active' : undefined} aria-pressed={value === theme} onClick={() => onChange(theme)}>
+              {label(theme)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </li>
   );
 }
 

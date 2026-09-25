@@ -22,12 +22,18 @@
 // the flask is a lazy chunk loaded the first time a skill shows it; each such chunk has its
 // own budget (LAZY_LIMIT_KB, the theme README's «≈ 12 KB per theme» plus its CSS-free JS
 // margin) and does not count towards the initial load.
+// 200 KB since package 12: deep links (the start parameter parser, the skill link), the
+// home-screen shortcut (Telegram 8.0 and the browser install prompt, the instructions sheet),
+// the service worker's registration and update flow, the forced «Тема» (light / dark with the
+// accent contrast check, the native buttons pinned to it) and their texts add 5.6 KB
+// (198.9 KB, measured against 193.3 KB). Lazy-loading the two sheets it adds (install
+// instructions, the link fallback) would win back only ≈ 0.7 KB, so they stay in the bundle.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 196);
+const LIMIT_KB = Number(process.argv[2] ?? 200);
 const LAZY_LIMIT_KB = 14;
 const dir = 'dist/assets';
 const manifestPath = 'dist/.vite/manifest.json';

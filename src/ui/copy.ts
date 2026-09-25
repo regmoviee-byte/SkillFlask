@@ -187,6 +187,17 @@ export const copy = Object.freeze({
     hiddenSteps: (n: number) => `Убранные действия (${n})`,
     unhide: 'Вернуть',
     unhidden: 'Действие снова в списке',
+    /** ⋯ menu: copies a link that opens this skill (platform/deeplink.ts). */
+    link: 'Ссылка на навык',
+    linkCopied: 'Ссылка скопирована',
+  },
+  /** The link sheet: the clipboard was unavailable, the link is shown to copy by hand. */
+  skillLink: {
+    title: 'Ссылка на навык',
+    hintTelegram: 'Откроет этот навык в Skill Flask. Её можно закрепить в «Избранном» Telegram.',
+    hintBrowser: 'Откроет этот навык в этом браузере: данные хранятся на устройстве.',
+    field: 'Ссылка',
+    copy: 'Скопировать',
   },
   marks: {
     mark: 'Засечка',
@@ -528,12 +539,24 @@ export const copy = Object.freeze({
     storageNotPersisted: 'Браузер может очистить данные — скачайте копию',
     reminder: (days: number) => `Последняя копия ${count(days, DAYS)} назад — скачайте файл`,
     reminderNever: 'Резервной копии ещё нет — скачайте файл',
+    theme: 'Тема',
+    /** 'auto': Telegram's theme inside Telegram, the system's in a browser. */
+    themeAuto: (telegram: boolean) => (telegram ? 'Как в Telegram' : 'Как в системе'),
+    themeLight: 'Светлая',
+    themeDark: 'Тёмная',
     reduceMotion: 'Меньше анимации',
     reduceMotionHint: 'Системная настройка «Уменьшить движение» тоже учитывается',
     haptics: 'Виброотклик',
     version: (version: string) => `Skill Flask · версия ${version}`,
     reload: 'Обновить приложение',
     reloadHint: 'Если что-то выглядит устаревшим',
+    /** A new version of the installed browser app is downloaded and waits (service worker). */
+    updateReady: 'Доступна новая версия — нажмите, чтобы обновить',
+    homeScreenAdd: 'Добавить на главный экран',
+    homeScreenHintTelegram: 'Ярлык открывает Skill Flask сразу, без чата с ботом',
+    homeScreenHintBrowser: 'Skill Flask откроется отдельным приложением, и без сети тоже',
+    homeScreenAdded: 'Уже на главном экране',
+    homeScreenAddedToast: 'Ярлык добавлен на главный экран',
     activeDays: (n: number) => `Активных дней за 14 дней: ${n}`,
     errors: (n: number) => `Ошибки (${n})`,
     errorsEmpty: 'Журнал ошибок пуст',
@@ -546,6 +569,22 @@ export const copy = Object.freeze({
     deleteCloudOk: 'Удалить и копию',
     keepCloud: 'Оставить копию',
     deletedAll: 'Все данные удалены',
+  },
+  /** «На главный экран» outside Telegram when the browser has no install prompt (Safari). */
+  install: {
+    title: 'На главный экран',
+    steps: {
+      ios: ['Нажмите «Поделиться» внизу Safari', 'Выберите «На экран „Домой“»', 'Нажмите «Добавить»'],
+      /** Chrome, Firefox, an in-app browser on iOS: «Поделиться» is elsewhere, or missing. */
+      'ios-other': ['Откройте меню «Поделиться» браузера', 'Выберите «На экран „Домой“»', 'Нажмите «Добавить»'],
+      other: ['Откройте меню браузера', 'Выберите «Установить приложение» или «Добавить на главный экран»', 'Подтвердите добавление'],
+    },
+    /** iOS keeps a home-screen app's storage apart from Safari's. */
+    noteIos: 'У приложения на экране «Домой» своё хранилище, отдельное от Safari. Чтобы перенести навыки, скачайте здесь файл копии и загрузите его в приложении.',
+    noteIosOther:
+      'Если пункта «На экран „Домой“» нет, откройте эту страницу в Safari. У приложения на экране «Домой» своё хранилище: чтобы перенести навыки, скачайте здесь файл копии и загрузите его в приложении.',
+    noteOther: 'Приложение откроется в своём окне, навыки и история — те же, что в этом браузере.',
+    done: 'Понятно',
   },
   backupImport: {
     title: 'Загрузить из файла',

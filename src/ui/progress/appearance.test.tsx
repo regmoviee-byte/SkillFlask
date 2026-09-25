@@ -52,6 +52,7 @@ function renderAt(entry: string) {
           <Route path="/skills" element={<SkillsScreen />} />
           <Route path="/skills/new" element={<SkillFormScreen />} />
           <Route path="/skills/:skillId" element={<SkillScreen />} />
+          <Route path="/skills/:skillId/edit" element={<SkillFormScreen />} />
         </Routes>
       </ToastProvider>
     </MemoryRouter>,
@@ -163,5 +164,14 @@ describe('the skill form', () => {
     // The new skill's screen: its pizza, in amber.
     const hero = await screen.findByRole('img', { name: 'Пицца 1: 0 из 100, 0%' });
     expect(hero.closest('[data-liquid-color]')?.getAttribute('data-liquid-color')).toBe('amber');
+  });
+
+  it('keeps a stored theme this build cannot draw when only the colour changes', async () => {
+    const id = await createSkill(input);
+    await db.skills.update(id, { theme: 'comet' as never });
+    renderAt(`/skills/${id}/edit`);
+    fireEvent.click(within(await screen.findByRole('group', { name: 'Цвет' })).getByRole('radio', { name: 'Янтарный' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(async () => expect(await db.skills.get(id)).toMatchObject({ theme: 'comet', color: 'amber' }));
   });
 });

@@ -269,7 +269,7 @@ function captionPad(ys: number[], i: number): number {
   return Math.round(Math.min(CAPTION_PAD_MAX, Math.max(CAPTION_PAD_MIN, room)));
 }
 
-// ---- WAAPI plumbing, guarded like Flask.tsx ----
+// ---- WAAPI plumbing, guarded like progress/themes/flask.tsx ----
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 

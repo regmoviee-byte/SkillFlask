@@ -8,9 +8,11 @@ import { exportBackup } from '../../data/backup';
 import { META_KEY, readCloudMeta, saveBackupToCloud } from '../../platform/cloud';
 import { initCloudBackup, resetCloudBackup } from '../../services/backupSync';
 import { completeStep } from '../../services/completions';
-import { setSetting } from '../../services/settings';
+import { getSetting, setSetting } from '../../services/settings';
 import { createSkill } from '../../services/skills';
 import { createStep } from '../../services/steps';
+import { initHomeScreen, resetHomeScreen } from '../../platform/homeScreen';
+import { resetAppearance } from '../../platform/theme';
 import { installFakeTelegram, type FakeTelegram } from '../../test/fakeTelegram';
 import { installFreshDb, withClock } from '../../test/harness';
 import { ToastProvider } from '../components/Toast';
@@ -22,12 +24,18 @@ let fake: FakeTelegram | undefined;
 beforeEach(() => {
   localStorage.clear();
 });
+let stopHomeScreen: (() => void) | undefined;
 afterEach(() => {
   cleanup();
   resetCloudBackup();
+  stopHomeScreen?.();
+  stopHomeScreen = undefined;
+  resetHomeScreen();
   fake?.uninstall();
   fake = undefined;
   clearErrors();
+  resetAppearance();
+  delete document.documentElement.dataset.appearance;
 });
 
 /** One skill with an action done on three different days of the last two weeks, plus an older one. */
@@ -173,5 +181,66 @@ describe('SettingsScreen', () => {
     screen.getByRole('button', { name: 'Ошибки (0)' });
     act(() => logError(new Error('Облако недоступно'), 'cloud backup'));
     expect(screen.getByRole('button', { name: 'Ошибки (1)' })).toBeTruthy();
+  });
+
+  it('«Тема» forces the app’s light or dark palette at once and stores it', async () => {
+    fake = installFakeTelegram('7.10');
+    renderSettings();
+    const group = screen.getByRole('group', { name: 'Тема' });
+    const auto = within(group).getByRole('button', { name: 'Как в Telegram' });
+    expect(auto.getAttribute('aria-pressed')).toBe('true');
+    const root = document.documentElement;
+
+    fireEvent.click(within(group).getByRole('button', { name: 'Тёмная' }));
+    expect(root.dataset.theme).toBe('dark');
+    expect(root.dataset.appearance).toBe('dark');
+    await waitFor(async () => expect(await getSetting('appearance', 'auto')).toBe('dark'));
+    await waitFor(() => expect(within(group).getByRole('button', { name: 'Тёмная' }).getAttribute('aria-pressed')).toBe('true'));
+    expect(localStorage.getItem('sf_appearance')).toBe('dark');
+    // Telegram switching its own theme does not undo the choice.
+    fake.emit('themeChanged');
+    expect(root.dataset.theme).toBe('dark');
+
+    fireEvent.click(within(group).getByRole('button', { name: 'Светлая' }));
+    expect(root.dataset.theme).toBe('light');
+    expect(root.dataset.appearance).toBe('light');
+
+    fireEvent.click(auto);
+    expect(root.dataset.appearance).toBeUndefined();
+    await waitFor(async () => expect(await getSetting('appearance', 'dark')).toBe('auto'));
+  });
+
+  it('calls the automatic theme «Как в системе» in a browser', () => {
+    renderSettings();
+    expect(within(screen.getByRole('group', { name: 'Тема' })).getByRole('button', { name: 'Как в системе' })).toBeTruthy();
+  });
+
+  it('offers the home-screen shortcut in Telegram 8.0 and hides it at 7.10', async () => {
+    fake = installFakeTelegram('7.10');
+    stopHomeScreen = initHomeScreen();
+    renderSettings();
+    await screen.findByText('Активных дней за 14 дней: 0');
+    expect(screen.queryByRole('button', { name: 'Добавить на главный экран' })).toBeNull();
+    cleanup();
+    stopHomeScreen();
+    fake.uninstall();
+
+    fake = installFakeTelegram('8.0');
+    stopHomeScreen = initHomeScreen();
+    renderSettings();
+    fireEvent.click(await screen.findByRole('button', { name: 'Добавить на главный экран' }));
+    expect(fake.calls).toContain('addToHomeScreen()');
+    act(() => fake!.emit('homeScreenAdded'));
+    expect(await screen.findByText('Уже на главном экране')).toBeTruthy();
+    expect(await screen.findByText('Ярлык добавлен на главный экран')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Добавить на главный экран' })).toBeNull();
+  });
+
+  it('in a browser without an install prompt opens the instructions', async () => {
+    stopHomeScreen = initHomeScreen();
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить на главный экран' }));
+    const sheet = await screen.findByRole('dialog', { name: 'На главный экран' });
+    expect(within(sheet).getByText('Подтвердите добавление')).toBeTruthy();
   });
 });

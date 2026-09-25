@@ -10,6 +10,7 @@ export type SettingKey =
   | 'cloudBackupEnabled'
   | 'restoreOfferShown'
   | 'motion'
+  | 'appearance'
   | 'coachTodaySeen'
   | 'installId';
 

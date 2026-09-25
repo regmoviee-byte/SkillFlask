@@ -6,6 +6,11 @@ export interface ContextItem {
   icon?: IconName;
   label: string;
   tone?: 'danger';
+  /**
+   * Runs in the tap itself, before the sheet closes: for what needs the user's gesture (iOS
+   * WebKit refuses the clipboard after it). `onSelect` still runs once the sheet has closed.
+   */
+  onTap?(): void;
   onSelect(): void;
 }
 
@@ -51,6 +56,7 @@ export function ContextSheet({ open, onClose, title, message, items }: ContextSh
               onClick={() => {
                 if (pending.current) return; // a second tap while closing keeps the first choice
                 pending.current = item;
+                item.onTap?.();
                 closeRef.current();
               }}
             >

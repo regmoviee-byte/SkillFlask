@@ -6,6 +6,7 @@ import { newestMarksFirst } from '../domain/marks';
 import type { LevelThreshold, Mark, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
 import { getLastWeekLine, type LastWeekLine } from './recap';
+import { startLinkPath, type StartLink } from '../platform/deeplink';
 
 // Read models for the UI. Everything is derived from the journal on every read (principle 8),
 // inside a read transaction so a mutation in flight never produces a half-updated view.
@@ -227,6 +228,20 @@ export async function hasActiveSteps(): Promise<boolean> {
     const active = new Set((await db.skills.where('status').equals('ACTIVE').primaryKeys()) as string[]);
     return (await db.steps.filter((s) => s.isActive && active.has(s.skillId)).count()) > 0;
   });
+}
+
+/**
+ * The first screen of a launch: a launch link's (platform/deeplink.ts) when it points at a
+ * skill that exists — «Задним числом» only for an active one, its screen otherwise — and the
+ * usual rule (hasActiveSteps) for no link or a skill that is not on this device.
+ */
+export async function resolveStartPath(link: StartLink | null): Promise<string> {
+  if (link?.kind === 'route') return startLinkPath(link);
+  if (link?.kind === 'skill') {
+    const skill = await db.skills.get(link.skillId);
+    if (skill) return startLinkPath({ ...link, add: link.add && skill.status === 'ACTIVE' });
+  }
+  return (await hasActiveSteps()) ? '/today' : '/skills';
 }
 
 /**

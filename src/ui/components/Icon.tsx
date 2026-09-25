@@ -2,7 +2,9 @@ import type { SVGProps } from 'react';
 
 // One stroke icon set, 24px grid, fixed meanings: flask — level/skill, flag — milestone,
 // pennant — mark («засечка»), trophy — completed skill, medal — achievement, sun — today,
-// sliders — settings, more — a context menu, palette — a skill's appearance («Оформление»).
+// sliders — settings, more — a context menu, palette — a skill's appearance («Оформление»),
+// link — a link to a skill, home — the home-screen shortcut, share / plus-square /
+// more-vertical — the browsers' own buttons in the install instructions.
 // The four tab icons have filled variants. No emoji anywhere in the chrome.
 
 const STROKE: Record<string, string> = {
@@ -37,6 +39,11 @@ const STROKE: Record<string, string> = {
   upload: 'M12 15V4M7 9l5-5 5 5M4 19h16',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
   drop: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  home: 'M4 11l8-7 8 7M6 9.5V20h4v-5h4v5h4V9.5',
+  share: 'M12 15V3M8 7l4-4 4 4M8 10H6v11h12V10h-2',
+  'plus-square': 'M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 8v8M8 12h8',
+  'more-vertical': 'M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
   palette: 'M12 3a9 9 0 0 0 0 18c1.2 0 1.6-.9 1.2-1.7-.5-1 .2-2.3 1.5-2.3H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10zM7.5 12.5h.01M9 8h.01M14 7.5h.01M17 11h.01',
 };
 

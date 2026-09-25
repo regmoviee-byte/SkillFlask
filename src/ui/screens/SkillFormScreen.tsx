@@ -72,7 +72,7 @@ function toInput(form: FormState): SkillInput {
     capacityIncrement: Number(form.capacityIncrement || NaN),
     manualCapacities: manual,
     // A stored key this build does not know (a newer release's backup) is omitted, so the
-    // update keeps it until the owner picks another theme or colour.
+    // update keeps it until the owner picks another theme (a colour change alone keeps it).
     theme: isProgressTheme(form.theme) ? form.theme : undefined,
     color: form.color === '' ? null : isSkillColor(form.color) ? form.color : undefined,
   };
@@ -167,7 +167,11 @@ function SkillForm({ skillId, initial, capacityLocked, status }: SkillFormProps)
   };
   // The picker shows what this build draws; the level words follow the chosen theme.
   const appearance: Appearance = { theme: skillTheme(form.theme), color: normalizeColor(form.color) };
-  const setAppearance = (next: Appearance) => setEdits((prev) => ({ ...prev, theme: next.theme, color: next.color ?? '' }));
+  // Only a theme the owner changed goes into the edits: the picker reports the normalised key
+  // (a stored key this build cannot draw reads as 'flask'), and a colour change alone must not
+  // overwrite that key — the same rule as AppearanceSheet.
+  const setAppearance = (next: Appearance) =>
+    setEdits((prev) => ({ ...prev, ...(next.theme !== appearance.theme && { theme: next.theme }), color: next.color ?? '' }));
   const lc = levelCopyOf(appearance.theme);
 
   async function submit(event: FormEvent) {

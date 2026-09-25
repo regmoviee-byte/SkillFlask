@@ -6,6 +6,7 @@
 
 import { exportBackup, importBackup, parseBackupText, type BackupFile, type BackupStats } from '../data/backup';
 import { diffDays, localDate, nowIso } from '../lib/dates';
+import { copyText } from '../platform/clipboard';
 import { isTelegram } from '../platform/telegram';
 import { markCloudDirty, withCloudBackupSuspended } from './backupSync';
 import { setSetting } from './settings';
@@ -50,16 +51,6 @@ async function share(json: string, name: string): Promise<'shared' | 'cancelled'
     // AbortError: the user closed the sheet. Anything else (no user activation left after
     // reading the database, a WebView quirk) falls through to the clipboard.
     return error instanceof Error && error.name === 'AbortError' ? 'cancelled' : 'unsupported';
-  }
-}
-
-async function copyText(json: string): Promise<boolean> {
-  if (typeof navigator.clipboard?.writeText !== 'function') return false;
-  try {
-    await navigator.clipboard.writeText(json);
-    return true;
-  } catch {
-    return false;
   }
 }
 

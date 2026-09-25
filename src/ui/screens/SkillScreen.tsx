@@ -12,8 +12,11 @@ import { getSkillDetails, type SkillDetails } from '../../services/queries';
 import { setStepActive } from '../../services/steps';
 import { formatDate } from '../../lib/dates';
 import { formatNumber } from '../../lib/format';
+import { copyText } from '../../platform/clipboard';
+import { skillLink } from '../../platform/deeplink';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
+import { isTelegram } from '../../platform/telegram';
 import { useCelebrationStage, type HeroLevelUp } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
 import { ContextSheet, type ContextItem } from '../components/ContextSheet';
@@ -33,6 +36,7 @@ import { ProgressHero } from '../progress/ProgressHero';
 import { colorScope, copyForSkill, skillTheme } from '../progress/registry';
 import { AppearanceSheet } from '../sheets/AppearanceSheet';
 import { CompletionSheet } from '../sheets/CompletionSheet';
+import { LinkSheet } from '../sheets/LinkSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 
 // Wireframe 2: the skill's progress theme as the hero (the flask by default, ProgressHero) with
@@ -40,7 +44,7 @@ import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 // their ✓ and the history as a timeline. What the hero shows can be frozen for a moment by a
 // celebration (useCelebrationStage), so the points fly in first. The whole screen is painted in
 // the skill's colour (colorScope). The header ⋯ opens the skill's menu: edit it, its
-// appearance («Оформление»), add a mark.
+// appearance («Оформление»), add a mark, copy a link that opens it («Ссылка на навык»).
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -51,6 +55,32 @@ export function SkillScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [markTarget, setMarkTarget] = useState<MarkSheetTarget | null>(null);
+  const [linkShown, setLinkShown] = useState<string | null>(null);
+  const copying = useRef<Promise<boolean> | null>(null);
+  const { showToast } = useToast();
+
+  const linkTo = (id: string) => skillLink(id, { telegram: isTelegram(), pageUrl: window.location.href });
+
+  function linkCopied() {
+    haptics.success();
+    showToast(t.linkCopied, { icon: 'link' });
+  }
+
+  /**
+   * «Ссылка на навык»: the copy starts in the tap (startCopy — iOS WebKit refuses the clipboard
+   * once the gesture is over) and is reported after the menu has closed; where the clipboard
+   * refuses, the link is shown to copy by hand.
+   */
+  function startCopy(id: string) {
+    copying.current = copyText(linkTo(id));
+  }
+
+  async function finishCopy(id: string) {
+    const started = copying.current;
+    copying.current = null;
+    if (await (started ?? copyText(linkTo(id)))) linkCopied();
+    else setLinkShown(linkTo(id));
+  }
 
   if (details === null) {
     return (
@@ -107,9 +137,13 @@ export function SkillScreen() {
           open={menuOpen && active}
           title={skill.name}
           onClose={() => setMenuOpen(false)}
-          items={skillMenu(skill.id, navigate, () => setAppearanceOpen(true), () => setMarkTarget({ kind: 'new' }))}
+          items={skillMenu(skill.id, navigate, () => setAppearanceOpen(true), () => setMarkTarget({ kind: 'new' }), {
+            start: () => startCopy(skill.id),
+            finish: () => void finishCopy(skill.id),
+          })}
         />
       )}
+      <LinkSheet link={linkShown} telegram={isTelegram()} onClose={() => setLinkShown(null)} onCopied={linkCopied} />
       {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
       {details && (
         <MarkSheet
@@ -127,11 +161,18 @@ export function SkillScreen() {
 }
 
 /** The ⋯ menu of an active skill. Items run after the menu has closed (ContextSheet). */
-function skillMenu(skillId: string, navigate: ReturnType<typeof useNavigate>, appearance: () => void, addMark: () => void): ContextItem[] {
+function skillMenu(
+  skillId: string,
+  navigate: ReturnType<typeof useNavigate>,
+  appearance: () => void,
+  addMark: () => void,
+  copyLink: { start(): void; finish(): void },
+): ContextItem[] {
   return [
     { icon: 'edit', label: copy.skill.edit, onSelect: () => navigate(`/skills/${skillId}/edit`) },
     { icon: 'palette', label: copy.appearance.title, onSelect: appearance },
     { icon: 'pennant', label: copy.marks.add, onSelect: addMark },
+    { icon: 'link', label: copy.skill.link, onTap: copyLink.start, onSelect: copyLink.finish },
   ];
 }
 

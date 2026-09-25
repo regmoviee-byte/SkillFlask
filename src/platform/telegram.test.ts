@@ -44,6 +44,8 @@ function exerciseAll(): void {
   tgCall(API.backButton, (tg) => tg.BackButton.show());
   const off = onTg('themeChanged', () => {});
   off();
+  tgCall(API.homeScreen, (tg) => tg.checkHomeScreenStatus(() => {}));
+  tgCall(API.homeScreen, (tg) => tg.addToHomeScreen());
 }
 
 describe.each([
@@ -60,7 +62,11 @@ describe.each([
     expect(supports(API.verticalSwipes)).toBe(gates.verticalSwipes);
     expect(supports(API.secondaryButton)).toBe(gates.secondaryButton);
     expect(supports(API.safeArea)).toBe(gates.safeArea);
+    expect(supports(API.homeScreen)).toBe(gates.safeArea);
     expect(() => exerciseAll()).not.toThrow();
+    // addToHomeScreen / checkHomeScreenStatus are Bot API 8.0: never called below it.
+    expect(fake.calls.includes('addToHomeScreen()')).toBe(gates.safeArea);
+    expect(fake.calls.includes('checkHomeScreenStatus()')).toBe(gates.safeArea);
     expect(fake.calls).toContain('ready()');
     expect(fake.calls).toContain('expand()');
     expect(fake.calls.includes('disableVerticalSwipes()')).toBe(gates.verticalSwipes);

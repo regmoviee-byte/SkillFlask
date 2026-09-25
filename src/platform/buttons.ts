@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { API, isTelegram, supports, tgCall } from './telegram';
+import { API, isTelegram, supports, tgCall, webApp, type BottomButtonParams } from './telegram';
+import { forcedButtonColors, subscribeTheme } from './theme';
 
 // Native bottom buttons. Inside Telegram ≥ 6.1 the MainButton replaces the screen's HTML
 // footer button; the SecondaryButton exists from 7.10, below that the screen keeps its own
@@ -59,6 +60,42 @@ function topOwner(kind: Kind): Owner | undefined {
   return top;
 }
 
+// Colours: by default the SDK paints the buttons from Telegram's theme. A forced «Тема» pins
+// them to the app's palette (theme.ts), like the bottom bar under them. Telegram keeps an
+// explicit colour until the next one, so once pinned, leaving the forced theme sends
+// Telegram's own theme colours (the Bot API defaults) instead of nothing, re-sent on every
+// theme change as the SDK itself would.
+let pinnedOnce = false;
+const sentColors: Record<Kind, string> = { MainButton: '', SecondaryButton: '' };
+let themeBound = false;
+
+function colorsFor(kind: Kind): Pick<BottomButtonParams, 'color' | 'text_color'> {
+  const forced = forcedButtonColors();
+  if (forced) {
+    pinnedOnce = true;
+    return kind === 'MainButton' ? forced.main : forced.secondary;
+  }
+  if (!pinnedOnce) return {};
+  const tp = webApp()?.themeParams ?? {};
+  const color = kind === 'MainButton' ? tp.button_color : (tp.bottom_bar_bg_color ?? tp.secondary_bg_color);
+  const textColor = kind === 'MainButton' ? tp.button_text_color : tp.button_color;
+  return { ...(color ? { color } : {}), ...(textColor ? { text_color: textColor } : {}) };
+}
+
+/** Repaints a visible button whose colours a theme switch changed. */
+function onThemeApplied(): void {
+  for (const kind of ['MainButton', 'SecondaryButton'] as const) {
+    if (owners[kind].length > 0 && JSON.stringify(colorsFor(kind)) !== sentColors[kind]) render(kind);
+  }
+}
+
+/** Tests: forget that colours were pinned. */
+export function resetButtonColors(): void {
+  pinnedOnce = false;
+  sentColors.MainButton = '';
+  sentColors.SecondaryButton = '';
+}
+
 /** Shows the owner's text and state, or hides the button when nobody owns it. */
 function render(kind: Kind): void {
   const owner = topOwner(kind);
@@ -70,7 +107,9 @@ function render(kind: Kind): void {
     }
     const { text, disabled = false, loading = false } = owner.spec;
     const position = 'position' in owner.spec ? owner.spec.position : undefined;
-    button.setParams({ text: checkLength(text), is_visible: true, is_active: !disabled && !loading, ...(position ? { position } : {}) });
+    const colors = colorsFor(kind);
+    sentColors[kind] = JSON.stringify(colors);
+    button.setParams({ text: checkLength(text), is_visible: true, is_active: !disabled && !loading, ...(position ? { position } : {}), ...colors });
     if (loading) button.showProgress(false);
     else button.hideProgress();
   });
@@ -78,6 +117,10 @@ function render(kind: Kind): void {
 
 function register(kind: Kind, owner: Owner): () => void {
   owners[kind].push(owner);
+  if (!themeBound) {
+    themeBound = true;
+    subscribeTheme(onThemeApplied);
+  }
   if (!clickHandlers[kind]) {
     // One SDK listener per button; it asks the current owner at click time.
     const click = () => {

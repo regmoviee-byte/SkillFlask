@@ -8,8 +8,14 @@
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Skill Flask" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Skill Flask</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <!-- Installable outside Telegram (the service worker is registered only there, see platform/sw.ts). -->
+    <link rel="manifest" href="./manifest.webmanifest" />
     <!-- Painted before any stylesheet or script loads, so a dark theme never flashes white. -->
     <style>
       html {
@@ -20,9 +26,31 @@
           background: var(--tg-theme-secondary-bg-color, #000);
         }
       }
+      /* Settings → «Тема» forced: the app's own background, whatever Telegram or the system say. */
+      html[data-appearance='light'] {
+        background: #f2f2f7;
+      }
+      html[data-appearance='dark'] {
+        background: #000;
+      }
     </style>
     <script>
-      document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      // The forced «Тема» is mirrored in localStorage (the settings table is the source of
+      // truth, platform/theme.ts keeps the mirror); 'auto' follows the system until theme.ts
+      // reads Telegram's colorScheme.
+      (function () {
+        var root = document.documentElement;
+        var forced = null;
+        try {
+          forced = localStorage.getItem('sf_appearance');
+        } catch (e) {}
+        if (forced === 'light' || forced === 'dark') {
+          root.dataset.theme = forced;
+          root.dataset.appearance = forced;
+        } else {
+          root.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+      })();
     </script>
     <!-- Telegram Mini App API; harmless when opened in a regular browser. -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>

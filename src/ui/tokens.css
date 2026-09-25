@@ -118,6 +118,42 @@
   --liquid-deep: #2a8fcf;
 }
 
+/* Settings → «Тема» forced to light or dark (platform/theme.ts sets data-appearance next to
+   data-theme): every token that reads a --tg-theme-* colour is pinned to the app's own
+   literal, so a forced dark app inside a light Telegram theme (or the other way round) never
+   mixes the two. The accent is Telegram's only when theme.ts found it readable on these
+   surfaces (--sf-forced-accent, ≥ 3:1); otherwise the app accent. Links are body text: they
+   take that accent in a shade that reaches 4.5:1 (--sf-forced-link), otherwise the app's
+   own readable link colour (PALETTE.link in theme.ts). The derived colours below
+   follow the pinned ones. Same specificity as the dark rule above and later, so it wins. */
+:root[data-appearance='light'] {
+  color-scheme: light;
+  --color-bg: #f2f2f7;
+  --color-bg-elevated: #ffffff;
+  --color-fg: #1c1c1e;
+  --color-fg-tertiary: #6b6b70;
+  --color-accent: var(--sf-forced-accent, #2481cc);
+  --color-on-accent: var(--sf-forced-on-accent, #ffffff);
+  --color-link: var(--sf-forced-link, #1a6fb0);
+  --color-danger: #e5393b;
+  --color-border: rgba(60, 60, 67, 0.14);
+  --color-section-header: #5c5c61;
+}
+
+:root[data-appearance='dark'] {
+  color-scheme: dark;
+  --color-bg: #000000;
+  --color-bg-elevated: #1c1c1e;
+  --color-fg: #ffffff;
+  --color-fg-tertiary: #9a9aa0;
+  --color-accent: var(--sf-forced-accent, #3e88f7);
+  --color-on-accent: var(--sf-forced-on-accent, #ffffff);
+  --color-link: var(--sf-forced-link, #3e88f7);
+  --color-danger: #ff453a;
+  --color-border: rgba(84, 84, 88, 0.6);
+  --color-section-header: #b0b0b6;
+}
+
 /* Derived colours: only where color-mix() parses, otherwise the literals above stay. Both
    theme rules are repeated here (the dark literals outrank a plain :root by specificity), and
    the block comes before the data-liquid rules so the fixed cyan pair still wins by source

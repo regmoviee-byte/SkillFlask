@@ -591,7 +591,7 @@ export function captionPad(ys: number[], i: number): number {
   return Math.min(CAPTION_PAD_MAX, Math.max(CAPTION_PAD_MIN, room));
 }
 
-// WAAPI, guarded as in components/Flask.tsx
+// WAAPI, guarded as in progress/themes/flask.tsx
 
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 

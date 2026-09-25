@@ -5,7 +5,9 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Screen } from '../ui/components/Screen';
 import { installFakeTelegram, type FakeTelegram } from '../test/fakeTelegram';
-import { useBottomButtons, useUnsavedGuard } from './buttons';
+import type { ThemeParams } from './telegram';
+import { resetButtonColors, useBottomButtons, useUnsavedGuard } from './buttons';
+import { PALETTE, resetAppearance, setAppearancePreference } from './theme';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,6 +26,11 @@ afterEach(async () => {
   container.remove();
   fake?.uninstall();
   fake = undefined;
+  localStorage.clear();
+  resetAppearance();
+  resetButtonColors();
+  delete document.documentElement.dataset.appearance;
+  document.documentElement.removeAttribute('style');
 });
 
 function Form({ disabled = false }: { disabled?: boolean }) {
@@ -111,5 +118,44 @@ describe('bottom buttons', () => {
     expect(fake.calls).toContain('enableClosingConfirmation()');
     await act(async () => root.render(<Guard dirty={false} />));
     expect(fake.calls).toContain('disableClosingConfirmation()');
+  });
+
+  it('pins the native buttons to a forced «Тема» and hands them back to Telegram’s theme', async () => {
+    fake = installFakeTelegram('7.10');
+    const tg = fake.tg as { themeParams: ThemeParams };
+    // Telegram's light theme with an accent too pale for the forced light surfaces.
+    tg.themeParams = { button_color: '#a8e0ff', button_text_color: '#000000', bottom_bar_bg_color: '#ffffff', secondary_bg_color: '#efeff4' };
+    await act(async () => root.render(<Form />));
+    // 'auto': no colours, the SDK paints from Telegram's theme.
+    expect(fake.calls).toContain('MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true})');
+
+    // Forced dark while the form is open: repainted at once. The pale accent reads on black.
+    await act(async () => setAppearancePreference('dark'));
+    expect(fake.calls).toContain('MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true,"color":"#a8e0ff","text_color":"#000000"})');
+    expect(fake.calls).toContain(
+      `SecondaryButton.setParams({"text":"Отмена","is_visible":true,"is_active":true,"color":"${PALETTE.dark.elevated}","text_color":"#a8e0ff"})`,
+    );
+
+    // Forced light: the pale accent is rejected, the app accent (as in the HTML buttons) is used.
+    await act(async () => setAppearancePreference('light'));
+    expect(fake.calls).toContain(`MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true,"color":"${PALETTE.light.accent}","text_color":"#ffffff"})`);
+    expect(fake.calls).toContain(
+      `SecondaryButton.setParams({"text":"Отмена","is_visible":true,"is_active":true,"color":"${PALETTE.light.elevated}","text_color":"${PALETTE.light.accent}"})`,
+    );
+
+    // Telegram's own theme change repaints nothing while forced.
+    const before = fake.calls.length;
+    await act(async () => fake!.emit('themeChanged'));
+    expect(fake.calls.slice(before).some((c) => c.includes('Button.setParams'))).toBe(false);
+
+    // Back to 'auto': Telegram's theme colours, explicitly, since Telegram keeps the last ones.
+    await act(async () => setAppearancePreference('auto'));
+    expect(fake.calls).toContain('MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true,"color":"#a8e0ff","text_color":"#000000"})');
+    expect(fake.calls).toContain('SecondaryButton.setParams({"text":"Отмена","is_visible":true,"is_active":true,"color":"#ffffff","text_color":"#a8e0ff"})');
+    // …and they follow Telegram's next theme.
+    tg.themeParams = { button_color: '#2ea6ff', button_text_color: '#ffffff', bottom_bar_bg_color: '#212121' };
+    await act(async () => fake!.emit('themeChanged'));
+    expect(fake.calls).toContain('MainButton.setParams({"text":"Сохранить","is_visible":true,"is_active":true,"color":"#2ea6ff","text_color":"#ffffff"})');
+    expect(fake.calls).toContain('SecondaryButton.setParams({"text":"Отмена","is_visible":true,"is_active":true,"color":"#212121","text_color":"#2ea6ff"})');
   });
 });
