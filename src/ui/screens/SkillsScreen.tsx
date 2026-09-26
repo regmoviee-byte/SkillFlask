@@ -7,6 +7,7 @@ import { formatNumber } from '../../lib/format';
 import { getHomeView, type HomeView } from '../../services/queries';
 import type { LastWeekLine } from '../../services/recap';
 import { haptics } from '../../platform/haptics';
+import { primeKeyboard } from '../../platform/viewport';
 import { FirstRunEmpty } from '../components/FirstRun';
 import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
@@ -24,9 +25,12 @@ import { skillTheme } from '../progress/registry';
 // Home as a motivation panel (wireframe 1): a bento row — today's points with the week's
 // dots, the levels completed so far (all skills, whatever their themes: «Пройдено»), the last achievement (or the next one), «Итоги недели» for
 // the week before, the heat map of every skill («Активность», ui/insights) — then the skill
-// cards. Facts only: no targets, nothing about days without activity.
+// cards. Facts only: no targets, nothing about days without activity. The header has «Поиск по
+// истории» of every skill (ui/search, package 17) beside «Новый навык».
 
 const t = copy.home;
+/** The search screen's chunk may take a moment to arrive the first time: the keyboard waits for it. */
+const SEARCH_PRIMER_MS = 2500;
 
 const SEGMENTS: { status: SkillStatus; param: string; label: string }[] = [
   { status: 'ACTIVE', param: 'active', label: t.filterActive },
@@ -73,14 +77,25 @@ export function SkillsScreen() {
     setParams(next === 'ACTIVE' ? {} : { filter: param }, { replace: true });
   };
 
-  const addButton = (
-    <Link to="/skills/new" className="icon-button" aria-label={t.newSkill}>
-      <Icon name="plus" size={26} />
-    </Link>
+  // Search over every skill's history (package 17) once there is a skill to search, then «+».
+  const hasSkills = home !== undefined && home.summaries.length > 0;
+  const actions = (
+    <>
+      {hasSkills && (
+        // The tap primes the keyboard: the search field focuses itself once the screen (a lazy
+        // chunk, the first time) is there.
+        <Link to="/search" className="icon-button" aria-label={t.search} onClick={() => primeKeyboard(SEARCH_PRIMER_MS)}>
+          <Icon name="search" size={24} />
+        </Link>
+      )}
+      <Link to="/skills/new" className="icon-button" aria-label={t.newSkill}>
+        <Icon name="plus" size={26} />
+      </Link>
+    </>
   );
 
   return (
-    <Screen title={t.title} largeTitle action={addButton}>
+    <Screen title={t.title} largeTitle action={actions}>
       <Skeleton layout="home" loading={home === undefined}>
         {home && <HomeContent home={home} today={today} filter={filter} onFilter={setFilter} />}
       </Skeleton>

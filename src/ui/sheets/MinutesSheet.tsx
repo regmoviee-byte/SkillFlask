@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { MAX_MINUTES, timedPoints } from '../../domain/points';
+import { NOTE_MAX_LENGTH } from '../../services/completions';
 import { isValidLocalDate, localDate } from '../../lib/dates';
 import type { StepDefinition } from '../../domain/types';
 import { useBottomButtons } from '../../platform/buttons';
@@ -12,10 +13,13 @@ import { Stepper } from '../components/Stepper';
 // will earn are shown live, rounded exactly as the journal will round them. «Готово» is the
 // Telegram MainButton while the sheet is open. The live timer's «Завершить» opens it too, with
 // the timer's minutes and start day filled in: then a «Дата» field is shown (the day a timer
-// ran past midnight on, still editable) and a warning when the timer looks forgotten.
+// ran past midnight on, still editable) and a warning when the timer looks forgotten. An
+// optional «Заметка» under the minutes (v0.5 package 17) is written with the completion itself.
 
 const PRESETS = [15, 30, 45, 60];
 const MINUTE_STEP = 5;
+/** The note's counter appears this close to the limit, as in the completion sheet. */
+const NOTE_COUNTER_FROM = 400;
 
 /** The chips: the usual minutes first, then the common ones. */
 export function minutePresets(defaultMinutes: number | null): number[] {
@@ -27,10 +31,11 @@ interface MinutesSheetProps {
   step: Pick<StepDefinition, 'name' | 'pointsPerMinute' | 'defaultMinutes'>;
   onClose(): void;
   /**
-   * Called after the sheet has started closing, with whole minutes in 1..1440 and, when the
-   * sheet shows the date field, the chosen local date (never after today).
+   * Called after the sheet has started closing, with whole minutes in 1..1440, the note as
+   * typed (null when empty) and, when the sheet shows the date field, the chosen local date
+   * (never after today).
    */
-  onDone(minutes: number, date?: string): void;
+  onDone(minutes: number, extra: { note: string | null; date?: string }): void;
   /** Minutes to start from instead of the step's usual ones (a timer's). */
   initialMinutes?: number;
   /** Shows a «Дата» field starting at this local date (a timer's start day). */
@@ -44,14 +49,17 @@ export function MinutesSheet({ open, step, onClose, onDone, initialMinutes, init
   const startMinutes = initialMinutes ?? step.defaultMinutes;
   const [minutes, setMinutes] = useState<number | null>(startMinutes);
   const [date, setDate] = useState(initialDate ?? '');
+  const [note, setNote] = useState('');
   const closeRef = useRef<() => void>(() => {});
   const earnId = useId();
   const dateId = useId();
-  // Every opening starts from the usual (or the timer's) minutes and date again.
+  const noteId = useId();
+  // Every opening starts from the usual (or the timer's) minutes and date again, without a note.
   useEffect(() => {
     if (!open) return;
     setMinutes(startMinutes);
     setDate(initialDate ?? '');
+    setNote('');
   }, [open, startMinutes, initialDate]);
 
   const today = localDate();
@@ -65,7 +73,7 @@ export function MinutesSheet({ open, step, onClose, onDone, initialMinutes, init
     // Close first (it pops the sheet's history entry), so a celebration sheet that the
     // completion may open never stacks on this one.
     closeRef.current();
-    onDone(minutes!, withDate ? date : undefined);
+    onDone(minutes!, { note: note.trim() || null, date: withDate ? date : undefined });
   }
 
   const { native } = useBottomButtons({ main: open ? { text: t.done, onClick: done, disabled: !valid } : undefined }, 1);
@@ -118,6 +126,25 @@ export function MinutesSheet({ open, step, onClose, onDone, initialMinutes, init
           />
         </div>
       )}
+      <div className="field minutes-note">
+        <label className="field-label" htmlFor={noteId}>
+          {copy.completionSheet.note}
+        </label>
+        <textarea
+          id={noteId}
+          className="input note-input"
+          rows={2}
+          value={note}
+          maxLength={NOTE_MAX_LENGTH}
+          placeholder={copy.completionSheet.notePlaceholder}
+          onChange={(event) => setNote(event.target.value)}
+        />
+        {note.length > NOTE_COUNTER_FROM && (
+          <span className="hint small note-counter" aria-live="polite">
+            {copy.completionSheet.noteCounter(note.length, NOTE_MAX_LENGTH)}
+          </span>
+        )}
+      </div>
     </Sheet>
   );
 }

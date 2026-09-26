@@ -9,7 +9,7 @@ import { resetAchievementCache } from '../../services/achievements';
 import { completeStep } from '../../services/completions';
 import { createSkill, type SkillInput } from '../../services/skills';
 import { createStep } from '../../services/steps';
-import { installFreshDb, tickingClock, todayNoon } from '../../test/harness';
+import { installFreshDb, tickingClock } from '../../test/harness';
 import { TabBar } from '../components/TabBar';
 import { ToastProvider } from '../components/Toast';
 import { AchievementsScreen } from './AchievementsScreen';
@@ -28,7 +28,9 @@ const input: SkillInput = {
 
 installFreshDb();
 beforeEach(() => {
-  setClock(tickingClock(todayNoon()));
+  // A fixed Wednesday: the three days of history() then span two weeks whatever the weekday the
+  // suite runs on (from a Saturday, Monday–Tuesday–Saturday would also earn «Недели в ритме»).
+  setClock(tickingClock('2026-09-23T12:00:00'));
   resetAchievementCache();
 });
 afterEach(() => {

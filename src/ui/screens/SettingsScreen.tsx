@@ -24,7 +24,7 @@ import { addToHomeScreen, refreshHomeScreen, useHomeScreenOffer, type InstallPla
 import { applyUpdate, checkForUpdate, useUpdateWaiting } from '../../platform/sw';
 import { isTelegram } from '../../platform/telegram';
 import { appearancePreference, setAppearancePreference, useAppearancePreference, type AppearancePreference } from '../../platform/theme';
-import { errorMessage } from '../completionFeedback';
+import { ASK_NOTE_KEY, errorMessage } from '../completionFeedback';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { SettingsGroup, SettingsRow } from '../components/Settings';
@@ -40,8 +40,9 @@ import { ImportSheet } from '../sheets/ImportSheet';
 // it starts loading with this screen, long before «Добавить на главный экран» can be tapped.
 const InstallSheet = lazySafe(() => import('../sheets/InstallSheet').then((m) => ({ default: m.InstallSheet })), 'InstallSheet');
 
-// «Настройки» (replaces «Аккаунт»): data and backups, appearance (the «Тема» choice, motion,
-// haptics), about (the home-screen shortcut, version, update), danger zone.
+// «Настройки» (replaces «Аккаунт»): data and backups, «Выполнение» (ask for a note after every
+// completion), appearance (the «Тема» choice, motion, haptics), about (the home-screen
+// shortcut, version, update), danger zone.
 
 const t = copy.settings;
 const ERRORS_SHOWN = 20;
@@ -75,12 +76,13 @@ export function SettingsScreen() {
   const today = useToday();
   const overview = useLiveQuery(() => getDataOverview(today), [today]);
   const stored = useLiveQuery(async () => {
-    const [lastFileAt, lastCloudAt, motion] = await Promise.all([
+    const [lastFileAt, lastCloudAt, motion, askNote] = await Promise.all([
       getSetting<string | null>('lastFileBackupAt', null),
       getSetting<string | null>('lastCloudBackupAt', null),
       getSetting<MotionPreference>('motion', 'system'),
+      getSetting<boolean>(ASK_NOTE_KEY, false),
     ]);
-    return { lastFileAt, lastCloudAt, motion };
+    return { lastFileAt, lastCloudAt, motion, askNote: askNote === true };
   });
   const cloud = useCloudStatus();
   const cloudReady = cloud.state !== 'unavailable';
@@ -89,6 +91,12 @@ export function SettingsScreen() {
   const [exportText, setExportText] = useState<string | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled);
+  // «Спрашивать заметку»: the switch as tapped until the stored value catches up with it.
+  const [askNoteShown, setAskNoteShown] = useState<boolean | null>(null);
+  const askNoteStored = stored?.askNote;
+  useEffect(() => {
+    if (askNoteStored !== undefined) setAskNoteShown((shown) => (shown === askNoteStored ? null : shown));
+  }, [askNoteStored]);
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [errors, setErrors] = useState<LoggedError[]>(getErrors);
   const [installOs, setInstallOs] = useState<InstallPlatform | null>(null);
@@ -269,6 +277,15 @@ export function SettingsScreen() {
     await setSetting('motion', next).catch((error: unknown) => showToast(errorMessage(error)));
   }
 
+  async function setAskNote(on: boolean) {
+    // Shown at once; the live query takes over once the row is written (or the switch goes back).
+    setAskNoteShown(on);
+    await setSetting(ASK_NOTE_KEY, on).catch((error: unknown) => {
+      setAskNoteShown(null);
+      showToast(errorMessage(error));
+    });
+  }
+
   async function setAppearance(next: AppearancePreference) {
     if (next === appearancePreference()) return;
     haptics.select();
@@ -374,6 +391,14 @@ export function SettingsScreen() {
               )}
             </>
           }
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title={t.groupCompletion}>
+        <SettingsRow
+          label={t.askNote}
+          hint={t.askNoteHint}
+          toggle={{ checked: askNoteShown ?? stored?.askNote === true, onChange: (on) => void setAskNote(on), disabled: stored === undefined }}
         />
       </SettingsGroup>
 

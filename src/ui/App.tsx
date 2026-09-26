@@ -13,14 +13,16 @@ import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
 import { AchievementsScreen } from './screens/AchievementsScreen';
-import { RecapScreen } from './screens/RecapScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
 import { SkillsScreen } from './screens/SkillsScreen';
 import { StepFormScreen } from './screens/StepFormScreen';
 import { TodayScreen } from './screens/TodayScreen';
+import { CompletionNoteHost } from './sheets/CompletionNoteHost';
 import { StartRedirect } from './StartRedirect';
+import { RecapRoute } from './screens/recapLazy';
+import { SearchRoute } from './search/lazy';
 import { TemplateChooserRoute } from './templates/lazy';
 import { TimerLayer } from './timer/TimerLayer';
 
@@ -77,8 +79,10 @@ function Shell() {
                   <Route path="/steps/new" element={<StepFormScreen />} />
                   <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
                   <Route path="/achievements" element={<AchievementsScreen />} />
-                  <Route path="/recap" element={<RecapScreen />} />
-                  <Route path="/recap/:weekStart" element={<RecapScreen />} />
+                  {/* «Поиск по истории» of every skill (package 17, lazy). */}
+                  <Route path="/search" element={<SearchRoute />} />
+                  <Route path="/recap" element={<RecapRoute />} />
+                  <Route path="/recap/:weekStart" element={<RecapRoute />} />
                   <Route path="/settings" element={<SettingsScreen />} />
                   <Route path="/todo" element={<Navigate to="/today" replace />} />
                   <Route path="/account" element={<Navigate to="/settings" replace />} />
@@ -100,6 +104,8 @@ function Shell() {
               {hasTabBar && <TabBar />}
             </div>
           </TimerLayer>
+          {/* The completion toast's «Заметка» and «Спрашивать заметку» (package 17). */}
+          <CompletionNoteHost />
           <DialogHost />
         </CelebrationProvider>
       </ToastProvider>

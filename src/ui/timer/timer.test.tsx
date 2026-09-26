@@ -102,8 +102,9 @@ describe('live timer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     await screen.findByRole('button', { name: 'Пауза' });
     advance(MIN);
-    // The next tick of the one-second interval shows the new time.
-    expect(await pill('Разговор', '13:34')).toBeTruthy();
+    // The next tick of the one-second interval shows the new time: waited for well past the
+    // interval, which the resume re-creates, so a starved runner cannot race the two deadlines.
+    expect(await screen.findByRole('button', { name: 'Открыть таймер: Разговор, 13:34' }, { timeout: 3000 })).toBeTruthy();
   });
 
   it('finishes through «Сколько минут?»: prefilled, «Назад» returns to the timer, «Готово» records', async () => {
@@ -130,13 +131,17 @@ describe('live timer', () => {
 
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Таймер' })).getByRole('button', { name: 'Завершить' }));
     minutes = await sheet('Сколько минут?');
+    // A note typed under the minutes is written with the completion itself (package 17).
+    fireEvent.change(within(minutes).getByLabelText('Заметка'), { target: { value: 'Про поездку в Лиссабон' } });
     fireEvent.click(within(minutes).getByRole('button', { name: 'Готово' }));
     expect(await screen.findByText('+12,5 · Разговор')).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.queryByRole('button', { name: /^Открыть таймер: Разговор, / })).toBeNull();
     expect(await getActiveTimer()).toBeNull();
     const [completion] = await db.completions.where('stepId').equals(talk).toArray();
-    expect(completion).toMatchObject({ durationMinutes: 25, pointsAwarded: 12.5, date: localDate(now), status: 'ACTIVE' });
+    expect(completion).toMatchObject({ durationMinutes: 25, pointsAwarded: 12.5, date: localDate(now), status: 'ACTIVE', note: 'Про поездку в Лиссабон' });
+    // One write: the completion was never updated after it was added.
+    expect(completion!.updatedAt).toBe(completion!.createdAt);
   });
 
   it('asks before replacing another action’s timer and records that one first', async () => {

@@ -7,6 +7,7 @@ import { isTransactionEvent } from '../domain/events';
 import { getSkillHistory } from '../services/history';
 import { getAllActivity, getSkillActivity, getSkillForecast } from '../services/insights';
 import { getSkillDetails, listSkillSummaries } from '../services/queries';
+import { searchAllHistory, searchSkillHistory } from '../services/search';
 import { createSkill, createStep } from '../services/skills';
 import { installFreshDb } from '../test/harness';
 import { seedDemoData } from './seed';
@@ -50,7 +51,7 @@ describe('seedDemoData', () => {
 });
 
 describe('read-model performance', () => {
-  it('builds skill details, the history, the forecast and the heat maps from 5 000 transactions under 200 ms each (scaled on a loaded runner)', async () => {
+  it('builds skill details, the history, the forecast, the heat maps and the search from 5 000 transactions under 200 ms each (scaled on a loaded runner)', async () => {
     const skillId = await createSkill({
       name: 'Нагрузка',
       description: '',
@@ -130,5 +131,14 @@ describe('read-model performance', () => {
     expect(await median(() => getSkillForecast(skillId, today))).toBeLessThan(budget);
     expect(await median(() => getSkillActivity(skillId, today))).toBeLessThan(budget);
     expect(await median(() => getAllActivity(today))).toBeLessThan(budget);
+
+    // «Поиск по истории» (package 17) at its worst: a word every completion matches, so the whole
+    // journal is replayed for the flask states the results show; and a word nothing matches.
+    const skillSearch = { query: 'шаг', filter: 'all' } as const;
+    expect((await searchSkillHistory(skillId, skillSearch))?.total).toBe(5000);
+    expect((await searchAllHistory(skillSearch)).total).toBe(5000);
+    expect(await median(() => searchSkillHistory(skillId, skillSearch))).toBeLessThan(budget);
+    expect(await median(() => searchAllHistory(skillSearch))).toBeLessThan(budget);
+    expect(await median(() => searchAllHistory({ query: 'плавание', filter: 'all' }))).toBeLessThan(budget);
   });
 });

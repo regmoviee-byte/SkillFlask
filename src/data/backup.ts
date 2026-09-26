@@ -43,7 +43,7 @@ export const backupMessages = {
 /**
  * Settings that describe this device rather than the journal: kept from the current database
  * on import instead of taken from the file (the spec names installId; the backup timestamps,
- * the restore offer flag and the appearance switches are just as device-bound).
+ * the restore offer flag, the appearance switches and «Спрашивать заметку» are just as device-bound).
  */
 export const DEVICE_SETTINGS = [
   'installId',
@@ -56,6 +56,7 @@ export const DEVICE_SETTINGS = [
   'lastFileBackupAt',
   'motion',
   'appearance',
+  'askNote',
 ] as const satisfies readonly SettingKey[];
 
 /**
@@ -407,7 +408,7 @@ export async function importBackup(file: BackupFile): Promise<BackupStats> {
  * hash) does not: a cloud copy kept through the wipe no longer describes this device, so the
  * automatic backup treats it as someone else's and never replaces it silently.
  */
-const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance'] as const satisfies readonly SettingKey[];
+const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance', 'askNote'] as const satisfies readonly SettingKey[];
 
 /** «Удалить все данные»: clears every table, keeping the install id and the device switches. */
 export async function wipeAllData(): Promise<void> {

@@ -63,12 +63,20 @@
 // fields' estimate against capacities typed in a form, and the session's new-skill drafts (a
 // form's edits kept across «Назад» to the chooser). 202.6 KB measured: 0.4 KB of headroom, so
 // the next packages' UI goes into lazy chunks.
+// 204 KB since v0.5 package 17 (notes and search, +0.5 KB net): the search itself — the service,
+// matching and highlighting, the field and chips, the global screen and their strings — is lazy
+// (≈ 3.8 KB), and «Итоги недели» became a lazy route to pay for what must be in the first paint
+// (≈ −0.8 KB): the completion toast's second action «Заметка», the one app-wide completion sheet
+// it opens with the note focused (and the keyboard primer iOS needs for that), the setting
+// «Спрашивать заметку» with its read after a tap, the note field of «Сколько минут?», the
+// Timeline's highlight hook, the skill screen's lazy search slot with its same-height placeholder,
+// the `/search` route and the home header’s search icon. 203.2 KB measured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_KB = Number(process.argv[2] ?? 203);
+const LIMIT_KB = Number(process.argv[2] ?? 204);
 const LAZY_LIMIT_KB = 14;
 const dir = 'dist/assets';
 const manifestPath = 'dist/.vite/manifest.json';

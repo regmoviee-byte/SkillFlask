@@ -69,11 +69,11 @@ function renderSettings() {
 }
 
 describe('SettingsScreen', () => {
-  it('shows the four groups, counts and the honest 14-day metric in the browser', async () => {
+  it('shows the groups, counts and the honest 14-day metric in the browser', async () => {
     await seed();
     await initCloudBackup();
     renderSettings();
-    for (const title of ['Данные', 'Оформление', 'О приложении', 'Опасная зона']) {
+    for (const title of ['Данные', 'Выполнение', 'Оформление', 'О приложении', 'Опасная зона']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy();
     }
     expect(screen.getByText('Доступно при запуске из Telegram')).toBeTruthy();
@@ -86,6 +86,19 @@ describe('SettingsScreen', () => {
     expect(screen.getByRole('button', { name: 'Удалить все данные' })).toBeTruthy();
     expect(screen.getByRole('switch', { name: /Меньше анимации/ })).toBeTruthy();
     expect(screen.getByRole('switch', { name: 'Виброотклик' })).toBeTruthy();
+  });
+
+  it('«Спрашивать заметку после каждого действия» is off by default and stored when switched', async () => {
+    renderSettings();
+    const toggle = (await screen.findByRole('switch', { name: 'Спрашивать заметку после каждого действия' })) as HTMLInputElement;
+    await waitFor(() => expect(toggle.disabled).toBe(false));
+    expect(toggle.checked).toBe(false);
+    expect(toggle.getAttribute('aria-describedby')).toBeTruthy();
+    fireEvent.click(toggle);
+    await waitFor(async () => expect(await getSetting('askNote', false)).toBe(true));
+    await waitFor(() => expect(toggle.checked).toBe(true));
+    fireEvent.click(toggle);
+    await waitFor(async () => expect(await getSetting('askNote', true)).toBe(false));
   });
 
   it('reminds to download a file in the browser when the last copy is old', async () => {

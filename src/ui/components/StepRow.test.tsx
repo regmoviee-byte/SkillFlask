@@ -10,7 +10,7 @@ import { TimerContext } from '../timer/context';
 import { BUSY_TAIL_MS, StepRow } from './StepRow';
 import { ToastProvider } from './Toast';
 
-vi.mock('../../services/completions', () => ({ completeStep: vi.fn(), cancelCompletion: vi.fn() }));
+vi.mock('../../services/completions', () => ({ completeStep: vi.fn(), cancelCompletion: vi.fn(), NOTE_MAX_LENGTH: 500 }));
 const celebrations = vi.hoisted(() => ({ hold: vi.fn(), release: vi.fn(), celebrateResult: vi.fn() }));
 vi.mock('../celebrations/CelebrationProvider', () => ({
   useCelebrations: () => ({ hold: celebrations.hold, celebrateResult: celebrations.celebrateResult }),
@@ -209,10 +209,12 @@ describe('StepRow', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Больше' }));
     expect((within(sheet).getByLabelText('Минуты') as HTMLInputElement).value).toBe('50');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Меньше' }));
+    // The optional note under the minutes goes into the same write, trimmed.
+    fireEvent.change(within(sheet).getByLabelText('Заметка'), { target: { value: '  Вслух, без запинок ' } });
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Готово' }));
     await wait(0);
-    expect(completeStep).toHaveBeenCalledWith('step-1', { date: undefined, minutes: 45 });
+    expect(completeStep).toHaveBeenCalledWith('step-1', { date: undefined, minutes: 45, note: 'Вслух, без запинок' });
     expect(await screen.findByText('+22,5 · Чтение')).toBeTruthy();
   });
 

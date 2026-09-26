@@ -6,7 +6,7 @@ import { archiveSkill } from '../services/lifecycle';
 import { installFreshDb } from '../test/harness';
 import { getSetting } from './settings';
 import { createSkill, type SkillInput } from './skills';
-import { createStep } from './steps';
+import { createStep, setStepActive } from './steps';
 import { getActiveTimer, getTimerView, startTimer, TIMER_KEY, TimerRunningError } from './timer';
 import { discardTimer, getTimerSkillProgress, pauseActiveTimer, recordTimer, resumeActiveTimer } from './timerControl';
 
@@ -113,6 +113,28 @@ describe('timer service', () => {
     await expect(recordTimer(timer, { minutes: 25, date: '2026-09-30' })).rejects.toThrow('Некорректная дата');
     await expect(recordTimer(timer, { minutes: 0, date: timer.date })).rejects.toThrow();
     expect(await getActiveTimer()).toEqual(timer);
+  });
+
+  it('writes the note with the completion and removes the timer in the same transaction', async () => {
+    const { talk } = await setup();
+    const timer = await startTimer(talk);
+    advance(30 * MIN);
+    const result = await recordTimer(timer, { minutes: 30, date: timer.date, note: '  Про погоду ' });
+    const completion = await db.completions.get(result.completionId);
+    expect(completion).toMatchObject({ note: 'Про погоду', durationMinutes: 30 });
+    expect(completion!.updatedAt).toBe(completion!.createdAt);
+    expect(await getActiveTimer()).toBeNull();
+  });
+
+  it('rolls the timer back with a completion refused inside the transaction', async () => {
+    const { talk } = await setup();
+    const timer = await startTimer(talk);
+    // The minutes are checked after the timer was taken off: the refusal puts it back.
+    await expect(recordTimer(timer, { minutes: 5000, date: timer.date })).rejects.toThrow();
+    await setStepActive(talk, false);
+    await expect(recordTimer(timer, { minutes: 25, date: timer.date })).rejects.toThrow('Действие не найдено');
+    expect(await getActiveTimer()).toEqual(timer);
+    expect(await db.completions.count()).toBe(0);
   });
 
   it('reads a malformed row as no timer and lets a new one replace it', async () => {

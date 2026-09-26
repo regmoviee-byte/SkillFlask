@@ -20,7 +20,8 @@ import { useToast } from '../components/Toast';
 import { copy } from '../copy';
 import { copyForSkill } from '../progress/registry';
 
-// «Выполнение»: opened from a history row. The note is editable for every completion (it is
+// «Выполнение»: opened from a history row, or with the note field focused from the completion
+// toast's «Заметка» (CompletionNoteHost). The note is editable for every completion (it is
 // not progress, decision 14.8); cancel and restore only while the skill is active (14.9).
 // A typed note is never thrown away: swipe, scrim, Back, cancel and restore all save it — the
 // sheet says so under the field. «Вернуть» that refills a flask is celebrated like a completion.
@@ -31,7 +32,14 @@ import { copyForSkill } from '../progress/registry';
 const COUNTER_FROM = 400;
 const NOTE_ROWS = { min: 2, max: 5 };
 
-export function CompletionSheet({ completionId, onClose }: { completionId: string | null; onClose(): void }) {
+interface CompletionSheetProps {
+  completionId: string | null;
+  onClose(): void;
+  /** Opens with the note field focused (the toast's «Заметка», the setting «Спрашивать заметку»). */
+  focusNote?: boolean;
+}
+
+export function CompletionSheet({ completionId, onClose, focusNote = false }: CompletionSheetProps) {
   // Keep the last completion on screen while the sheet animates out.
   const [shownId, setShownId] = useState(completionId);
   if (completionId !== null && completionId !== shownId) setShownId(completionId);
@@ -43,11 +51,12 @@ export function CompletionSheet({ completionId, onClose }: { completionId: strin
       open={completionId !== null && loaded !== undefined && loaded !== null}
       details={loaded ?? null}
       onClose={onClose}
+      focusNote={focusNote}
     />
   );
 }
 
-function CompletionSheetView({ open, details, onClose }: { open: boolean; details: CompletionDetails | null; onClose(): void }) {
+function CompletionSheetView({ open, details, onClose, focusNote }: { open: boolean; details: CompletionDetails | null; onClose(): void; focusNote: boolean }) {
   const t = copy.completionSheet;
   const { showToast } = useToast();
   const celebrations = useCelebrations();
@@ -187,6 +196,7 @@ function CompletionSheetView({ open, details, onClose }: { open: boolean; detail
       title={completion.stepName}
       closeRef={closeRef}
       className="completion-sheet"
+      initialFocus={focusNote ? textarea : undefined}
       footer={
         <>
           {timed && editable && !cancelled && (

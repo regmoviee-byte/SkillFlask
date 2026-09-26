@@ -117,20 +117,22 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
     void record();
   }
 
-  async function record(minutes?: number) {
+  /** `minutes` and `note` come from «Сколько минут?» (a TIMED action), which has its own note field. */
+  async function record(minutes?: number, note?: string | null) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     haptics.press();
     const tapStart = Date.now();
     try {
-      const result = await writeCompletion(() => completeStep(step.id, { date, minutes }), {
+      const result = await writeCompletion(() => completeStep(step.id, { date, minutes, note }), {
         skillId: step.skillId,
         stepName: step.name,
         levels: copyForSkill(skill),
         source: button.current,
         showToast,
         celebrations,
+        noteField: minutes !== undefined,
       });
       setDone(true);
       onResult?.(result);
@@ -184,7 +186,7 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
         </button>
       )}
       {timed && active && (
-        <MinutesSheet open={askMinutes} step={step} onClose={() => setAskMinutes(false)} onDone={(minutes) => void record(minutes)} />
+        <MinutesSheet open={askMinutes} step={step} onClose={() => setAskMinutes(false)} onDone={(minutes, { note }) => void record(minutes, note)} />
       )}
     </li>
   );

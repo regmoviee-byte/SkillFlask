@@ -63,6 +63,11 @@ export interface CompleteStepOptions {
    */
   source?: CompletionSource;
   note?: string | null;
+  /**
+   * Runs first inside the completion's transaction (which covers `journalTables()`, the settings
+   * too): a throw records nothing. The live timer checks and removes itself here.
+   */
+  inTransaction?: () => Promise<void>;
 }
 
 export const NOTE_MAX_LENGTH = 500;
@@ -178,6 +183,7 @@ export async function completeStep(stepId: string, options: CompleteStepOptions 
   const minutesGiven = options.minutes;
   const now = nowIso();
   const result = await db.transaction('rw', journalTables(), async () => {
+    await options.inTransaction?.();
     const step = await db.steps.get(stepId);
     if (!step || !step.isActive) throw new ValidationError('Действие не найдено');
     const skill = await requireSkill(step.skillId);

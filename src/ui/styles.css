@@ -107,7 +107,9 @@ button {
   top: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: 64px 1fr 64px;
+  /* Equal sides of at least 64px around a centred title; a side with two buttons (home: search
+     and «+») takes 88px while the title leaves the room, and a long title still gets the rest. */
+  grid-template-columns: minmax(64px, 1fr) minmax(0, auto) minmax(64px, 1fr);
   align-items: center;
   min-height: 52px;
   padding: var(--safe-top) var(--sp-2) 0;
@@ -467,6 +469,29 @@ button {
   color: var(--liquid-light);
   font-weight: 600;
   cursor: pointer;
+}
+
+/* «Заметка» before «Отменить»: the same 44px target, a lighter weight. The message keeps its
+   line beside the two when it fits («+5 · Чтение»); a longer one takes the first row whole and
+   the actions move under it, to the right, instead of cutting the name to «Разговор…». */
+.toast-action--secondary {
+  font-weight: 500;
+}
+
+.toast.has-secondary {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.toast.has-secondary .toast-message {
+  flex: 1 0 auto;
+  max-width: 100%;
+}
+
+.toast-actions {
+  flex: none;
+  display: flex;
+  margin-left: auto;
 }
 
 /* Dark themes invert the pill to near-white: a darkened accent keeps «Отменить» above 4.5:1. */
@@ -4832,6 +4857,11 @@ html[data-motion='reduced'] .timer-dial .ring-value {
   font-variant-numeric: tabular-nums;
 }
 
+/* «12:34:56» and longer: 44px would spill past the 216px ring. */
+.timer-digits--long {
+  font-size: 32px;
+}
+
 .timer-dial.is-paused .timer-digits {
   color: var(--color-fg-secondary);
 }
@@ -4875,6 +4905,15 @@ html[data-motion='reduced'] .timer-dial .ring-value {
 
 .minutes-date {
   margin-top: var(--sp-4);
+}
+
+/* The optional note under the minutes (v0.5 package 17), written with the completion. */
+.minutes-note {
+  margin-top: var(--sp-4);
+}
+
+.minutes-note .note-input {
+  resize: none;
 }
 
 /* ---------- Skill templates (v0.5 package 16) ---------- */
@@ -5103,5 +5142,94 @@ html[data-motion='reduced'] .template-action-text {
   .template-action-edit {
     padding: 0 var(--sp-1);
     font-size: 15px;
+  }
+}
+
+/* ---------- «Поиск по истории» (v0.5 package 17) ---------- */
+
+.search-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+/* The chunk's place while it loads: the field and the chips row. */
+.search-controls--placeholder {
+  height: calc(46px + var(--sp-2) + 36px);
+}
+
+.search-field {
+  position: relative;
+}
+
+.search-field-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--color-fg-secondary);
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: 42px;
+  padding-right: 44px;
+}
+
+/* The browser's own clear button: × below is the one with a 44px target. */
+.search-input::-webkit-search-cancel-button,
+.search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  transform: translateY(-50%);
+  color: var(--color-fg-secondary);
+}
+
+.search-count {
+  margin: 0 var(--sp-1) var(--sp-2);
+}
+
+.search-hint {
+  margin: var(--sp-2) var(--sp-1) 0;
+}
+
+.search-group + .search-group {
+  margin-top: var(--sp-4);
+}
+
+.search-group-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A result's note or mark text: up to three lines, so the marked words show (the history keeps one). */
+.search-results .history-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.search-hit {
+  border-radius: 3px;
+  padding: 0 1px;
+  background: var(--color-accent-soft);
+  color: inherit;
+  font-weight: 600;
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .search-hit {
+    background: color-mix(in srgb, var(--liquid-light) 45%, transparent);
   }
 }

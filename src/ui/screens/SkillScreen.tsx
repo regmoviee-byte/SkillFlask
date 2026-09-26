@@ -33,6 +33,7 @@ import { useCountUp } from '../hooks/useCountUp';
 import { useToday } from '../hooks/useToday';
 import { lazySafe } from '../lazySafe';
 import { SkillActivity, SkillForecast } from '../insights/lazy';
+import { SkillHistorySearch } from '../search/lazy';
 import type { ProgressHeroHandle, ProgressMark } from '../progress/contract';
 import { ProgressHero } from '../progress/ProgressHero';
 import { colorScope, copyForSkill, skillTheme } from '../progress/registry';
@@ -51,6 +52,14 @@ const LinkSheet = lazySafe(() => import('../sheets/LinkSheet').then((m) => ({ de
 // celebration (useCelebrationStage), so the points fly in first. The whole screen is painted in
 // the skill's colour (colorScope). The header ⋯ opens the skill's menu: edit it, its
 // appearance («Оформление»), add a mark, copy a link that opens it («Ссылка на навык»).
+// «История» starts with «Поиск по истории» (ui/search, package 17); a result of the global
+// search opens this screen with its completion's (or mark's) sheet on top (SkillOpenRequest).
+
+/** Navigation state from the global search: the sheet to open on arrival, once. */
+export interface SkillOpenRequest {
+  completion?: string;
+  mark?: string;
+}
 
 export function SkillScreen() {
   const { skillId = '' } = useParams();
@@ -203,7 +212,8 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
   // forgets it, so coming back to this screen later starts at the top as usual.
   const location = useLocation();
   const navigate = useNavigate();
-  const focusHistory = (location.state as { focus?: string } | null)?.focus === 'history';
+  const state = location.state as { focus?: string; open?: SkillOpenRequest } | null;
+  const focusHistory = state?.focus === 'history';
   const historyRef = useRef<HTMLElement>(null);
   const historyReady = history !== undefined;
   useEffect(() => {
@@ -211,6 +221,16 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
     historyRef.current?.scrollIntoView({ block: 'start' });
     navigate({ pathname: location.pathname, search: location.search }, { replace: true });
   }, [focusHistory, historyReady, navigate, location.pathname, location.search]);
+  // A result of the global search: its sheet opens over the screen, once (the entry forgets it
+  // before the sheet adds its own history entry, so «Назад» closes the sheet, then the screen).
+  const openCompletionId = state?.open?.completion;
+  const openMarkId = state?.open?.mark;
+  useEffect(() => {
+    if (!openCompletionId && !openMarkId) return;
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true });
+    if (openCompletionId) setOpenCompletion(openCompletionId);
+    if (openMarkId) onMark({ kind: 'mark', id: openMarkId });
+  }, [openCompletionId, openMarkId, onMark, navigate, location.pathname, location.search]);
 
   return (
     <>
@@ -251,15 +271,17 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
             <EmptyState illustration="history" title={t.historyEmptyTitle} text={active ? t.historyEmptyActive : t.historyEmptyInactive} />
           </div>
         ) : (
-          <Timeline
-            events={history.events}
-            levels={copyForSkill(skill)}
-            today={today}
-            hasMore={history.hasMore}
-            onMore={() => setLimit((n) => n + HISTORY_PAGE)}
-            onOpen={setOpenCompletion}
-            onOpenMark={openMark}
-          />
+          <SkillHistorySearch skill={skill} today={today} hasMarks={details.marks.length > 0} onOpen={setOpenCompletion} onOpenMark={openMark}>
+            <Timeline
+              events={history.events}
+              levels={copyForSkill(skill)}
+              today={today}
+              hasMore={history.hasMore}
+              onMore={() => setLimit((n) => n + HISTORY_PAGE)}
+              onOpen={setOpenCompletion}
+              onOpenMark={openMark}
+            />
+          </SkillHistorySearch>
         )}
       </section>
 

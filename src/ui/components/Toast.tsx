@@ -6,7 +6,8 @@ import { useHasTabBar } from './TabBar';
 // One toast at a time: a new one replaces the old. Tap or swipe down dismisses; an action
 // («Отменить») keeps it on screen longer. Positioned above the tab bar when there is one.
 // Leaving the screen dismisses a plain toast (a skill-specific message would read as stale on
-// another screen); a toast with an action stays until it is used or times out.
+// another screen); a toast with an action stays until it is used or times out. A completion's
+// toast has two: «Заметка» (the lighter one, first) and «Отменить».
 //
 // The toast floats over the bottom lane (thumb reach for «Отменить») and never moves content
 // under the finger. Two guards keep it from hiding what the user needs next: it never covers
@@ -16,8 +17,15 @@ import { useHasTabBar } from './TabBar';
 // always be scrolled out from under it. A running timer's pill (ui/timer) sits in the same lane
 // just above the bars and publishes its height as --timer-room: the toast rises above it.
 
+export interface ToastAction {
+  label: string;
+  onClick(): void;
+}
+
 export interface ToastOptions {
-  action?: { label: string; onClick(): void };
+  action?: ToastAction;
+  /** A second, lighter action before the main one («Заметка» before «Отменить»); only with `action`. */
+  secondary?: ToastAction;
   durationMs?: number;
   icon?: IconName;
 }
@@ -156,7 +164,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastState; onDismiss(): void 
   return (
     <div
       ref={ref}
-      className={`toast${toast.action ? ' has-action' : ''}${hasTabBar ? ' above-tab-bar' : aboveFooter ? ' above-footer' : ''}`}
+      className={`toast${toast.action ? ' has-action' : ''}${toast.action && toast.secondary ? ' has-secondary' : ''}${hasTabBar ? ' above-tab-bar' : aboveFooter ? ' above-footer' : ''}`}
       style={offset ? { bottom: offset } : undefined}
       role="status"
       onClick={onDismiss}
@@ -177,20 +185,32 @@ function ToastView({ toast, onDismiss }: { toast: ToastState; onDismiss(): void 
         </span>
       )}
       <span className="toast-message">{toast.message}</span>
-      {toast.action && (
-        <button
-          type="button"
-          className="toast-action"
-          onClick={(event) => {
-            event.stopPropagation();
-            onDismiss();
-            toast.action!.onClick();
-          }}
-        >
-          {toast.action.label}
-        </button>
+      {toast.action && toast.secondary ? (
+        // Kept together: when the message needs the row, both move under it.
+        <span className="toast-actions">
+          <ToastButton action={toast.secondary} secondary onDismiss={onDismiss} />
+          <ToastButton action={toast.action} onDismiss={onDismiss} />
+        </span>
+      ) : (
+        toast.action && <ToastButton action={toast.action} onDismiss={onDismiss} />
       )}
     </div>
+  );
+}
+
+function ToastButton({ action, secondary, onDismiss }: { action: ToastAction; secondary?: boolean; onDismiss(): void }) {
+  return (
+    <button
+      type="button"
+      className={`toast-action${secondary ? ' toast-action--secondary' : ''}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onDismiss();
+        action.onClick();
+      }}
+    >
+      {action.label}
+    </button>
   );
 }
 

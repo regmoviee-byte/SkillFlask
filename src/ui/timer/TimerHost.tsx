@@ -136,16 +136,17 @@ export default function TimerHost({ view, handle }: TimerHostProps) {
     setFinish({ shown: target, minutes: minutesToRecord(elapsed), date: target.timer.date, warning, next, open: true });
   }
 
-  async function record(target: Finish, minutes: number, date: string) {
+  async function record(target: Finish, minutes: number, date: string, note: string | null) {
     haptics.press();
     try {
-      await writeCompletion(() => recordTimer(target.shown.timer, { minutes, date }), {
+      await writeCompletion(() => recordTimer(target.shown.timer, { minutes, date, note }), {
         skillId: target.shown.skill.id,
         stepName: target.shown.step.name,
         levels: copyForSkill(target.shown.skill),
         source: pill.current,
         showToast,
         celebrations,
+        noteField: true,
       });
       if (target.next) await startTimer(target.next.id);
     } catch (error) {
@@ -237,9 +238,9 @@ export default function TimerHost({ view, handle }: TimerHostProps) {
             if (finished.current) sheetClose.current();
             finished.current = false;
           }}
-          onDone={(minutes, date) => {
+          onDone={(minutes, { date, note }) => {
             finished.current = true;
-            void record(finish, minutes, date ?? finish.date);
+            void record(finish, minutes, date ?? finish.date, note);
           }}
         />
       )}
@@ -320,7 +321,9 @@ function TimerSheet({ open, shown: { timer, step, skill }, closeRef, onClose, on
   // Ticks only while the sheet is open; the pill has its own subscriber to the same interval.
   const now = useNow(open && running);
   const elapsed = timerElapsedMs(timer, new Date(now));
-  const progress = useLiveQuery(() => getTimerSkillProgress(skill.id), [skill.id]);
+  // Only while open: the sheet stays mounted, and the query would replay the skill's journal
+  // after every write of the session.
+  const progress = useLiveQuery(() => (open ? getTimerSkillProgress(skill.id) : null), [open, skill.id]);
   const levels = copyForSkill(skill);
   const goal = step.defaultMinutes;
   const old = isOldTimer(timer, localDate());
@@ -329,7 +332,8 @@ function TimerSheet({ open, shown: { timer, step, skill }, closeRef, onClose, on
 
   const digits = (
     <span className="timer-dial-text">
-      <span className="timer-digits" role="timer">
+      {/* From ten hours on («12:34:56», a forgotten «192:00:02») smaller, so they stay inside the ring. */}
+      <span className={`timer-digits${formatElapsed(elapsed).length > 7 ? ' timer-digits--long' : ''}`} role="timer">
         {formatElapsed(elapsed)}
       </span>
       <span className="timer-dial-caption" aria-live="polite">

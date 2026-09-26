@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { registerSheetStack } from '../../platform/telegram';
 
@@ -27,6 +27,12 @@ export interface SheetProps {
    * the screen unmounts it): the moment to scroll the page, which the lock would otherwise undo.
    */
   onExited?(): void;
+  /**
+   * A field focused instead of the sheet itself when it opens, with the caret at its end: a
+   * sheet opened to type in («Заметка» from the completion toast). The keyboard comes up where
+   * the platform allows it (platform/viewport.ts primeKeyboard keeps it up on iOS).
+   */
+  initialFocus?: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
 }
 
 const EXIT_MS = 260;
@@ -161,7 +167,7 @@ interface Drag {
   fromBody: boolean;
 }
 
-export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef, className, onExited }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer, dismissible = true, height = 'auto', ariaLabel, closeRef, className, onExited, initialFocus }: SheetProps) {
   const id = useId();
   const titleId = `${id}-title`;
   const bodyId = `${id}-body`;
@@ -176,6 +182,8 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
   dismissibleRef.current = dismissible;
   const onExitedRef = useRef(onExited);
   onExitedRef.current = onExited;
+  const initialFocusRef = useRef(initialFocus);
+  initialFocusRef.current = initialFocus;
   /** Set when the exit timer unmounts the sheet, so the unlock that follows reports onExited. */
   const exited = useRef(false);
   // history.back() is asynchronous: until popstate arrives the top state still carries this
@@ -245,7 +253,17 @@ export function Sheet({ open, onClose, title, children, footer, dismissible = tr
     if (!mounted) return;
     lockBody();
     const previous = document.activeElement as HTMLElement | null;
-    sheetRef.current?.focus({ preventScroll: true });
+    const field = initialFocusRef.current?.current;
+    if (field) {
+      field.focus({ preventScroll: true });
+      try {
+        field.setSelectionRange(field.value.length, field.value.length);
+      } catch {
+        // An input type without a caret (a date): the focus is enough.
+      }
+    } else {
+      sheetRef.current?.focus({ preventScroll: true });
+    }
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && stack[stack.length - 1]?.id === id) requestClose();
     };

@@ -281,7 +281,12 @@ export default function StyleguideScreen() {
             <button
               type="button"
               className="button"
-              onClick={() => showToast('+5 · Чтение', { action: { label: 'Отменить', onClick: () => showToast('Отменено', { icon: 'undo' }) } })}
+              onClick={() =>
+                showToast('+5 · Чтение', {
+                  action: { label: 'Отменить', onClick: () => showToast('Отменено', { icon: 'undo' }) },
+                  secondary: { label: 'Заметка', onClick: () => showToast('Заметка') },
+                })
+              }
             >
               Тост с действием
             </button>

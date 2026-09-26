@@ -41,16 +41,20 @@ export async function discardTimer(startedAt: string): Promise<void> {
 }
 
 /**
- * «Завершить»: records the timer's action with the minutes and date the user confirmed (the
- * normal completion, same validation) and removes the timer. A timer that is no longer the
- * stored one (finished in another tab) records nothing.
+ * «Завершить»: records the timer's action with the minutes, date and note the user confirmed
+ * (the normal completion, same validation) and removes the timer in the same transaction, so a
+ * WebView killed in between can never leave a recorded timer to be recorded twice. A timer that
+ * is no longer the stored one (finished in another tab) records nothing.
  */
-export async function recordTimer(timer: ActiveTimer, options: { minutes: number; date: string }): Promise<MutationResult> {
-  const current = await getActiveTimer();
-  if (!current || current.startedAt !== timer.startedAt) throw new ValidationError('Этот таймер уже завершён');
-  const result = await completeStep(timer.stepId, options);
-  await discardTimer(timer.startedAt);
-  return result;
+export async function recordTimer(timer: ActiveTimer, options: { minutes: number; date: string; note?: string | null }): Promise<MutationResult> {
+  return completeStep(timer.stepId, {
+    ...options,
+    inTransaction: async () => {
+      const current = await getActiveTimer();
+      if (!current || current.startedAt !== timer.startedAt) throw new ValidationError('Этот таймер уже завершён');
+      await db.settings.delete(TIMER_KEY);
+    },
+  });
 }
 
 /** The skill's progress for the timer sheet's mini; null when the skill is gone. */

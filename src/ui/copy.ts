@@ -86,6 +86,10 @@ export const copy = Object.freeze({
     emptyTitle: 'Первый навык',
     /** The heat map of every skill (ui/insights). */
     activity: 'Активность · все навыки',
+    /** The header button that opens the search over every skill's history (ui/search). */
+    search: 'Поиск по истории',
+    /** The search screen's title (its header stands while the chunk loads). */
+    searchTitle: 'Поиск',
   },
   today: {
     title: 'Сегодня',
@@ -272,6 +276,8 @@ export const copy = Object.freeze({
     added: (points: number, stepName: string) => `+${formatNumber(points)} · ${stepName}`,
     durationChanged: (delta: number) => `Длительность изменена: ${formatDelta(delta)} ${plural(Math.abs(delta), POINTS)}`,
     undo: 'Отменить',
+    /** The toast's second action: the completion sheet with its note field focused (package 17). */
+    note: 'Заметка',
     restored: 'Возвращено',
   },
   completionSheet: {
@@ -511,6 +517,9 @@ export const copy = Object.freeze({
     title: 'Настройки',
     groupData: 'Данные',
     groupAppearance: 'Оформление',
+    groupCompletion: 'Выполнение',
+    askNote: 'Спрашивать заметку после каждого действия',
+    askNoteHint: 'После отметки откроется поле заметки — его можно закрыть пустым',
     groupAbout: 'О приложении',
     groupDanger: 'Опасная зона',
     cloud: 'Облако Telegram',
@@ -698,6 +707,9 @@ export const copy = Object.freeze({
     save: 'Не сохранилось. Данные на месте — попробуйте ещё раз',
     /** The live timer's chunk did not load (a new build on the server): the timer itself is kept. */
     timerChunk: 'Таймер не открылся — обновите приложение в «Настройках»',
+    /** The search chunk did not load (package 17). */
+    searchChunk: 'Поиск не открылся — обновите приложение в «Настройках»',
+    recapChunk: 'Итоги не открылись — обновите приложение в «Настройках»',
   },
   db: {
     opening: 'Открываем данные…',

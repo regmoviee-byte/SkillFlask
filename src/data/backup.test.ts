@@ -101,10 +101,12 @@ describe('export → wipe → import', () => {
     const own = settings.find((row) => row.key === 'installId')!.value;
     for (const row of settings) if (row.key === 'installId') row.value = 'another-phone';
     settings.push({ key: 'lastCloudBackupAt', value: '2026-01-01T00:00:00.000Z' });
+    settings.push({ key: 'askNote', value: true });
 
     await importBackup(migrateBackup(file));
     expect(await getSetting('installId', '')).toBe(own);
     expect(await getSetting('lastCloudBackupAt', null)).toBeNull();
+    expect(await getSetting('askNote', false)).toBe(false);
   });
 
   it('runs the import hooks inside the transaction', async () => {
@@ -364,12 +366,15 @@ describe('wipeAllData', () => {
     await setSetting('restoreOfferShown', true);
     await setSetting('cloudBackupHash', 'abc');
     await setSetting('lastCloudBackupAt', '2026-09-01T10:00:00.000Z');
+    await setSetting('askNote', true);
     await wipeAllData();
     expect(await db.skills.count()).toBe(0);
     expect(await db.completions.count()).toBe(0);
     expect(await db.marks.count()).toBe(0);
     expect(await getSetting('installId', '')).toBe(installId);
     expect(await getSetting('cloudBackupEnabled', true)).toBe(false);
+    // «Спрашивать заметку» is this phone's switch, like «Тема» (package 17).
+    expect(await getSetting('askNote', false)).toBe(true);
     // Offered again on the next start when the cloud still holds a copy.
     expect(await getSetting('restoreOfferShown', false)).toBe(false);
     // A kept cloud copy is no longer this device's to replace.

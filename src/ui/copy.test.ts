@@ -9,6 +9,7 @@ import { THEME_TEXT } from './progress/texts';
 import { insightsCopy } from './insights/strings';
 import { timerCopy } from './timer/strings';
 import { templatesCopy } from './templates/strings';
+import { searchCopy } from './search/strings';
 import { TEMPLATES } from '../domain/templates';
 
 const flask = levelCopy(THEME_TEXT.flask);
@@ -67,6 +68,8 @@ describe('copy dictionary', () => {
   strings.push(['insightsCopy.forecast.required()', required(7, [])]);
   // The live timer (ui/timer/strings.ts).
   collect(timerCopy, 'timerCopy', strings);
+  // «Поиск по истории» (ui/search/strings.ts, package 17).
+  collect(searchCopy, 'searchCopy', strings);
   // The skill templates (package 16): the chooser and form strings, the plan line in every
   // theme's words, and the catalogue's own texts (names, lines, labels, milestones, actions).
   const { plan, ...actions } = templatesCopy.actions;

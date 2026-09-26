@@ -12,6 +12,7 @@ export type SettingKey =
   | 'motion'
   | 'appearance'
   | 'coachTodaySeen'
+  | 'askNote'
   | 'activeTimer'
   | 'installId';
 

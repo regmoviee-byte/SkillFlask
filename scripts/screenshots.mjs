@@ -238,7 +238,7 @@ for (let i = 0; i < 9; i++) {
     if (place.captionRight > place.infoLeft) errors.push('the mark caption runs into the hero numbers');
     await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
     await shot('skill-mark');
-    await page.getByText('Засечки', { exact: true }).evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.getByRole('heading', { name: 'Засечки', exact: true }).evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await page.locator('.mark-row', { hasText: 'Пробный тест' }).waitFor();
     await shot('marks-list');
     await caption.click();
@@ -296,7 +296,7 @@ await page.setViewportSize(contextOptions.viewport);
 // History: grouped by day with separators; the cancelled completion stays, struck through;
 // a row opens the completion sheet.
 await page.waitForTimeout(6000); // let the toast time out
-await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await page.getByRole('heading', { name: 'История', exact: true }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await page.getByText('Веха «Достичь C1» достигнута').waitFor();
 await page.getByText('Колба 2 заполнена').waitFor();
 if (!(await page.locator('.timeline-row.is-cancelled').count())) errors.push('the cancelled completion is not struck through in the timeline');
@@ -331,7 +331,7 @@ await page.getByText('Засечка удалена').waitFor();
 await markSheet.waitFor({ state: 'detached' });
 if (await page.locator('.timeline-mark', { hasText: 'Черновик' }).count()) errors.push('a deleted mark stays in the history');
 if (!(await page.locator('.timeline-mark', { hasText: 'Пробный тест B2' }).count())) errors.push('deleting one mark took another with it');
-await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await page.getByRole('heading', { name: 'История', exact: true }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await page.locator('button.timeline-row').first().click();
 const sheet = page.locator('.completion-sheet');
 await sheet.waitFor();
@@ -398,7 +398,7 @@ await dialog.waitFor({ state: 'detached' });
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(1300);
 await shot('skill-completed');
-await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await page.getByRole('heading', { name: 'История', exact: true }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await shot('history-completed');
 await page.evaluate(() => window.scrollTo(0, 0));
 
@@ -538,7 +538,7 @@ for (let i = 0; i < 21; i++) {
 await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
 await shot('today-many');
 await page.locator('.today-group-skill', { hasText: 'Чтение' }).click();
-await page.getByText('История').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await page.getByRole('heading', { name: 'История', exact: true }).evaluate((el) => el.scrollIntoView({ block: 'start' }));
 const moreButton = page.getByRole('button', { name: 'Показать ещё' });
 await moreButton.waitFor();
 const rowsBefore = await page.locator('button.timeline-row').count();
@@ -1339,6 +1339,184 @@ function cloudStoreFor(json) {
   await settled();
   await shot('template-custom-form');
   await templateContext.close();
+}
+
+// Notes and search (v0.5 package 17), in their own context on the templates «Английский» and
+// «Гитара»: the completion toast's «Заметка» opens the completion sheet with the note focused;
+// «Сколько минут?» has a note field written with the completion; the skill's «Поиск по истории»
+// marks the matched words, «С заметками» filters, a miss says «Ничего не нашлось»; «Спрашивать
+// заметку после каждого действия» opens the sheet by itself after a ✓; the home screen's search
+// icon opens the search of every skill, grouped by skill, and a result opens its skill with that
+// completion's sheet. 320 px and the three modes, nothing sideways.
+{
+  const notesContext = await browser.newContext(contextOptions);
+  await setupContext(notesContext);
+  page = await openPage(notesContext);
+  const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const scrollToHeading = (locator) =>
+    locator.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - document.querySelector('.screen-header').offsetHeight - 8));
+  const toast = page.locator('.toast');
+  const noteSheet = page.locator('.completion-sheet');
+  const minutesSheet = page.locator('.minutes-sheet');
+  const marks = page.locator('.mark-sheet');
+  const noteFocused = () => page.waitForFunction(() => document.activeElement?.matches('.completion-sheet textarea'), null, { timeout: 5000 }).then(() => true, () => false);
+  const fromTemplate = async (key, cards) => {
+    await page.goto(`${baseUrl}#/skills/new/${key}`);
+    await page.getByRole('heading', { name: 'Действия из шаблона' }).waitFor();
+    await page.getByRole('button', { name: 'Создать навык' }).click();
+    await page.waitForURL(/#\/skills\/(?!new)[^/?]+$/);
+    for (const title of cards) {
+      await achCard(title).waitFor({ timeout: 15000 });
+      await achCard(title).waitFor({ state: 'detached', timeout: 15000 });
+    }
+    return page.url();
+  };
+  // A ✓ once the row is idle again (the same-tap window of the last one has passed).
+  const tapRow = async (name) => {
+    const row = page.locator('.step-row', { hasText: name });
+    await row.locator('.check-button[aria-busy="false"]').waitFor();
+    await row.locator('.check-button').click();
+  };
+
+  const englishUrl = await fromTemplate('english', ['Первый навык', 'Набор инструментов']);
+  await tapRow('Новые слова');
+  await toast.getByRole('button', { name: 'Заметка' }).waitFor();
+  if ((await toast.getByRole('button').allTextContents()).join('|') !== 'Заметка|Отменить') errors.push('the completion toast does not offer «Заметка» before «Отменить»');
+  const toastOverflow = await toast.evaluate((el) => el.scrollWidth - el.clientWidth);
+  if (toastOverflow > 0) errors.push(`the completion toast overflows by ${toastOverflow}px`);
+  await shot('notes-toast');
+  await toast.getByRole('button', { name: 'Заметка' }).click();
+  await noteSheet.waitFor();
+  if (!(await noteFocused())) errors.push('«Заметка» did not focus the note field');
+  await page.keyboard.type('Выучил 15 слов про путешествия и вокзал');
+  await settled();
+  await shot('notes-sheet-focused');
+  await noteSheet.getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByText('Заметка сохранена').waitFor();
+  await noteSheet.waitFor({ state: 'detached' });
+
+  // «Сколько минут?»: the note under the minutes goes into the same write.
+  await tapRow('Разговорная практика');
+  await minutesSheet.waitFor();
+  await minutesSheet.getByLabel('Заметка').fill('Обсуждали погоду и планы на выходные');
+  await settled();
+  await shot('notes-minutes-sheet');
+  await minutesSheet.getByRole('button', { name: 'Готово' }).click();
+  await minutesSheet.waitFor({ state: 'detached' });
+  await toast.getByText('+15 · Разговорная практика').waitFor();
+  await page.waitForTimeout(600);
+  if (await noteSheet.count()) errors.push('a note sheet opened after «Сколько минут?» with the setting off');
+  await tapRow('Новые слова');
+  await toast.getByText('+5 · Новые слова').waitFor();
+  // A mark whose description matches too.
+  await skillMenu('Добавить засечку');
+  await marks.getByLabel('Название').fill('Пробный тест');
+  await marks.getByLabel('Описание').fill('Тема — путешествия, 7 из 10');
+  await marks.getByRole('button', { name: 'Сохранить' }).click();
+  await page.getByText('Засечка добавлена').waitFor();
+  await marks.waitFor({ state: 'detached' });
+  await toast.waitFor({ state: 'detached', timeout: 10000 });
+
+  // The skill's «Поиск по истории».
+  const historySearch = page.getByRole('searchbox', { name: 'Поиск по истории' });
+  await historySearch.waitFor();
+  await scrollToHeading(page.getByRole('heading', { name: 'История', exact: true }));
+  await page.waitForTimeout(300);
+  await shot('history-search-field');
+  await historySearch.fill('путешеств');
+  await page.getByText('Найдено: 2').waitFor();
+  const hits = await page.locator('.search-results mark').allTextContents();
+  if (hits.length !== 2 || hits.some((hit) => hit.toLowerCase() !== 'путешеств')) errors.push(`the history search marks ${JSON.stringify(hits)}`);
+  await scrollToHeading(page.getByRole('heading', { name: 'История', exact: true }));
+  await page.waitForTimeout(300);
+  await shot('history-search');
+  await page.getByRole('button', { name: 'Очистить поиск' }).click();
+  await page.getByRole('group', { name: 'Что искать' }).getByRole('button', { name: 'С заметками' }).click();
+  await page.getByText('Найдено: 2').waitFor();
+  if ((await page.locator('.search-results .history-note').count()) !== 2) errors.push('«С заметками» does not list the two notes');
+  await scrollToHeading(page.getByRole('heading', { name: 'История', exact: true }));
+  await page.waitForTimeout(300);
+  await shot('history-search-notes');
+  await historySearch.fill('футбол');
+  await page.getByText('Ничего не нашлось').waitFor();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await historySearch.fill('путешеств');
+  await page.getByText('Найдено: 1').waitFor();
+  await scrollToHeading(page.getByRole('heading', { name: 'История', exact: true }));
+  await page.waitForTimeout(300);
+  if ((await sideways()) > 0) errors.push(`the history search scrolls sideways by ${await sideways()}px at 320 px`);
+  await shot('history-search-320');
+  await page.setViewportSize(contextOptions.viewport);
+  await page.getByRole('group', { name: 'Что искать' }).getByRole('button', { name: 'Все' }).click();
+  await page.getByRole('button', { name: 'Очистить поиск' }).click();
+
+  // «Спрашивать заметку после каждого действия»: the sheet opens by itself after a ✓.
+  await page.goto(`${baseUrl}#/settings`);
+  const askNote = page.getByRole('switch', { name: 'Спрашивать заметку после каждого действия' });
+  await askNote.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => !document.querySelector('input[role="switch"]:disabled'));
+  await askNote.check();
+  await page.waitForTimeout(300);
+  await askNote.evaluate((el) => el.closest('.settings-group').scrollIntoView({ block: 'center' }));
+  await shot('settings-ask-note');
+  await page.goto(englishUrl);
+  await tapRow('Новые слова');
+  await noteSheet.waitFor();
+  if (!(await noteFocused())) errors.push('«Спрашивать заметку» opened the sheet without focusing the note');
+  await settled();
+  await shot('notes-auto-ask');
+  await page.keyboard.press('Escape');
+  await noteSheet.waitFor({ state: 'detached' });
+  await page.waitForTimeout(400);
+  if (await page.getByText('Заметка сохранена').count()) errors.push('closing the asked sheet empty saved a note');
+  // The switch stays on for the rest of this context.
+
+  // A second skill with a matching note, for the search of every skill.
+  await fromTemplate('guitar', []);
+  await tapRow('Практика');
+  await minutesSheet.waitFor();
+  await minutesSheet.getByLabel('Заметка').fill('Разобрал песню про путешествия');
+  await minutesSheet.getByRole('button', { name: 'Готово' }).click();
+  await toast.getByText(/· Практика$/).waitFor();
+  await page.waitForTimeout(600);
+  if (await noteSheet.count()) errors.push('«Спрашивать заметку» asked again after «Сколько минут?»');
+
+  // The home header's search: every skill, grouped by skill, the latest hit first (once the
+  // toast and the achievement card of that completion have gone, so they cover nothing).
+  await toast.waitFor({ state: 'detached', timeout: 10000 });
+  await page.locator('.ach-card').waitFor({ state: 'detached', timeout: 15000 });
+  await page.goto(`${baseUrl}#/skills`);
+  await page.locator('.skill-card').first().waitFor();
+  await page.getByRole('link', { name: 'Поиск по истории' }).click();
+  const globalField = page.getByRole('searchbox', { name: 'Поиск по всем навыкам' });
+  await globalField.waitFor();
+  await page.waitForFunction(() => document.activeElement?.matches('input[type="search"]'), null, { timeout: 5000 }).catch(() => errors.push('the search screen did not focus its field'));
+  await shot('search-empty');
+  await globalField.fill('путешеств');
+  await page.getByText('Найдено: 3').waitFor();
+  const groupTitles = await page.locator('.search-group-title').allTextContents();
+  if (groupTitles.join('|') !== 'Гитара|Английский') errors.push(`the search groups read ${JSON.stringify(groupTitles)}`);
+  await page.waitForTimeout(300);
+  await shot('search-results');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(300);
+  if ((await sideways()) > 0) errors.push(`the search screen scrolls sideways by ${await sideways()}px at 320 px`);
+  await shot('search-results-320');
+  await page.setViewportSize(contextOptions.viewport);
+  // A result opens its skill with the completion's sheet; «Назад» twice comes back to the results.
+  await page.locator('.search-group', { hasText: 'Английский' }).getByRole('button', { name: /Новые слова/ }).click();
+  await page.waitForURL(/#\/skills\/[^/?]+$/);
+  await noteSheet.getByRole('textbox').waitFor();
+  if ((await noteSheet.getByRole('textbox').inputValue()) !== 'Выучил 15 слов про путешествия и вокзал') errors.push('a search result opened another completion');
+  await settled();
+  await shot('search-opened');
+  await page.goBack();
+  await noteSheet.waitFor({ state: 'detached' });
+  await page.goBack();
+  await globalField.waitFor();
+  if ((await globalField.inputValue()) !== 'путешеств') errors.push('«Назад» from a result lost the search');
+  await page.getByText('Найдено: 3').waitFor();
+  await notesContext.close();
 }
 
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
