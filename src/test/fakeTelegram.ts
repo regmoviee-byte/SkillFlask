@@ -181,7 +181,9 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
       : undefined,
     // The object exists on every client; its methods only from 6.9 (they throw below it).
     CloudStorage: at('6.9') ? fakeCloudStorage(cloud) : {},
-    ...(at('6.1') ? { setHeaderColor: record('setHeaderColor'), setBackgroundColor: record('setBackgroundColor') } : {}),
+    ...(at('6.1')
+      ? { setHeaderColor: record('setHeaderColor'), setBackgroundColor: record('setBackgroundColor'), openTelegramLink: record('openTelegramLink') }
+      : {}),
     ...(at('6.2')
       ? {
           showConfirm: (message: string, cb?: (ok: boolean) => void) => {

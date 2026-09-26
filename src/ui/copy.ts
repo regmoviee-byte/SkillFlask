@@ -231,6 +231,8 @@ export const copy = Object.freeze({
     /** ⋯ menu: copies a link that opens this skill (platform/deeplink.ts). */
     link: 'Ссылка на навык',
     linkCopied: 'Ссылка скопирована',
+    /** ⋯ menu: the card picture of the skill's progress (ui/share, package 19). */
+    share: 'Поделиться прогрессом',
   },
   /**
    * «Пауза» (package 18) in the first paint: the pill, the menu, the return toast. The sheet's

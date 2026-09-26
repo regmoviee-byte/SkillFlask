@@ -252,7 +252,17 @@ describe('SkillScreen marks', () => {
     expect(within(sheet).queryByRole('button', { name: 'Изменить' })).toBeNull();
     expect(within(sheet).queryByRole('button', { name: 'Удалить' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Добавить засечку' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Меню навыка' })).toBeNull();
+  });
+
+  it('keeps a ⋯ menu on a completed skill for sharing only (package 19)', async () => {
+    const id = await createSkill(input);
+    const step = await createStep({ skillId: id, name: 'Разговор', points: 10 });
+    await completeStep(step);
+    await completeSkill(id);
+    renderSkill(id);
+    fireEvent.click(await screen.findByRole('button', { name: 'Меню навыка' }));
+    const menu = await screen.findByRole('dialog');
+    expect(within(menu).getAllByRole('button').map((b) => b.textContent)).toEqual(['Поделиться прогрессом', 'Ссылка на навык']);
   });
 });
 

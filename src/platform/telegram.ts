@@ -159,6 +159,8 @@ export interface TelegramWebApp {
   showAlert(message: string, cb?: () => void): void;
   showPopup(params: PopupParams, cb?: (buttonId?: string) => void): void;
   addToHomeScreen(): void;
+  /** Opens a t.me link inside Telegram (Bot API 6.1): `https://t.me/share/url?…` is the chat picker. */
+  openTelegramLink(url: string): void;
   checkHomeScreenStatus(cb?: (status: HomeScreenStatus) => void): void;
   BackButton: SimpleButton;
   SettingsButton: SimpleButton;
@@ -193,6 +195,7 @@ export const API = Object.freeze({
   safeArea: '8.0',
   activation: '8.0',
   homeScreen: '8.0',
+  telegramLink: '6.1',
 });
 
 /** The WebApp object when the page runs inside a Telegram client. Typed as the full API: callers gate with `supports`. */

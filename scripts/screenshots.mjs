@@ -1793,6 +1793,202 @@ function cloudStoreFor(json) {
   await pauseContext.close();
 }
 
+// «Поделиться прогрессом» (v0.5 package 19), in its own context on an imported history of four
+// skills in four themes (a schema-5 backup built here): «Английский» (flask, the Telegram accent,
+// B1 → B2), «Гитара» (pizza, amber, on pause), a long-named running skill (rocket, coral, its
+// name cut to two lines) and «Шахматы» (tower, violet, completed). Each one's ⋯ → «Поделиться
+// прогрессом»: the sheet, and the PNG itself saved next to the screenshots (read back from the
+// preview's blob) — 1080 × 1350, drawn with the theme's own picture, not the flask stand-in. In
+// the browser the picture downloads («Сохранить картинку»); with Web Share it goes to the system
+// sheet as a file. The card follows the app's appearance: light here, dark with DARK=1 and
+// TG_THEME=purple. 320 px: the sheet keeps both buttons in view and nothing scrolls sideways.
+// The shared link is the app's, not the sender's `#/skills/<id>`; a theme that cannot be drawn
+// gives a flask card (card-fallback).
+{
+  const shareContext = await browser.newContext(contextOptions);
+  await setupContext(shareContext);
+  page = await openPage(shareContext);
+  const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  await page.goto(baseUrl);
+  await page.getByText('Первый навык').first().waitFor();
+  const today = await page.evaluate(() => {
+    const d = new Date();
+    return [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((v) => String(v).padStart(2, '0')).join('-');
+  });
+  const shiftDate = (date, days) => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  };
+  const at = (date, hour = 10) => new Date(`${date}T${String(hour).padStart(2, '0')}:00:00`).toISOString();
+  const start = shiftDate(today, -45);
+
+  // Points per tap and the days (before today) each skill was practised.
+  const range = (from, to) => Array.from({ length: from - to + 1 }, (_, i) => from - i);
+  const spec = [
+    { id: 'skill-english', name: 'Английский', theme: 'flask', color: null, startLabel: 'B1', targetLabel: 'B2', milestone: 'Свободный разговор', target: 5, points: 20, days: [...range(30, 25), ...range(13, 0)] },
+    { id: 'skill-guitar', name: 'Гитара', theme: 'pizza', color: 'amber', milestone: 'Первая песня', target: 4, points: 15, days: [20, 16, 12, 9, 8, 7, 5, 4, 3, 2] },
+    { id: 'skill-running', name: 'Бег по утрам вдоль набережной и через весь парк до работы', theme: 'rocket', color: 'coral', milestone: 'Полумарафон', target: 6, points: 12, days: [...range(40, 12), 6] },
+    { id: 'skill-chess', name: 'Шахматы', theme: 'tower', color: 'violet', milestone: 'Разряд', target: 3, points: 15, days: range(33, 4), completed: 2 },
+  ];
+  const tables = { skills: [], milestones: [], levelThresholds: [], steps: [], completions: [], transactions: [], settings: [], achievementUnlocks: [], marks: [], pauses: [] };
+  let seq = 0;
+  for (const [i, s] of spec.entries()) {
+    const created = at(start, 8 + i);
+    const completedAt = s.completed ? at(shiftDate(today, -s.completed), 20) : null;
+    tables.skills.push({
+      id: s.id, name: s.name, description: '', status: s.completed ? 'COMPLETED' : 'ACTIVE', startLabel: s.startLabel ?? '', targetLabel: s.targetLabel ?? '',
+      capacityBase: 100, capacityIncrement: 50, completedAt, archivedAt: null, originSkillId: null, theme: s.theme, color: s.color, createdAt: created, updatedAt: completedAt ?? created,
+    });
+    tables.milestones.push({
+      id: `ms-${s.id}`, skillId: s.id, name: s.milestone, targetFlaskNumber: s.target, reachedAt: s.completed ? at(shiftDate(today, -s.completed - 1), 18) : null,
+      decision: null, createdAt: created, updatedAt: created,
+    });
+    const stepId = `${s.id}-step`;
+    tables.steps.push({
+      id: stepId, skillId: s.id, name: 'Занятие', type: 'BOOLEAN', points: s.points, pointsPerMinute: null, defaultMinutes: null,
+      schedule: { kind: 'DAILY' }, scheduleFrom: start, isActive: true, createdAt: created, updatedAt: created,
+    });
+    for (const d of [...s.days].sort((a, b) => b - a)) {
+      const date = shiftDate(today, -d);
+      const id = `c-${++seq}`;
+      const createdAt = new Date(new Date(at(date, 18)).getTime() + seq * 1000).toISOString();
+      tables.completions.push({
+        id, skillId: s.id, stepId, stepName: 'Занятие', stepType: 'BOOLEAN', pointsSnapshot: s.points, durationMinutes: null, pointsAwarded: s.points,
+        date, source: 'SCHEDULED', status: 'ACTIVE', cancelledAt: null, note: null, createdAt, updatedAt: createdAt,
+      });
+      tables.transactions.push({ id: `t-${seq}`, skillId: s.id, completionId: id, delta: s.points, reason: 'COMPLETION', createdAt });
+    }
+  }
+  // «Гитара» rests this week.
+  tables.pauses.push({ id: 'p-guitar', skillId: 'skill-guitar', from: shiftDate(today, -1), until: shiftDate(today, 6), createdAt: at(shiftDate(today, -1), 9), endedAt: null });
+  const shareBackup = `${outDir}/backup-share.json`;
+  writeFileSync(shareBackup, JSON.stringify({ format: 'skill-flask-backup', schemaVersion: 5, appVersion: 'walkthrough', exportedAt: at(today, 7), installId: 'walkthrough', tables }));
+
+  await tab('Настройки').click();
+  await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+  await page.locator('.import-sheet input[type="file"]').setInputFiles(shareBackup);
+  await page.locator('.import-sheet').getByText(/^Навыков: 4/).waitFor();
+  await page.locator('.import-sheet').getByRole('button', { name: 'Заменить данные' }).click();
+  await page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) }).getByRole('button', { name: 'Заменить', exact: true }).click();
+  await page.getByText('Импортировано').waitFor();
+
+  const shareSheet = page.locator('.share-sheet');
+  const cardImage = shareSheet.locator('img.share-card-image');
+  /** ⋯ → «Поделиться прогрессом» (a completed skill's menu has only sharing and the link). */
+  const openShare = async () => {
+    await page.getByRole('button', { name: 'Меню навыка' }).click();
+    const menu = page.locator('.sheet', { has: page.getByRole('button', { name: 'Поделиться прогрессом' }) });
+    await menu.getByRole('button', { name: 'Поделиться прогрессом' }).click();
+    await menu.waitFor({ state: 'detached' });
+    await cardImage.waitFor({ timeout: 15000 });
+  };
+  const closeShare = async () => {
+    await page.keyboard.press('Escape');
+    await shareSheet.waitFor({ state: 'detached' });
+  };
+  /** The card as a PNG, read back from the preview's blob URL. */
+  const cardBytes = async () =>
+    Buffer.from(
+      await cardImage.evaluate(async (img) => {
+        const bytes = new Uint8Array(await (await fetch(img.src)).arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(binary);
+      }),
+      'base64',
+    );
+  const pngSize = (bytes) => ({ png: bytes.subarray(1, 4).toString() === 'PNG', width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) });
+  const forbidden = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|отста|балл/i;
+
+  for (const s of spec) {
+    await page.goto(`${baseUrl}#/skills/${s.id}`);
+    await page.locator('.hero').waitFor();
+    await openShare();
+    if ((await cardImage.getAttribute('data-art')) !== 'theme') errors.push(`the «${s.name}» card fell back to the flask instead of its ${s.theme}`);
+    const bytes = await cardBytes();
+    const size = pngSize(bytes);
+    if (!size.png || size.width !== 1080 || size.height !== 1350) errors.push(`the «${s.name}» card is not a 1080×1350 PNG: ${JSON.stringify(size)}`);
+    writeFileSync(`${outDir}/${String(++n).padStart(2, '0')}-card-${s.theme}.png`, bytes);
+    const alt = await cardImage.getAttribute('alt');
+    if (alt !== `Карточка прогресса: ${s.name}`) errors.push(`the card preview is named «${alt}»`);
+    const sheetText = await shareSheet.innerText();
+    if (forbidden.test(sheetText)) errors.push(`the share sheet says «${sheetText}»`);
+    await page.waitForTimeout(300);
+    await shot(`share-sheet-${s.theme}`);
+    // In this browser (no Web Share for files): the picture downloads, the link is copied.
+    if (s.theme === 'flask') {
+      const [download] = await Promise.all([page.waitForEvent('download'), shareSheet.getByRole('button', { name: 'Сохранить картинку' }).click()]);
+      if (download.suggestedFilename() !== `skill-flask-${today}.png`) errors.push(`the card downloads as «${download.suggestedFilename()}»`);
+      const saved = `${outDir}/card-download.png`;
+      await download.saveAs(saved);
+      const downloaded = pngSize(readFileSync(saved));
+      if (downloaded.width !== 1080 || downloaded.height !== 1350) errors.push(`the downloaded card is ${JSON.stringify(downloaded)}`);
+      if (!(await shareSheet.getByRole('button', { name: /^(Скопировать ссылку|Поделиться ссылкой)$/ }).count())) errors.push('the share sheet offers no way to send the link');
+      await page.setViewportSize({ width: 320, height: 568 });
+      await page.waitForTimeout(400);
+      if ((await sideways()) > 0) errors.push(`the share sheet scrolls sideways by ${await sideways()}px at 320 px`);
+      const footer = await shareSheet.locator('.sheet-footer').boundingBox();
+      if (!footer || footer.y + footer.height > 568 + 1) errors.push(`the share sheet's buttons leave a 320×568 screen: ${JSON.stringify(footer)}`);
+      await shot('share-sheet-320');
+      await page.setViewportSize(contextOptions.viewport);
+    }
+    await closeShare();
+  }
+
+  // With Web Share for files (a phone's browser, Telegram's iOS WebView): «Поделиться
+  // картинкой» hands the PNG and the one line to the system sheet.
+  await page.evaluate(() => {
+    window.__shared = null;
+    navigator.canShare = (data) => Array.isArray(data?.files) && data.files.every((f) => f.type === 'image/png');
+    navigator.share = async (data) => {
+      const file = data.files?.[0];
+      window.__shared = { name: file?.name, type: file?.type, size: file?.size, text: data.text, url: data.url };
+    };
+  });
+  await page.goto(`${baseUrl}#/skills/skill-english`);
+  await page.locator('.hero').waitFor();
+  await openShare();
+  await shareSheet.getByRole('button', { name: 'Поделиться картинкой' }).waitFor();
+  await page.waitForTimeout(300);
+  await shot('share-sheet-web-share');
+  await shareSheet.getByRole('button', { name: 'Поделиться картинкой' }).click();
+  await shareSheet.waitFor({ state: 'detached' });
+  const shared = await page.evaluate(() => window.__shared);
+  if (shared?.type !== 'image/png' || !(shared.size > 10000) || shared.text !== 'Уже 2 колбы в навыке «Английский»') {
+    errors.push(`Web Share got ${JSON.stringify(shared)}`);
+  }
+  // «Поделиться ссылкой» sends the app, not the sender's `#/skills/<id>` (a friend has no such skill).
+  await openShare();
+  await shareSheet.getByRole('button', { name: 'Поделиться ссылкой' }).click();
+  await shareSheet.waitFor({ state: 'detached' });
+  const sharedLink = await page.evaluate(() => window.__shared);
+  if (!/^https:\/\/t\.me\/[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)?$/.test(sharedLink?.url ?? '') || sharedLink.text !== 'Уже 2 колбы в навыке «Английский»') {
+    errors.push(`«Поделиться ссылкой» sent ${JSON.stringify(sharedLink)}`);
+  }
+
+  // A theme that cannot be drawn (here: no XMLSerializer, as if serializing threw): the flask
+  // stands in and the card is still a 1080×1350 PNG with the skill's own words.
+  await page.goto(`${baseUrl}#/skills/skill-guitar`);
+  await page.locator('.hero').waitFor();
+  await page.evaluate(() => {
+    window.XMLSerializer = class {
+      serializeToString() {
+        throw new Error('walkthrough: no serializer');
+      }
+    };
+  });
+  await openShare();
+  if ((await cardImage.getAttribute('data-art')) !== 'flask') errors.push('a theme that failed to draw did not fall back to the flask');
+  {
+    const bytes = await cardBytes();
+    const size = pngSize(bytes);
+    if (!size.png || size.width !== 1080 || size.height !== 1350) errors.push(`the fallback card is not a 1080×1350 PNG: ${JSON.stringify(size)}`);
+    writeFileSync(`${outDir}/${String(++n).padStart(2, '0')}-card-fallback.png`, bytes);
+  }
+  await closeShare();
+  await shareContext.close();
+}
+
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
 // to fit instead of being cut (own context, so the walk above keeps its data).
 const bigContext = await browser.newContext({ ...contextOptions, viewport: { width: 320, height: 700 } });
@@ -2475,6 +2671,8 @@ function fakeTelegramInit({ seed, scheme, version, startParam, themeParams }) {
       offEvent: (event, cb) => listeners.set(event, (listeners.get(event) ?? []).filter((x) => x !== cb)),
       setHeaderColor: record('setHeaderColor'),
       setBackgroundColor: record('setBackgroundColor'),
+      // Bot API 6.1: Telegram opens a t.me link (the share sheet's «Отправить ссылку в чат»).
+      openTelegramLink: record('openTelegramLink'),
       setBottomBarColor: (color) => {
         calls.push(`setBottomBarColor(${JSON.stringify(color)})`);
         bar.color = color;
@@ -2604,6 +2802,24 @@ await page.locator('.pause-line .pause-pill').waitFor();
 if (await page.locator('#tg-main', { hasText: 'Поставить на паузу' }).count()) errors.push('the native «Поставить на паузу» stayed after the pause sheet closed');
 await page.locator('.pause-line').getByRole('button', { name: 'Снять паузу' }).click();
 await page.locator('.pause-line').waitFor({ state: 'detached' });
+// «Поделиться прогрессом» inside Telegram on Android (package 19): no Web Share and no way to
+// save a picture made on the phone, so the sheet says so and offers the link to a chat —
+// Telegram's chat picker (openTelegramLink with t.me/share/url) with the skill's startapp link.
+await skillMenu('Поделиться прогрессом');
+const tgShareSheet = page.locator('.share-sheet');
+await tgShareSheet.locator('img.share-card-image').waitFor({ timeout: 15000 });
+await tgShareSheet.getByText(/сделайте снимок экрана или отправьте ссылку в чат/).waitFor();
+if (await tgShareSheet.getByRole('button', { name: 'Сохранить картинку' }).count()) errors.push('the share sheet offers a download inside Telegram');
+if ((await tgShareSheet.locator('img.share-card-image').getAttribute('data-art')) !== 'theme') errors.push('the Telegram share card fell back to the flask');
+await settled();
+await shot('tg-share-sheet');
+await tgShareSheet.getByRole('button', { name: 'Отправить ссылку в чат' }).click();
+await tgShareSheet.waitFor({ state: 'detached' });
+const shareLinkCall = await page.evaluate(() => window.__tgFake.calls.find((call) => call.startsWith('openTelegramLink(')));
+const sharedUrl = shareLinkCall ? new URL(JSON.parse(shareLinkCall.slice('openTelegramLink('.length, -1))) : null;
+if (!sharedUrl || sharedUrl.origin + sharedUrl.pathname !== 'https://t.me/share/url' || !/[?]startapp=skill_/.test(sharedUrl.searchParams.get('url') ?? '')) {
+  errors.push(`«Отправить ссылку в чат» opened ${shareLinkCall}`);
+} else if (!/в навыке «Чтение»/.test(sharedUrl.searchParams.get('text') ?? '')) errors.push(`the chat line reads «${sharedUrl.searchParams.get('text')}»`);
 await page.locator('#tg-back').click();
 await tab('Настройки').click();
 await page.getByText('Есть несохранённые изменения').waitFor();

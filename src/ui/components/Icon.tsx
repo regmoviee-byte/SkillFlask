@@ -4,11 +4,12 @@ import type { SVGProps } from 'react';
 // pennant — mark («засечка»), trophy — completed skill, medal — achievement, sun — today,
 // sliders — settings, more — a context menu, palette — a skill's appearance («Оформление»),
 // link — a link to a skill, trend — the forecast, home — the home-screen shortcut, play / pause / stop —
-// the live timer (filled), search — «Поиск по истории», share / plus-square /
-// more-vertical — the browsers' own buttons in the install instructions.
-// The four tab icons have filled variants. No emoji anywhere in the chrome.
+// the live timer (filled), search — «Поиск по истории», share — «Поделиться прогрессом» and, with
+// plus-square / more-vertical, the browsers' own buttons in the install instructions.
+// The four tab icons have filled variants. No emoji anywhere in the chrome. The paths are
+// exported for the share card, which draws the flask glyph beside its wordmark (ui/share).
 
-const STROKE: Record<string, string> = {
+export const STROKE: Record<string, string> = {
   flask: 'M9.5 3h5M10 3v6.5L5.2 18a2 2 0 0 0 1.8 3h10a2 2 0 0 0 1.8-3L14 9.5V3M7.5 14h9',
   flag: 'M5 21V4M5 4h12l-2.5 4 2.5 4H5',
   pennant: 'M6 21V3M6 4l12 4.5L6 13',

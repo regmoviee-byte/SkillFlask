@@ -42,6 +42,7 @@ import { AppearanceSheet } from '../sheets/AppearanceSheet';
 import { CompletionSheet } from '../sheets/CompletionSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 import { PauseSheet } from '../pause/lazy';
+import { ShareSheet } from '../share/lazy';
 
 // The link fallback is a lazy chunk (v0.5 package 14 won back the initial load with it): it
 // starts loading with the screen, long before a refused clipboard could need it. Where the chunk
@@ -75,6 +76,8 @@ const LinkSheet = lazySafe<ComponentType<LinkSheetProps>>(
 // search opens this screen with its completion's (or mark's) sheet on top (SkillOpenRequest).
 // A skill on pause (package 18) says so under its name — «На паузе до 10 октября» with «Снять
 // паузу» — and can still be completed here; the menu sets the pause or changes its last day.
+// «Поделиться прогрессом» (package 19, ui/share) makes a picture of the skill's progress; a
+// completed skill keeps a ⋯ menu for it and for its link.
 
 /** Navigation state from the global search: the sheet to open on arrival, once. */
 export interface SkillOpenRequest {
@@ -94,6 +97,8 @@ export function SkillScreen() {
   const [linkShown, setLinkShown] = useState<string | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const closePause = useCallback(() => setPauseOpen(false), []);
+  const [shareOpen, setShareOpen] = useState(false);
+  const closeShare = useCallback(() => setShareOpen(false), []);
   const unpausing = useRef(false);
   const copying = useRef<Promise<boolean> | null>(null);
   const { showToast } = useToast();
@@ -131,6 +136,8 @@ export function SkillScreen() {
 
   const skill = details?.skill;
   const active = skill?.status === 'ACTIVE';
+  // A completed skill has no form or pause, but its progress and link are worth sharing.
+  const hasMenu = active || skill?.status === 'COMPLETED';
   const pause = details?.pause ?? null;
 
   /** «Снять паузу»: back in the plan today, from the menu or the line under the name; a double tap ends it once. */
@@ -155,7 +162,7 @@ export function SkillScreen() {
       back="/skills"
       action={
         skill &&
-        active && (
+        hasMenu && (
           <button
             type="button"
             className="icon-button"
@@ -190,11 +197,12 @@ export function SkillScreen() {
       </Skeleton>
       {skill && (
         <ContextSheet
-          open={menuOpen && active}
+          open={menuOpen && hasMenu}
           title={skill.name}
           onClose={() => setMenuOpen(false)}
           items={skillMenu(
             skill.id,
+            active,
             navigate,
             () => setAppearanceOpen(true),
             () => setMarkTarget({ kind: 'new' }),
@@ -203,6 +211,7 @@ export function SkillScreen() {
               finish: () => void finishCopy(skill.id),
             },
             { paused: pause !== null, open: () => setPauseOpen(true), end: () => void unpause(skill.id) },
+            () => setShareOpen(true),
           )}
         />
       )}
@@ -211,6 +220,7 @@ export function SkillScreen() {
       </Suspense>
       {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
       {skill && active && <PauseSheet skill={skill} pause={pause} open={pauseOpen} today={today} onClose={closePause} />}
+      {skill && hasMenu && <ShareSheet skill={skill} open={shareOpen} today={today} onClose={closeShare} />}
       {details && (
         <MarkSheet
           target={markTarget}
@@ -226,16 +236,26 @@ export function SkillScreen() {
   );
 }
 
-/** The ⋯ menu of an active skill. Items run after the menu has closed (ContextSheet). */
+/**
+ * The ⋯ menu: everything for an active skill, only sharing and the link for a completed one.
+ * Items run after the menu has closed (ContextSheet).
+ */
 function skillMenu(
   skillId: string,
+  active: boolean,
   navigate: ReturnType<typeof useNavigate>,
   appearance: () => void,
   addMark: () => void,
   copyLink: { start(): void; finish(): void },
   pause: { paused: boolean; open(): void; end(): void },
+  share: () => void,
 ): ContextItem[] {
   const t = copy.pause;
+  const shareItems: ContextItem[] = [
+    { icon: 'share', label: copy.skill.share, onSelect: share },
+    { icon: 'link', label: copy.skill.link, onTap: copyLink.start, onSelect: copyLink.finish },
+  ];
+  if (!active) return shareItems;
   return [
     { icon: 'edit', label: copy.skill.edit, onSelect: () => navigate(`/skills/${skillId}/edit`) },
     { icon: 'palette', label: copy.appearance.title, onSelect: appearance },
@@ -246,7 +266,7 @@ function skillMenu(
           { icon: 'calendar', label: t.menuChange, onSelect: pause.open } satisfies ContextItem,
         ]
       : [{ icon: 'pause', label: t.menuPause, onSelect: pause.open } satisfies ContextItem]),
-    { icon: 'link', label: copy.skill.link, onTap: copyLink.start, onSelect: copyLink.finish },
+    ...shareItems,
   ];
 }
 

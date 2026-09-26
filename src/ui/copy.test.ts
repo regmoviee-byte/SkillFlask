@@ -11,6 +11,7 @@ import { timerCopy } from './timer/strings';
 import { templatesCopy } from './templates/strings';
 import { searchCopy } from './search/strings';
 import { pauseCopy } from './pause/strings';
+import { shareCopy } from './share/strings';
 import { TEMPLATES } from '../domain/templates';
 
 const flask = levelCopy(THEME_TEXT.flask);
@@ -74,6 +75,16 @@ describe('copy dictionary', () => {
   // The pause sheet (ui/pause/strings.ts, package 18); the names of the return toast for real.
   collect(pauseCopy, 'pauseCopy', strings);
   strings.push(['copy.pause.back(1)', copy.pause.back('Гитара')], ['copy.pause.back(3)', copy.pause.back('Гитара', 'Бег', 'Чтение')]);
+  // «Поделиться прогрессом» (ui/share/strings.ts, package 19); the line that goes with the card
+  // in every theme's words, for each state of a skill.
+  const { message, ...share } = shareCopy;
+  collect(share, 'shareCopy', strings);
+  for (const key of PROGRESS_THEME_KEYS) {
+    const lc = levelCopy(THEME_TEXT[key]);
+    for (const [completed, levels, points] of [[true, 5, 900], [false, 3, 400], [false, 0, 45], [false, 0, 0]] as const) {
+      strings.push([`shareCopy.message(${key},${completed},${levels},${points})`, message(lc, 'Английский', completed, levels, points)]);
+    }
+  }
   // The skill templates (package 16): the chooser and form strings, the plan line in every
   // theme's words, and the catalogue's own texts (names, lines, labels, milestones, actions).
   const { plan, ...actions } = templatesCopy.actions;
@@ -208,6 +219,23 @@ describe('copy dictionary', () => {
     expect(pauseCopy.paused('Гитара', null)).toBe('Гитара на паузе');
     expect(pauseCopy.submit.length).toBeLessThanOrEqual(BUTTON_TEXT_MAX);
     expect(Object.isFrozen(pauseCopy)).toBe(true);
+  });
+
+  it('shares a skill’s progress in its own words, never with «баллы»', () => {
+    setClock(() => new Date('2026-09-24T12:00:00'));
+    onTestFinished(() => setClock(null));
+    const pizza = levelCopy(THEME_TEXT.pizza);
+    expect(shareCopy.message(flask, 'Английский', false, 3, 400)).toBe('Уже 3 колбы в навыке «Английский»');
+    expect(shareCopy.message(pizza, 'Английский', false, 1, 120)).toBe('Уже 1 пицца в навыке «Английский»');
+    expect(shareCopy.message(pizza, 'Английский', true, 5, 900)).toBe('Навык «Английский» достигнут: 5 пицц');
+    expect(shareCopy.message(flask, 'Бег', false, 0, 12.5)).toBe('Уже 12,5 очка в навыке «Бег»');
+    expect(shareCopy.card.milestone(pizza.milestoneProgress(2, 5), 'B2', 'Цель')).toBe('2 из 5 пицц до цели «B2»');
+    expect(shareCopy.card.streak(12, false)).toBe('дней подряд');
+    expect(shareCopy.card.streak(3, true)).toBe('дня с паузой');
+    expect(shareCopy.card.activeDays(21)).toBe('активный день');
+    expect(shareCopy.card.reachedDetail('5 колб', '2026-09-12')).toBe('5 колб · 12\u00a0сентября');
+    expect(copy.skill.share).toBe(shareCopy.title);
+    expect(Object.isFrozen(shareCopy)).toBe(true);
   });
 
   it('is frozen', () => {

@@ -1,0 +1,63 @@
+/* «Поделиться прогрессом» (v0.5 package 19), loaded with the share sheet's lazy chunk. */
+
+/* The card's preview: 4 : 5 like the picture, no taller than about half the screen so both
+   buttons stay in view on a 568 px phone. */
+.share-card-frame {
+  position: relative;
+  width: min(100%, calc((100dvh - 330px) * 0.8), 360px);
+  aspect-ratio: 4 / 5;
+  margin: 0 auto;
+  border-radius: var(--r-l);
+  overflow: hidden;
+  background: var(--color-bg-sunken);
+}
+
+@supports not (height: 100dvh) {
+  .share-card-frame {
+    width: min(100%, calc((100vh - 330px) * 0.8), 360px);
+  }
+}
+
+.share-card-frame.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6);
+}
+
+.share-card-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The iOS WebView's long-press menu («Сохранить изображение») must stay available. */
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+
+.share-card-note {
+  margin: 0;
+  text-align: center;
+}
+
+.share-hint {
+  margin: var(--sp-3) 0 0;
+  text-align: center;
+}
+
+.share-link-field {
+  display: block;
+  width: 100%;
+  margin-top: var(--sp-3);
+  resize: none;
+}
+
+/* The hero drawn off screen for the picture (renderCard.ts reads its computed styles). Never
+   hidden with visibility or display: those would be read as part of the drawing. */
+.share-stage {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 160px;
+  height: 260px;
+  pointer-events: none;
+}

@@ -12,7 +12,6 @@ import { isTabRoute, TabBar, TabBarContext } from './components/TabBar';
 import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
-import { AchievementsScreen } from './screens/AchievementsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
 import { SkillsScreen } from './screens/SkillsScreen';
@@ -21,6 +20,7 @@ import { TodayScreen } from './screens/TodayScreen';
 import { CompletionNoteHost } from './sheets/CompletionNoteHost';
 import { PauseReturns } from './pause/PauseReturns';
 import { StartRedirect } from './StartRedirect';
+import { AchievementsRoute, prefetchAchievements } from './screens/achievementsLazy';
 import { RecapRoute } from './screens/recapLazy';
 import { prefetchSettings, SettingsRoute } from './screens/settingsLazy';
 import { SearchRoute } from './search/lazy';
@@ -30,7 +30,7 @@ import { TimerLayer } from './timer/TimerLayer';
 // The styleguide exists only in development builds; the dead branch keeps it out of the bundle.
 const StyleguideScreen = import.meta.env.DEV ? lazy(() => import('./screens/StyleguideScreen')) : null;
 
-/** How long after the first paint the settings chunk is fetched in the background. */
+/** How long after the first paint the settings and achievements chunks are fetched in the background. */
 const SETTINGS_PREFETCH_MS = 2000;
 
 // Hash routing works on any static host and inside the Telegram Mini App webview without server rewrites.
@@ -60,7 +60,11 @@ function Shell() {
     // «Настройки» is a lazy chunk and the way out of a stale build (screens/settingsLazy.tsx):
     // it is fetched once the first screen has settled, while the files of this build are still
     // on the server.
-    const timer = window.setTimeout(prefetchSettings, SETTINGS_PREFETCH_MS);
+    // «Ачивки» (lazy since package 19) comes along, so the tab opens without a wait.
+    const timer = window.setTimeout(() => {
+      prefetchSettings();
+      prefetchAchievements();
+    }, SETTINGS_PREFETCH_MS);
     return () => window.clearTimeout(timer);
   }, []);
   // Leaving the app (Telegram `deactivated`, or the page hidden) saves pending changes to the
@@ -89,7 +93,8 @@ function Shell() {
                   <Route path="/skills/:skillId/add" element={<AddActionScreen />} />
                   <Route path="/steps/new" element={<StepFormScreen />} />
                   <Route path="/steps/:stepId/edit" element={<StepFormScreen />} />
-                  <Route path="/achievements" element={<AchievementsScreen />} />
+                  {/* «Ачивки» (lazy since package 19). */}
+                  <Route path="/achievements" element={<AchievementsRoute />} />
                   {/* «Поиск по истории» of every skill (package 17, lazy). */}
                   <Route path="/search" element={<SearchRoute />} />
                   <Route path="/recap" element={<RecapRoute />} />

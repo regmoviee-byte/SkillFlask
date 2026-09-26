@@ -77,7 +77,12 @@
 // rules (domain/pause.ts: the days, the rest days that bridge a streak), the pause service the
 // skill screen's «Снять паузу» and the start's «… снова в плане» toast call, the pill, the
 // «Сегодня» pause line, the week strip's rest dash, the folded «Сделано» and the skill-by-skill
-// «Осталось». 203.6 KB measured.
+// «Осталось». 203.7 KB measured (the report said 203.6).
+// v0.5 package 19 («Поделиться прогрессом») keeps the budget: the share sheet, the canvas card,
+// the SVG style inlining, its read model and strings are a lazy chunk (≈ 8.3 KB), and «Ачивки»
+// became a lazy tab (≈ −2.6 KB, screens/achievementsLazy.tsx, prefetched with «Настройки») to pay
+// for what the first paint needs — the sheet's lazy wrapper, the ⋯ item (a completed skill now
+// keeps a ⋯ menu for sharing and its link) and the SDK's openTelegramLink. 201.5 KB measured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
