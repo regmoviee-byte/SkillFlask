@@ -216,6 +216,9 @@ describe('public/sw.js', () => {
     expect(api.strategyFor(request(`${SCOPE}icons/icon-192.png`), SCOPE)).toBe('fresh');
     expect(api.strategyFor(request(`${SCOPE}manifest.webmanifest`), SCOPE)).toBe('fresh');
     expect(api.strategyFor(request(`${SCOPE}sw.js`), SCOPE)).toBe('network');
+    // The static reminder files are never cached (v0.5 package 20), fetched or opened.
+    expect(api.strategyFor(request(`${SCOPE}reminders/daily-1900.ics`), SCOPE)).toBe('network');
+    expect(api.strategyFor(request(`${SCOPE}reminders/daily-1900.ics`, 'navigate'), SCOPE)).toBe('network');
     // A tab opened on a file of the app is not the page: it must never replace the cached index.html.
     expect(api.strategyFor(request(`${SCOPE}icons/icon-192.png`, 'navigate'), SCOPE)).toBe('network');
     expect(api.strategyFor(request(`${SCOPE}manifest.webmanifest`, 'navigate'), SCOPE)).toBe('network');

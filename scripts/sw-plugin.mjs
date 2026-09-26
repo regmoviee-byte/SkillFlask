@@ -17,6 +17,19 @@ function filesUnder(dir) {
   });
 }
 
+/**
+ * What the app ships for an offline start: the bundle and public/, without the page itself
+ * (precached as './'), the worker, the build manifest and the reminder files (v0.5 package 20:
+ * 228 .ics files opened now and then from a calendar button, never needed offline).
+ * @param {string[]} bundled
+ * @param {string[]} publicFiles
+ */
+export function precacheFiles(bundled, publicFiles) {
+  return [...bundled.filter((file) => !file.startsWith('.vite/') && file !== 'index.html'), ...publicFiles.filter((file) => file !== 'sw.js')]
+    .filter((file) => !file.startsWith('reminders/'))
+    .sort();
+}
+
 /** @param {string} appVersion */
 export function serviceWorker(appVersion) {
   let config;
@@ -34,10 +47,7 @@ export function serviceWorker(appVersion) {
       const outDir = resolve(config.root, config.build.outDir);
       const template = join(config.publicDir, 'sw.js');
       if (!existsSync(template) || !existsSync(join(outDir, 'index.html'))) return;
-      const shipped = [
-        ...bundled.filter((file) => !file.startsWith('.vite/') && file !== 'index.html'),
-        ...filesUnder(config.publicDir).filter((file) => file !== 'sw.js'),
-      ].sort();
+      const shipped = precacheFiles(bundled, filesUnder(config.publicDir));
       const hash = createHash('sha256');
       for (const file of shipped) hash.update(file).update(readFileSync(join(outDir, file)));
       hash.update(readFileSync(join(outDir, 'index.html')));

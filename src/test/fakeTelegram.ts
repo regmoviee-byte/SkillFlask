@@ -160,6 +160,7 @@ export function installFakeTelegram(version: string, overrides: Partial<Telegram
     viewportStableHeight: 800,
     isClosingConfirmationEnabled: false,
     ready: record('ready'),
+    openLink: record('openLink'),
     expand: record('expand'),
     close: record('close'),
     isVersionAtLeast: at,

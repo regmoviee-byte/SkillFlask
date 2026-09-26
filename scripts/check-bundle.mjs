@@ -83,6 +83,11 @@
 // became a lazy tab (≈ −2.6 KB, screens/achievementsLazy.tsx, prefetched with «Настройки») to pay
 // for what the first paint needs — the sheet's lazy wrapper, the ⋯ item (a completed skill now
 // keeps a ⋯ menu for sharing and its link) and the SDK's openTelegramLink. 201.5 KB measured.
+// v0.5 package 20 («Напоминание в календаре») keeps the budget: the form, the skill's sheet, the
+// .ics and Google Calendar builders and their strings are lazy chunks (≈ 4.3 KB, the form comes
+// with «Настройки»); the first paint adds the sheet's wrapper, the ⋯ item with its bell glyph,
+// the platform choice (platform/reminders.ts, which decides whether the item shows) and the SDK's
+// openLink. 201.9 KB measured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

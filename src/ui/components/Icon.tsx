@@ -52,6 +52,7 @@ export const STROKE: Record<string, string> = {
   stop: 'M7 7h10v10H7z',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4.2-4.2',
   palette: 'M12 3a9 9 0 0 0 0 18c1.2 0 1.6-.9 1.2-1.7-.5-1 .2-2.3 1.5-2.3H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10zM7.5 12.5h.01M9 8h.01M14 7.5h.01M17 11h.01',
+  bell: 'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 21h4',
 };
 
 const FILLED: Partial<Record<keyof typeof STROKE, string>> = {

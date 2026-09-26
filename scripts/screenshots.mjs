@@ -2551,11 +2551,11 @@ await bigContext.close();
  * absent, like a real client), CloudStorage in localStorage seeded with `seed`, the native
  * buttons drawn as a bar, events that really dispatch, and calls recorded in __tgFake.calls.
  */
-async function installFakeTelegramIn(ctx, { seed, scheme, version = '7.10', startParam = null, themeParams = {} }) {
-  await ctx.addInitScript(fakeTelegramInit, { seed, scheme, version, startParam, themeParams });
+async function installFakeTelegramIn(ctx, { seed, scheme, version = '7.10', startParam = null, themeParams = {}, platform = 'android' }) {
+  await ctx.addInitScript(fakeTelegramInit, { seed, scheme, version, startParam, themeParams, platform });
 }
 
-function fakeTelegramInit({ seed, scheme, version, startParam, themeParams }) {
+function fakeTelegramInit({ seed, scheme, version, startParam, themeParams, platform }) {
   // Like telegram-web-app.js: the theme's colours as --tg-theme-* on <html>.
   const paint = () => {
     for (const [key, value] of Object.entries(themeParams)) document.documentElement.style.setProperty(`--tg-theme-${key.replace(/_/g, '-')}`, value);
@@ -2654,7 +2654,7 @@ function fakeTelegramInit({ seed, scheme, version, startParam, themeParams }) {
   window.Telegram = {
     WebApp: {
       version,
-      platform: 'android',
+      platform,
       colorScheme: scheme,
       themeParams,
       initData,
@@ -2673,6 +2673,8 @@ function fakeTelegramInit({ seed, scheme, version, startParam, themeParams }) {
       setBackgroundColor: record('setBackgroundColor'),
       // Bot API 6.1: Telegram opens a t.me link (the share sheet's «Отправить ссылку в чат»).
       openTelegramLink: record('openTelegramLink'),
+      // Bot API 6.0: a link in the phone's browser (the calendar reminder's .ics file, Google Calendar).
+      openLink: record('openLink'),
       setBottomBarColor: (color) => {
         calls.push(`setBottomBarColor(${JSON.stringify(color)})`);
         bar.color = color;
@@ -2964,6 +2966,169 @@ await tgContext.close();
   if (!/#\/today$/.test(page.url())) errors.push(`a reload followed the launch link again: ${page.url()}`);
   if ((await page.evaluate(() => document.documentElement.dataset.appearance)) !== forcedTg.value) errors.push('the forced «Тема» was lost on reload');
   await tg8Context.close();
+}
+
+// ---- «Напоминание в календаре» (package 20) ----
+// The static .ics files the build ships for iOS: one slot is served (as text/calendar) and parses
+// as a floating weekly event with an alarm at the start; the worker never precaches them.
+{
+  /** A tiny iCalendar reader: CRLF lines, unfolding, the properties of each component. */
+  const parseIcs = (text) => {
+    if (/[^\r]\n/.test(text) || !text.endsWith('\r\n')) throw new Error('an .ics line does not end with CRLF');
+    const lines = text.replace(/\r\n[ \t]/g, '').split('\r\n').slice(0, -1);
+    const stack = [];
+    const out = {};
+    for (const line of lines) {
+      const at = line.indexOf(':');
+      if (at <= 0) throw new Error(`not an .ics content line: ${line}`);
+      const [name, value] = [line.slice(0, at).split(';')[0], line.slice(at + 1)];
+      if (name === 'BEGIN') stack.push(value);
+      else if (name === 'END') {
+        if (stack.pop() !== value) throw new Error(`unbalanced END:${value}`);
+      } else (out[stack.at(-1)] ??= {})[name] = value;
+    }
+    if (stack.length) throw new Error(`unclosed ${stack.join('/')}`);
+    return out;
+  };
+  const icsCheck = (text, { time, rrule }) => {
+    const ics = parseIcs(text);
+    const problems = [];
+    if (!new RegExp(`^\\d{8}T${time.replace(':', '')}00$`).test(ics.VEVENT?.DTSTART ?? '')) problems.push(`DTSTART ${ics.VEVENT?.DTSTART}`);
+    if (ics.VEVENT?.RRULE !== rrule) problems.push(`RRULE ${ics.VEVENT?.RRULE}`);
+    if (ics.VALARM?.TRIGGER !== 'PT0M') problems.push(`TRIGGER ${ics.VALARM?.TRIGGER}`);
+    if (/TZID/.test(text)) problems.push('a TZID in a floating event');
+    return problems;
+  };
+  const slot = await fetch(new URL('reminders/weekdays-0730.ics', baseUrl));
+  if (!slot.ok) errors.push(`reminders/weekdays-0730.ics is not served: ${slot.status}`);
+  else {
+    if (!/^text\/calendar/.test(slot.headers.get('content-type') ?? '')) errors.push(`reminders/*.ics is served as ${slot.headers.get('content-type')}`);
+    const problems = icsCheck(await slot.text(), { time: '07:30', rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' });
+    if (problems.length) errors.push(`reminders/weekdays-0730.ics: ${problems.join(', ')}`);
+  }
+  const worker = await (await fetch(new URL('sw.js', baseUrl))).text();
+  const precache = JSON.parse(/const PRECACHE = (\[.*\]);/.exec(worker)?.[1] ?? 'null');
+  if (!Array.isArray(precache) || precache.length === 0) errors.push('dist/sw.js has no precache list');
+  else if (precache.some((path) => path.includes('reminders/'))) errors.push('the service worker precaches the reminder files');
+
+  const reminderSection = () => page.locator('.settings-group', { has: page.getByRole('heading', { name: 'Напоминание' }) });
+  const openedLinks = () => page.evaluate(() => window.__tgFake.calls.filter((c) => c.startsWith('openLink(')).map((c) => JSON.parse(c.slice(9, -1))));
+  const noSideScroll = async (label) => {
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (wide > 0) errors.push(`${label} scrolls sideways by ${wide}px`);
+  };
+
+  // Telegram iOS: three day sets and one «Добавить в Календарь» that opens the static file.
+  const iosContext = await browser.newContext(contextOptions);
+  await setupContext(iosContext);
+  await installFakeTelegramIn(iosContext, { seed: {}, scheme: dark ? 'dark' : 'light', platform: 'ios' });
+  page = await openPage(iosContext);
+  await page.goto(`${baseUrl}#tgWebAppData=query_id%3DAAH&tgWebAppVersion=7.10&tgWebAppPlatform=ios`);
+  await page.getByText('Первый навык').waitFor();
+  await tab('Настройки').click();
+  await reminderSection().waitFor();
+  await reminderSection().scrollIntoViewIfNeeded();
+  await reminderSection().getByLabel('Время').selectOption('07:30');
+  await reminderSection().getByRole('button', { name: 'По будням' }).click();
+  if (await reminderSection().getByRole('button', { name: 'Свои дни' }).count()) errors.push('Telegram iOS offers custom weekdays');
+  if (await reminderSection().getByRole('button', { name: /Google|Файл/ }).count()) errors.push('Telegram iOS offers a way other than «Добавить в Календарь»');
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot('reminder-tg-ios');
+  await reminderSection().getByRole('button', { name: 'Добавить в Календарь' }).click();
+  const iosLinks = await openedLinks();
+  if (iosLinks.length !== 1 || !iosLinks[0].endsWith('/reminders/weekdays-0730.ics')) errors.push(`«Добавить в Календарь» opened ${JSON.stringify(iosLinks)}`);
+  else {
+    const served = await page.evaluate(async (url) => {
+      const response = await fetch(url);
+      return { ok: response.ok, text: await response.text() };
+    }, iosLinks[0]);
+    if (!served.ok) errors.push(`${iosLinks[0]} is not served`);
+    else if (icsCheck(served.text, { time: '07:30', rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' }).length) errors.push(`${iosLinks[0]} is not the 07:30 weekday event`);
+  }
+  // Remembered for the form: back on the tab, the same time and days.
+  await tab('Навыки').click();
+  await tab('Настройки').click();
+  await reminderSection().waitFor();
+  if ((await reminderSection().getByLabel('Время').inputValue()) !== '07:30') errors.push('the reminder form forgot its time');
+  if ((await reminderSection().getByRole('button', { name: 'По будням' }).getAttribute('aria-pressed')) !== 'true') errors.push('the reminder form forgot its days');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await noSideScroll('«Напоминание» (Telegram iOS) at 320 px');
+  await shot('reminder-tg-ios-320');
+  await iosContext.close();
+
+  // Telegram Android: Google Calendar (any weekdays, the skill's title) and the file for the sets.
+  const androidContext = await browser.newContext(contextOptions);
+  await setupContext(androidContext);
+  await installFakeTelegramIn(androidContext, { seed: tgSeed, scheme: dark ? 'dark' : 'light', platform: 'android' });
+  page = await openPage(androidContext);
+  await page.goto(`${baseUrl}#tgWebAppData=query_id%3DAAH&tgWebAppVersion=7.10&tgWebAppPlatform=android`);
+  await page.getByText(/^Найдена резервная копия от/).waitFor();
+  await page.locator('#tg-main', { hasText: 'Восстановить' }).click();
+  await page.locator('.today-group').first().waitFor();
+  await tab('Настройки').click();
+  await reminderSection().waitFor();
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot('reminder-tg-android');
+  await reminderSection().getByRole('button', { name: 'Свои дни' }).click();
+  const week = reminderSection().getByRole('group', { name: 'Дни недели' });
+  for (const day of ['Вторник', 'Четверг', 'Суббота', 'Воскресенье']) await week.getByRole('button', { name: day }).click();
+  await reminderSection().getByText('Файл .ics — для готовых наборов дней.').waitFor();
+  if (await reminderSection().getByRole('button', { name: 'Файл .ics' }).count()) errors.push('the static file is offered for custom weekdays');
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot('reminder-tg-android-custom');
+  await reminderSection().getByRole('button', { name: 'Google Календарь' }).click();
+  const google = (await openedLinks()).map((link) => new URL(link)).find((url) => url.hostname === 'calendar.google.com');
+  if (!google || google.searchParams.get('recur') !== 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR') errors.push(`«Google Календарь» opened ${google}`);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await noSideScroll('«Напоминание» (Telegram Android) at 320 px');
+  await shot('reminder-tg-android-320');
+  await page.setViewportSize(contextOptions.viewport);
+
+  // The sheet from a skill: its own title and link, Google Calendar only.
+  await tab('Навыки').click();
+  const reminderSkill = page.locator('.skill-card').first();
+  const reminderSkillName = (await reminderSkill.locator('.skill-card-name').first().textContent())?.trim();
+  await reminderSkill.click();
+  await page.locator('.hero').waitFor();
+  await skillMenu('Напоминание для навыка');
+  const reminderSheet = page.locator('.reminder-sheet');
+  await reminderSheet.getByRole('button', { name: 'Google Календарь' }).waitFor();
+  if (await reminderSheet.getByRole('button', { name: 'Файл .ics' }).count()) errors.push('the skill reminder offers the general static file');
+  await settled();
+  await shot('reminder-skill-sheet');
+  await reminderSheet.getByRole('button', { name: 'Google Календарь' }).click();
+  const skillGoogle = (await openedLinks()).map((link) => new URL(link)).filter((url) => url.hostname === 'calendar.google.com').at(-1);
+  const skillTitle = skillGoogle?.searchParams.get('text') ?? '';
+  if (!/ — время заниматься$/.test(skillTitle) || (reminderSkillName && !skillTitle.startsWith(reminderSkillName))) errors.push(`the skill reminder is titled «${skillTitle}» (skill «${reminderSkillName}»)`);
+  if (!/startapp=skill_/.test(skillGoogle?.searchParams.get('details') ?? '')) errors.push('the skill reminder does not link to the skill');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await settled();
+  await noSideScroll('the skill reminder sheet at 320 px');
+  await shot('reminder-skill-sheet-320');
+  await androidContext.close();
+
+  // A browser on Android: Google Calendar in a new tab, and an .ics file made on the phone.
+  const androidBrowser = await browser.newContext({
+    ...contextOptions,
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36',
+  });
+  await setupContext(androidBrowser);
+  page = await openPage(androidBrowser);
+  await page.goto(`${baseUrl}#/settings`);
+  await reminderSection().waitFor();
+  await reminderSection().getByRole('button', { name: 'По выходным' }).click();
+  await reminderSection().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot('reminder-browser-android');
+  const [icsDownload] = await Promise.all([page.waitForEvent('download'), reminderSection().getByRole('button', { name: 'Файл .ics' }).click()]);
+  if (icsDownload.suggestedFilename() !== 'skill-flask-1900.ics') errors.push(`the reminder file is named ${icsDownload.suggestedFilename()}`);
+  const icsPath = `${outDir}/reminder-download.ics`;
+  await icsDownload.saveAs(icsPath);
+  const downloadProblems = icsCheck(readFileSync(icsPath, 'utf8'), { time: '19:00', rrule: 'FREQ=WEEKLY;BYDAY=SA,SU' });
+  if (downloadProblems.length) errors.push(`the downloaded reminder: ${downloadProblems.join(', ')}`);
+  await page.getByText('Файл сохранён — откройте его, чтобы добавить событие').waitFor();
+  await androidBrowser.close();
 }
 
 await browser.close();

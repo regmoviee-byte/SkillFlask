@@ -161,6 +161,8 @@ export interface TelegramWebApp {
   addToHomeScreen(): void;
   /** Opens a t.me link inside Telegram (Bot API 6.1): `https://t.me/share/url?…` is the chat picker. */
   openTelegramLink(url: string): void;
+  /** Opens a link outside Telegram, in the phone's browser (Bot API 6.0): an .ics file, Google Calendar. */
+  openLink(url: string): void;
   checkHomeScreenStatus(cb?: (status: HomeScreenStatus) => void): void;
   BackButton: SimpleButton;
   SettingsButton: SimpleButton;
@@ -196,6 +198,7 @@ export const API = Object.freeze({
   activation: '8.0',
   homeScreen: '8.0',
   telegramLink: '6.1',
+  openLink: '6.0',
 });
 
 /** The WebApp object when the page runs inside a Telegram client. Typed as the full API: callers gate with `supports`. */

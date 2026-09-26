@@ -14,6 +14,7 @@ export type SettingKey =
   | 'coachTodaySeen'
   | 'askNote'
   | 'todayDoneOpen'
+  | 'reminder'
   | 'activeTimer'
   | 'installId';
 

@@ -1,0 +1,107 @@
+/* «Напоминание в календаре» (v0.5 package 20): the form in «Настройках» and the skill's sheet. */
+
+.reminder-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* «Настройки»: the fields in one card, like the other groups. */
+.reminder-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--card-padding) var(--card-padding);
+}
+
+.reminder-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* On the card's (or the sheet's) elevated surface the fields sink, as in every sheet. */
+.reminder-card .input,
+.reminder-card .weekday-chip,
+.reminder-fields .weekday-chip {
+  background: var(--color-bg-sunken);
+  box-shadow: none;
+}
+
+.reminder-card .weekday-chip[aria-pressed='true'],
+.reminder-fields .weekday-chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.reminder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: var(--tap-target);
+}
+
+.reminder-label {
+  font-size: 17px;
+  color: var(--color-fg);
+}
+
+.reminder-time {
+  width: auto;
+  min-width: 112px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reminder-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.reminder-presets .chip {
+  min-height: var(--tap-target);
+}
+
+.reminder-presets .chip[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.reminder-ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.reminder-way {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reminder-hint,
+.reminder-note {
+  margin: 0 var(--sp-1);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-fg-secondary);
+}
+
+.reminder-way + .reminder-way {
+  margin-top: var(--sp-1);
+}
+
+.reminder-note {
+  margin-bottom: var(--sp-1);
+}
+
+.reminder-intro {
+  margin: 0 0 var(--sp-3);
+}
+
+/* «Настройки»: the texts line up with the group's footnotes. */
+.settings-group .reminder-hint,
+.settings-group .reminder-note {
+  margin: 0 var(--sp-4);
+}

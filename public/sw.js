@@ -8,7 +8,8 @@
 //   cached page offline or when the network takes longer than NETWORK_TIMEOUT_MS;
 // - hashed files under assets/: cache first (their names change with their content);
 // - other files of the app (manifest, icons): network first, the cache offline; a navigation
-//   to one of them (a tab opened on the icon) is left to the network;
+//   to one of them (a tab opened on the icon) is left to the network, and so is every request
+//   for a static reminder file (reminders/*.ics);
 // - everything else (other origins, e.g. telegram.org, non-GET): not touched.
 // A new version installs next to the old one and waits; the page shows «Обновить приложение»
 // and posts SKIP_WAITING when the user taps it (platform/sw.ts).
@@ -30,6 +31,9 @@ function strategyFor(request, scope) {
   // the page's key it would replace the offline index.html with a PNG or JSON body.
   if (request.mode === 'navigate') return 'network';
   if (path === 'sw.js') return 'network';
+  // The static reminder files (v0.5 package 20): opened now and then from a calendar button,
+  // never needed offline — neither precached (scripts/sw-plugin.mjs) nor cached on the way.
+  if (path.startsWith('reminders/')) return 'network';
   if (path.startsWith('assets/')) return 'asset';
   return 'fresh';
 }

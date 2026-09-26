@@ -2,13 +2,16 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import pkg from './package.json' with { type: 'json' };
 import { serviceWorker } from './scripts/sw-plugin.mjs';
+import { reminderFiles } from './scripts/reminders-plugin.mjs';
 
 export default defineConfig({
   // Relative base so the build works from any static host path (GitHub Pages, Telegram Mini App URL).
   base: './',
   // serviceWorker: dist/sw.js gets the build's version and precache list (the offline start
   // of the installed browser app; never registered inside Telegram).
-  plugins: [react(), serviceWorker(pkg.version)],
+  // reminderFiles: dist/reminders/*.ics, the static calendar events iOS opens by https URL
+  // (v0.5 package 20, src/ui/reminder/staticFiles.ts).
+  plugins: [react(), serviceWorker(pkg.version), reminderFiles()],
   build: {
     // dist/.vite/manifest.json tells scripts/check-bundle.mjs the initial load from the lazy
     // chunks (the progress themes other than the flask, the forecast and heat maps, a few

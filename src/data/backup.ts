@@ -43,8 +43,9 @@ export const backupMessages = {
 /**
  * Settings that describe this device rather than the journal: kept from the current database
  * on import instead of taken from the file (the spec names installId; the backup timestamps,
- * the restore offer flag, the appearance switches, «Спрашивать заметку» and the fold of «Сделано»
- * on «Сегодня» are just as device-bound).
+ * the restore offer flag, the appearance switches, «Спрашивать заметку», the fold of «Сделано»
+ * on «Сегодня» and the reminder form's last time and days — the events live in this phone's
+ * calendar — are just as device-bound).
  */
 export const DEVICE_SETTINGS = [
   'installId',
@@ -59,6 +60,7 @@ export const DEVICE_SETTINGS = [
   'appearance',
   'askNote',
   'todayDoneOpen',
+  'reminder',
 ] as const satisfies readonly SettingKey[];
 
 /**
@@ -287,12 +289,11 @@ export function validateBackup(tables: Record<string, unknown[]>): void {
   });
   // A pause ends on or after its first day; two pauses of a skill never share a day. `endedAt`
   // never changes which days are paused (domain/pause.ts): one on a pause without a last day
-  // (only a hand-edited file, or an older build after the local date moved back) is dropped
-  // rather than refused, so no copy the app wrote becomes unrestorable over it.
+  // (only a hand-edited file, or an older build after the local date moved back) is not refused,
+  // so no copy the app wrote becomes unrestorable over it; migrateBackup drops it from its copy.
   const pausesBySkill = new Map<unknown, Row[]>();
   (tables.pauses as Row[]).forEach((row, i) => {
     if (row.until !== null && (row.until as string) < (row.from as string)) throw corrupt(`pauses[${i}].until`);
-    if (row.endedAt !== null && row.until === null) row.endedAt = null;
     const list = pausesBySkill.get(row.skillId) ?? [];
     const overlaps = list.some((other) => (other.until === null || (other.until as string) >= (row.from as string)) && (row.until === null || (row.until as string) >= (other.from as string)));
     if (overlaps) throw corrupt(`pauses[${i}].from`);
@@ -350,6 +351,8 @@ export function migrateBackup(raw: unknown): BackupFile {
     }
   }
   validateBackup(tables);
+  // Validated first, so a malformed `endedAt` is still refused; then dropped where it means nothing.
+  for (const row of (tables.pauses ?? []) as Row[]) if (row.endedAt !== null && row.until === null) row.endedAt = null;
   return {
     format: BACKUP_FORMAT,
     schemaVersion: SCHEMA_VERSION,
@@ -433,7 +436,7 @@ export async function importBackup(file: BackupFile): Promise<BackupStats> {
  * hash) does not: a cloud copy kept through the wipe no longer describes this device, so the
  * automatic backup treats it as someone else's and never replaces it silently.
  */
-const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance', 'askNote', 'todayDoneOpen'] as const satisfies readonly SettingKey[];
+const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance', 'askNote', 'todayDoneOpen', 'reminder'] as const satisfies readonly SettingKey[];
 
 /** «Удалить все данные»: clears every table, keeping the install id and the device switches. */
 export async function wipeAllData(): Promise<void> {

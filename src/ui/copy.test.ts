@@ -12,6 +12,7 @@ import { templatesCopy } from './templates/strings';
 import { searchCopy } from './search/strings';
 import { pauseCopy } from './pause/strings';
 import { shareCopy } from './share/strings';
+import { reminderCopy } from './reminder/strings';
 import { TEMPLATES } from '../domain/templates';
 
 const flask = levelCopy(THEME_TEXT.flask);
@@ -85,6 +86,9 @@ describe('copy dictionary', () => {
       strings.push([`shareCopy.message(${key},${completed},${levels},${points})`, message(lc, 'Английский', completed, levels, points)]);
     }
   }
+  // «Напоминание в календаре» (ui/reminder/strings.ts, package 20), the event's own texts included.
+  const { fileName: _fileName, ...reminder } = reminderCopy;
+  collect(reminder, 'reminderCopy', strings);
   // The skill templates (package 16): the chooser and form strings, the plan line in every
   // theme's words, and the catalogue's own texts (names, lines, labels, milestones, actions).
   const { plan, ...actions } = templatesCopy.actions;

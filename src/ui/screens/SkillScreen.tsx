@@ -17,6 +17,7 @@ import { copyText } from '../../platform/clipboard';
 import { skillLink } from '../../platform/deeplink';
 import { dialogs } from '../../platform/dialogs';
 import { haptics } from '../../platform/haptics';
+import { reminderEnv, reminderPlan } from '../../platform/reminders';
 import { isTelegram } from '../../platform/telegram';
 import { useCelebrationStage, type HeroLevelUp } from '../celebrations/CelebrationProvider';
 import { errorMessage } from '../completionFeedback';
@@ -43,6 +44,7 @@ import { CompletionSheet } from '../sheets/CompletionSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
 import { PauseSheet } from '../pause/lazy';
 import { ShareSheet } from '../share/lazy';
+import { ReminderSheet } from '../reminder/lazy';
 
 // The link fallback is a lazy chunk (v0.5 package 14 won back the initial load with it): it
 // starts loading with the screen, long before a refused clipboard could need it. Where the chunk
@@ -77,7 +79,8 @@ const LinkSheet = lazySafe<ComponentType<LinkSheetProps>>(
 // A skill on pause (package 18) says so under its name — «На паузе до 10 октября» with «Снять
 // паузу» — and can still be completed here; the menu sets the pause or changes its last day.
 // «Поделиться прогрессом» (package 19, ui/share) makes a picture of the skill's progress; a
-// completed skill keeps a ⋯ menu for it and for its link.
+// completed skill keeps a ⋯ menu for it and for its link. «Напоминание для навыка» (package 20,
+// ui/reminder) puts a recurring event with the skill's title into the phone's calendar.
 
 /** Navigation state from the global search: the sheet to open on arrival, once. */
 export interface SkillOpenRequest {
@@ -99,6 +102,8 @@ export function SkillScreen() {
   const closePause = useCallback(() => setPauseOpen(false), []);
   const [shareOpen, setShareOpen] = useState(false);
   const closeShare = useCallback(() => setShareOpen(false), []);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const closeReminder = useCallback(() => setReminderOpen(false), []);
   const unpausing = useRef(false);
   const copying = useRef<Promise<boolean> | null>(null);
   const { showToast } = useToast();
@@ -139,6 +144,8 @@ export function SkillScreen() {
   // A completed skill has no form or pause, but its progress and link are worth sharing.
   const hasMenu = active || skill?.status === 'COMPLETED';
   const pause = details?.pause ?? null;
+  // «Напоминание для навыка» where a calendar event can carry the skill's title (not iOS's static files).
+  const skillReminder = active && reminderPlan(reminderEnv()).custom;
 
   /** «Снять паузу»: back in the plan today, from the menu or the line under the name; a double tap ends it once. */
   async function unpause(id: string) {
@@ -212,6 +219,7 @@ export function SkillScreen() {
             },
             { paused: pause !== null, open: () => setPauseOpen(true), end: () => void unpause(skill.id) },
             () => setShareOpen(true),
+            skillReminder ? () => setReminderOpen(true) : null,
           )}
         />
       )}
@@ -221,6 +229,7 @@ export function SkillScreen() {
       {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
       {skill && active && <PauseSheet skill={skill} pause={pause} open={pauseOpen} today={today} onClose={closePause} />}
       {skill && hasMenu && <ShareSheet skill={skill} open={shareOpen} today={today} onClose={closeShare} />}
+      {skill && skillReminder && <ReminderSheet skill={skill} open={reminderOpen} onClose={closeReminder} />}
       {details && (
         <MarkSheet
           target={markTarget}
@@ -249,6 +258,7 @@ function skillMenu(
   copyLink: { start(): void; finish(): void },
   pause: { paused: boolean; open(): void; end(): void },
   share: () => void,
+  reminder: (() => void) | null,
 ): ContextItem[] {
   const t = copy.pause;
   const shareItems: ContextItem[] = [
@@ -266,6 +276,7 @@ function skillMenu(
           { icon: 'calendar', label: t.menuChange, onSelect: pause.open } satisfies ContextItem,
         ]
       : [{ icon: 'pause', label: t.menuPause, onSelect: pause.open } satisfies ContextItem]),
+    ...(reminder ? [{ icon: 'bell', label: copy.skill.reminder, onSelect: reminder } satisfies ContextItem] : []),
     ...shareItems,
   ];
 }

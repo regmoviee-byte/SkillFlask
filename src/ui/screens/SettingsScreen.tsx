@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useId, useRef, useState, type ComponentType } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { formatDateTime, formatDateTimeRelative } from '../../lib/dates';
@@ -33,15 +33,34 @@ import { copy } from '../copy';
 import { motionMode, setMotionPreference, type MotionPreference } from '../hooks/useMotion';
 import { useToday } from '../hooks/useToday';
 import { lazySafe } from '../lazySafe';
+import { ReminderForm } from '../reminder/ReminderForm';
+import { reminderCopy } from '../reminder/strings';
 import { BackupTextSheet } from '../sheets/BackupTextSheet';
 import { ImportSheet } from '../sheets/ImportSheet';
 
 // The install instructions are a lazy chunk (v0.5 package 14 won back the initial load with it):
 // it starts loading with this screen, long before «Добавить на главный экран» can be tapped.
-const InstallSheet = lazySafe(() => import('../sheets/InstallSheet').then((m) => ({ default: m.InstallSheet })), 'InstallSheet');
+// A chunk that failed to load answers the tap with a toast instead of nothing.
+function InstallUnavailable({ os, onClose }: InstallSheetProps) {
+  const { showToast } = useToast();
+  useEffect(() => {
+    if (os === null) return;
+    showToast(copy.errors.sheetChunk);
+    onClose();
+  }, [os, onClose, showToast]);
+  return null;
+}
+
+type InstallSheetProps = { os: InstallPlatform | null; onClose(): void };
+
+const InstallSheet = lazySafe<ComponentType<InstallSheetProps>>(
+  () => import('../sheets/InstallSheet').then((m) => ({ default: m.InstallSheet })),
+  'InstallSheet',
+  InstallUnavailable,
+);
 
 // «Настройки» (replaces «Аккаунт»): data and backups, «Выполнение» (ask for a note after every
-// completion), appearance (the «Тема» choice, motion, haptics), about (the home-screen
+// completion), «Напоминание» (a recurring event in the phone's calendar, ui/reminder), appearance (the «Тема» choice, motion, haptics), about (the home-screen
 // shortcut, version, update), danger zone.
 
 const t = copy.settings;
@@ -100,12 +119,14 @@ export function SettingsScreen() {
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [errors, setErrors] = useState<LoggedError[]>(getErrors);
   const [installOs, setInstallOs] = useState<InstallPlatform | null>(null);
+  const closeInstall = useCallback(() => setInstallOs(null), []);
   const homeScreen = useHomeScreenOffer();
   const updateWaiting = useUpdateWaiting();
   // What is applied (the boot syncs it from the settings table): pressed at once on a tap.
   const theme = useAppearancePreference();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const reminderTitleId = useId();
   // Set synchronously on the first tap: the busy state lands a render later, too late for a
   // fast double tap, and a confirm the handler waits for counts as busy too.
   const busyRef = useRef(false);
@@ -402,6 +423,13 @@ export function SettingsScreen() {
         />
       </SettingsGroup>
 
+      <section className="settings-group" aria-labelledby={reminderTitleId}>
+        <h2 className="section-title" id={reminderTitleId}>
+          {reminderCopy.section}
+        </h2>
+        <ReminderForm skill={null} inCard />
+      </section>
+
       <SettingsGroup title={t.groupAppearance}>
         <ThemeRow value={theme} onChange={(next) => void setAppearance(next)} />
         <SettingsRow
@@ -437,7 +465,7 @@ export function SettingsScreen() {
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
       <BackupTextSheet text={exportText} onClose={() => setExportText(null)} />
       <Suspense fallback={null}>
-        <InstallSheet os={installOs} onClose={() => setInstallOs(null)} />
+        <InstallSheet os={installOs} onClose={closeInstall} />
       </Suspense>
     </Screen>
   );

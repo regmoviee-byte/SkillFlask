@@ -233,6 +233,8 @@ export const copy = Object.freeze({
     linkCopied: 'Ссылка скопирована',
     /** ⋯ menu: the card picture of the skill's progress (ui/share, package 19). */
     share: 'Поделиться прогрессом',
+    /** ⋯ menu: a recurring event in the phone's calendar with the skill's title (ui/reminder, package 20). */
+    reminder: 'Напоминание для навыка',
   },
   /**
    * «Пауза» (package 18) in the first paint: the pill, the menu, the return toast. The sheet's
