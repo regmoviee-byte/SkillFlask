@@ -7,7 +7,7 @@ import { useEffect, useReducer, useRef } from 'react';
  * (the input order is kept; leaving rows sit after the row that preceded them).
  */
 export function useLinger<T>(items: readonly T[], keyOf: (item: T) => string, ms: number): Array<{ item: T; leaving: boolean }> {
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const [renders, rerender] = useReducer((n: number) => n + 1, 0);
   const shown = useRef<{ key: string; item: T }[]>([]);
   const leaving = useRef(new Map<string, number>());
   const now = Date.now();
@@ -32,11 +32,14 @@ export function useLinger<T>(items: readonly T[], keyOf: (item: T) => string, ms
   shown.current = result.map(({ key, item }) => ({ key, item }));
 
   const next = Math.min(...leaving.current.values());
+  // Re-armed after every render of its own too: a timer may fire a millisecond before Date.now
+  // reaches `next` (timers and the wall clock round differently), and that render keeps the
+  // same `next`, so an effect keyed on `next` alone would leave the row on screen for good.
   useEffect(() => {
     if (!Number.isFinite(next)) return;
     const timer = window.setTimeout(rerender, Math.max(0, next - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [next]);
+  }, [next, renders]);
 
   return result.map(({ item, leaving: isLeaving }) => ({ item, leaving: isLeaving }));
 }
