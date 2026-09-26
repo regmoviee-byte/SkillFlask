@@ -8,13 +8,14 @@ import { Icon } from './Icon';
 // A skill on the home screen (wireframe 1): the mini of its progress theme with the level
 // number, name and labels, the points of the current level, a liquid bar, the milestone as dots
 // and today's points — all in the skill's colour. A completed skill shows the gold mini with a
-// check, an archived one a muted mini and the date.
+// check, an archived one a muted mini and the date; a skill on pause (package 18) the pill «На
+// паузе до 10 октября».
 
 /** Up to this many flasks the milestone is drawn as dots; above it, a count. */
 const DOTS_MAX = 12;
 
 export function SkillCard({ summary }: { summary: HomeSkillSummary }) {
-  const { skill, milestone, progress, todayPoints } = summary;
+  const { skill, milestone, progress, todayPoints, pause } = summary;
   const t = copy.home;
   const lc = copyForSkill(skill);
   const active = skill.status === 'ACTIVE';
@@ -61,6 +62,13 @@ export function SkillCard({ summary }: { summary: HomeSkillSummary }) {
           <div className="liquid-bar" aria-hidden="true">
             <div className="liquid-bar-fill" style={{ width: `${progress.fill * 100}%` }} />
           </div>
+        )}
+        {/* A row of its own: beside the dots and «+5 сегодня» it would wrap on a narrow phone. */}
+        {pause && (
+          <span className="pause-pill pause-pill--card">
+            <Icon name="pause" filled size={12} />
+            <span className="pause-pill-text">{copy.pause.pill(pause.until)}</span>
+          </span>
         )}
         {(milestone || todayPoints > 0) && (
           <div className="skill-card-foot">

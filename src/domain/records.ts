@@ -11,6 +11,7 @@
 import { diffDays, weekStart } from '../lib/dates';
 import { buildEvents, type HistorySnapshot, type ReplayEvent } from './achievements/events';
 import { operationDate } from './events';
+import { restDays } from './pause';
 import { fromDeci, toDeci } from './points';
 import type { TimelineEntry } from './progression';
 import { activeDates, bestDayStreak, dayStreaks } from './streaks';
@@ -31,8 +32,8 @@ export interface Records {
   /** Most completions on one local date. */
   mostCompletions: { count: number; date: string } | null;
   /**
-   * The longest run of consecutive active dates ever (never a current streak); null below two
-   * days — a single day is no run.
+   * The longest run of consecutive active dates ever (never a current streak; rest days of a
+   * pause bridge it without counting); null below two days — a single day is no run.
    */
   bestStreak: { days: number; start: string; end: string } | null;
   /** The longest TIMED completion; null while there is none. */
@@ -158,9 +159,11 @@ export function computeRecords(snapshot: HistorySnapshot, events: readonly Repla
   const week = maxByKey(sumByKey(completions, (c) => weekStart(c.date), (c) => toDeci(c.pointsAwarded)));
   const most = maxByKey(sumByKey(completions, (c) => c.date, () => 1));
 
+  // Rest days (the whole app on pause, package 18) neither break nor extend a run.
   const dates = activeDates(completions);
-  const streakDays = bestDayStreak(dates);
-  const run = streakDays >= 2 ? dayStreaks(dates).find((r) => r.length === streakDays) : undefined;
+  const rest = restDays(snapshot);
+  const streakDays = bestDayStreak(dates, rest);
+  const run = streakDays >= 2 ? dayStreaks(dates, rest).find((r) => r.length === streakDays) : undefined;
 
   let longestSession: Records['longestSession'] = null;
   for (const c of completions) {

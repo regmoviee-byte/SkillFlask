@@ -20,22 +20,23 @@ import type { AchievementState, LadderDef } from '../domain/achievements/types';
 import type { AchievementUnlock } from '../domain/types';
 import { logError } from '../platform/errorLog';
 
-/** The six tables the engine reads. */
-export const snapshotTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions];
+/** The six tables the engine reads, and the pauses (the day streaks' rest days, package 18). */
+export const snapshotTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.pauses];
 /** What a sync needs: the snapshot and the ledger. */
 export const achievementTables = () => [...snapshotTables(), db.achievementUnlocks];
 
-/** The engine's input: six whole-table reads inside the caller's transaction. */
+/** The engine's input: whole-table reads inside the caller's transaction. */
 export async function loadSnapshot(): Promise<HistorySnapshot> {
-  const [skills, milestones, thresholds, steps, completions, transactions] = await Promise.all([
+  const [skills, milestones, thresholds, steps, completions, transactions, pauses] = await Promise.all([
     db.skills.toArray(),
     db.milestones.toArray(),
     db.levelThresholds.toArray(),
     db.steps.toArray(),
     db.completions.toArray(),
     db.transactions.toArray(),
+    db.pauses.toArray(),
   ]);
-  return { skills, milestones, thresholds, steps, completions, transactions };
+  return { skills, milestones, thresholds, steps, completions, transactions, pauses };
 }
 
 // ---- Evaluation cache ----
@@ -52,26 +53,27 @@ let cached: { db: SkillFlaskDb; key: string; read: HistoryRead } | null = null;
 
 /**
  * The history and the engine's result for the current database, re-read and re-evaluated only
- * when the history changed. The key holds the four small tables whole, and the size and newest
+ * when the history changed. The key holds the five small tables whole (the pauses too), and the size and newest
  * row of the journal: a completion never changes in a way the rules or the records read without
  * a journal row (a completion writes one even when worth 0 points; cancel and restore write one;
  * a change of minutes writes a CORRECTION even when the points stay the same; a note edit writes
  * none and matters to no rule). Runs inside a transaction covering snapshotTables().
  */
 export async function readHistory(): Promise<HistoryRead> {
-  const [skills, milestones, thresholds, steps, completionCount, transactionCount, lastRow] = await Promise.all([
+  const [skills, milestones, thresholds, steps, pauses, completionCount, transactionCount, lastRow] = await Promise.all([
     db.skills.toArray(),
     db.milestones.toArray(),
     db.levelThresholds.toArray(),
     db.steps.toArray(),
+    db.pauses.toArray(),
     db.completions.count(),
     db.transactions.count(),
     db.transactions.orderBy('createdAt').last(),
   ]);
-  const key = JSON.stringify([skills, milestones, thresholds, steps, completionCount, transactionCount, lastRow?.id ?? null]);
+  const key = JSON.stringify([skills, milestones, thresholds, steps, pauses, completionCount, transactionCount, lastRow?.id ?? null]);
   if (cached && cached.db === db && cached.key === key) return cached.read;
   const [completions, transactions] = await Promise.all([db.completions.toArray(), db.transactions.toArray()]);
-  const snapshot: HistorySnapshot = { skills, milestones, thresholds, steps, completions, transactions };
+  const snapshot: HistorySnapshot = { skills, milestones, thresholds, steps, completions, transactions, pauses };
   let records: Records | null = null;
   const read: HistoryRead = { snapshot, evaluation: evaluateWithStats(snapshot), records: () => (records ??= computeRecords(snapshot)) };
   cached = { db, key, read };

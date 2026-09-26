@@ -129,7 +129,7 @@ function HomeContent({ home, today, filter, onFilter }: HomeContentProps) {
   return (
     <>
       <div className="bento">
-        <TodayTile points={home.todayPoints} week={home.weekActivity} today={today} to="/today" />
+        <TodayTile points={home.todayPoints} week={home.weekActivity} rest={home.weekRest} today={today} to="/today" />
         <Tile label={t.tileLevels} className="tile--flasks">
           <TileNumber value={home.totalFlasks} caption={t.levelsCaption(home.totalFlasks)} />
           {home.totalFlasks > 0 && (

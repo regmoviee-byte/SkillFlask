@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../data/db';
@@ -9,8 +9,9 @@ import { archiveSkill } from '../../services/lifecycle';
 import { completeSkill, createSkill, type SkillInput } from '../../services/skills';
 import { createStep } from '../../services/steps';
 import { createMark } from '../../services/marks';
-import { addDays, localDate } from '../../lib/dates';
+import { addDays, formatDate, localDate } from '../../lib/dates';
 import { installFreshDb, tickingClock, todayNoon } from '../../test/harness';
+import { installFakeTelegram, type FakeTelegram } from '../../test/fakeTelegram';
 import { ToastProvider } from '../components/Toast';
 import { SkillScreen } from './SkillScreen';
 
@@ -28,9 +29,12 @@ const input: SkillInput = {
 
 installFreshDb();
 beforeEach(() => setClock(tickingClock(todayNoon())));
+let fake: FakeTelegram | undefined;
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  fake?.uninstall();
+  fake = undefined;
 });
 
 function renderSkill(id: string) {
@@ -249,5 +253,98 @@ describe('SkillScreen marks', () => {
     expect(within(sheet).queryByRole('button', { name: 'Удалить' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Добавить засечку' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Меню навыка' })).toBeNull();
+  });
+});
+
+/** A text whose spaces may be non-breaking (keepNumbers keeps «3 октября» together). */
+const loose = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s')}$`);
+
+describe('SkillScreen pause (package 18)', () => {
+  const menuItem = async (name: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: 'Меню навыка' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name }));
+  };
+
+  it('sets a pause for a week from the ⋯ menu: the pill under the name, the skill still completes', async () => {
+    const id = await createSkill(input);
+    const step = await createStep({ skillId: id, name: 'Разговор', points: 3 });
+    renderSkill(id);
+    await menuItem('Поставить на паузу');
+    const sheet = await screen.findByRole('dialog', { name: 'Пауза' }, { timeout: 5000 });
+    const week = within(sheet).getByRole('radio', { name: /^На неделю/ });
+    expect(week.getAttribute('aria-checked')).toBe('true');
+    // One Tab stop, the arrows move the choice (and wrap), and back.
+    expect(within(sheet).getAllByRole('radio').map((r) => r.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    fireEvent.keyDown(week, { key: 'ArrowUp' });
+    const open = within(sheet).getByRole('radio', { name: 'Пока не сниму' });
+    expect(open.getAttribute('aria-checked')).toBe('true');
+    expect(document.activeElement).toBe(open);
+    fireEvent.keyDown(open, { key: 'ArrowDown' });
+    expect(week.getAttribute('aria-checked')).toBe('true');
+    expect(document.activeElement).toBe(week);
+    const until = addDays(localDate(), 6);
+    expect(within(sheet).getByText(loose(`В план навык вернётся ${formatDate(addDays(until, 1))}`))).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Поставить на паузу' }));
+    const pill = await screen.findByText(loose(`На паузе до ${formatDate(until)}`));
+    expect(pill.closest('.pause-line')).toBeTruthy();
+    expect(await db.pauses.toArray()).toEqual([expect.objectContaining({ skillId: id, from: localDate(), until })]);
+    // Still an active skill: its action completes, and the pause stays.
+    fireEvent.click(screen.getByRole('button', { name: 'Отметить: Разговор, +3 очка' }));
+    await waitFor(async () => expect(await db.completions.where('stepId').equals(step).count()).toBe(1));
+    expect(await db.pauses.count()).toBe(1);
+  });
+
+  it('rests «пока не сниму», changes the date and takes the pause off', async () => {
+    const id = await createSkill(input);
+    renderSkill(id);
+    await menuItem('Поставить на паузу');
+    let sheet = await screen.findByRole('dialog', { name: 'Пауза' }, { timeout: 5000 });
+    // A new pause rests at least until tomorrow.
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'До даты…' }));
+    fireEvent.change(within(sheet).getByLabelText('Последний день паузы'), { target: { value: localDate() } });
+    expect(within(sheet).getByText('Выберите дату от завтра и не дальше чем через год')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Пока не сниму' }));
+    expect(within(sheet).getByText('Навык вернётся в план, когда вы снимете паузу')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Поставить на паузу' }));
+    expect(await screen.findByText('На паузе')).toBeTruthy();
+    // The pause the sheet has just set does not turn the closing sheet into «Дата паузы».
+    expect(screen.queryByRole('dialog', { name: 'Дата паузы' })).toBeNull();
+    expect(screen.queryByText('Сохранить')).toBeNull();
+
+    // «Изменить дату»: until a date; a date before tomorrow… is fine for a change, today included.
+    await menuItem('Изменить дату');
+    sheet = await screen.findByRole('dialog', { name: 'Дата паузы' });
+    expect(within(sheet).getByRole('radio', { name: 'Пока не сниму' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'До даты…' }));
+    const field = within(sheet).getByLabelText('Последний день паузы');
+    fireEvent.change(field, { target: { value: addDays(localDate(), 400) } });
+    expect(within(sheet).getByText('Выберите дату от сегодня и не дальше чем через год')).toBeTruthy();
+    expect((within(sheet).getByRole('button', { name: 'Сохранить' }) as HTMLButtonElement).disabled).toBe(true);
+    const until = addDays(localDate(), 10);
+    fireEvent.change(field, { target: { value: until } });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText(loose(`На паузе до ${formatDate(until)}`))).toBeTruthy();
+
+    // «Снять паузу» beside the pill: set today, so nothing of it is left.
+    fireEvent.click(within(document.querySelector('.pause-line') as HTMLElement).getByRole('button', { name: 'Снять паузу' }));
+    expect(await screen.findByText('Пауза снята — навык снова в плане')).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('.pause-line')).toBeNull());
+    expect(await db.pauses.count()).toBe(0);
+  });
+
+  it('in Telegram, sets the pause with the MainButton: no HTML button in the sheet', async () => {
+    fake = installFakeTelegram('7.10');
+    const mainTexts = () => fake!.calls.filter((call) => call.startsWith('MainButton.setParams')).map((call) => /"text":"([^"]*)"/.exec(call)?.[1]);
+    const id = await createSkill(input);
+    renderSkill(id);
+    await menuItem('Поставить на паузу');
+    const sheet = await screen.findByRole('dialog', { name: 'Пауза' }, { timeout: 5000 });
+    fireEvent.click(within(sheet).getByRole('radio', { name: /^На 2 недели/ }));
+    await waitFor(() => expect(mainTexts().at(-1)).toBe('Поставить на паузу'));
+    expect(within(sheet).queryByRole('button', { name: 'Поставить на паузу' })).toBeNull();
+    act(() => fake!.click('MainButton'));
+    const until = addDays(localDate(), 13);
+    expect(await screen.findByText(loose(`На паузе до ${formatDate(until)}`))).toBeTruthy();
+    expect(await db.pauses.toArray()).toEqual([expect.objectContaining({ skillId: id, until })]);
   });
 });

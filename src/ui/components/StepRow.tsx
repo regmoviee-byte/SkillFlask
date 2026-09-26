@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { completeStep, type MutationResult } from '../../services/completions';
 import type { Skill, StepDefinition } from '../../domain/types';
@@ -54,9 +54,11 @@ export interface StepRowProps {
   context?: string;
   /** A quota row: done of target in the current period, with a segmented bar instead of the schedule. */
   quota?: { done: number; target: number };
+  /** Drawn at the start of the caption: the skill's colour dot on a busy «Сегодня» (package 18). */
+  marker?: ReactNode;
 }
 
-export function StepRow({ step, skill, todayCount, mode, onResult, date, context, quota }: StepRowProps) {
+export function StepRow({ step, skill, todayCount, mode, onResult, date, context, quota, marker }: StepRowProps) {
   const { showToast } = useToast();
   const celebrations = useCelebrations();
   const timer = useTimer();
@@ -91,7 +93,12 @@ export function StepRow({ step, skill, todayCount, mode, onResult, date, context
   const text = (
     <span className="step-row-main">
       <span className="step-row-name">{step.name}</span>
-      {parts.length > 0 && <span className="step-row-meta">{parts.join(' · ')}</span>}
+      {parts.length > 0 && (
+        <span className="step-row-meta">
+          {marker}
+          {parts.join(' · ')}
+        </span>
+      )}
       {quota && <QuotaBar done={quota.done} target={quota.target} />}
     </span>
   );

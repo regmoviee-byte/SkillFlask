@@ -13,7 +13,7 @@
 //    its own sheet since v0.3 package 5, without emoji).
 // copy.test.ts walks this object and rejects forbidden words.
 
-import { formatDate, formatDateTime, formatDaySpan, formatWeek, formatWeekdayDate, MONTHS_IN } from '../lib/dates';
+import { formatDate, formatDateRange, formatDateTime, formatWeek, formatWeekdayDate, isValidLocalDate, MONTHS_IN } from '../lib/dates';
 import { formatDelta, formatMinutes, formatNumber, formatPoints, formatRate, plural, POINTS } from '../lib/format';
 import type { SkillColor } from '../domain/appearance';
 import type { TemplateKey } from '../domain/templateKeys';
@@ -122,6 +122,8 @@ export const copy = Object.freeze({
     weekdaysShort: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
     dayLabel: (date: string, completions: number) =>
       completions > 0 ? `${formatWeekdayDate(date)}: ${count(completions, COMPLETIONS)}` : formatWeekdayDate(date),
+    /** A day the whole app rested (package 18): neutral, not a day without practice. */
+    dayRestLabel: (date: string) => `${formatWeekdayDate(date)}: пауза`,
     /** «Осталось» is used for today's plan only (tone rule 4); a past day lists its plan neutrally. */
     remaining: 'Осталось',
     plannedPast: 'По расписанию',
@@ -136,6 +138,24 @@ export const copy = Object.freeze({
     moreCount: (n: number) => `Ещё ${count(n, ACTIONS)}`,
     donePast: 'Сделано в этот день',
     doneEmptyPast: 'В этот день отметок нет',
+    /**
+     * «Сделано» folded to one line on a busy day (5+ skills in the plan): «Отмечено: 7 · +54 очка».
+     * Every completion of the day counts here, a paused skill's and «Ещё» too, so the line does
+     * not repeat the «Сделано N из M» of the plan above it.
+     */
+    doneSummary: (n: number, points: number) => `Отмечено: ${n} · +${formatNumber(points)} ${plural(points, POINTS)}`,
+    doneSummaryPast: (n: number, points: number) => `Отмечено в этот день: ${n} · +${formatNumber(points)} ${plural(points, POINTS)}`,
+    /** The rest of a skill's rows in «Осталось», folded after the first three. */
+    dueMore: (n: number) => `Ещё ${n}`,
+    dueMoreLabel: (n: number, skill: string) => `Показать ещё ${count(n, ACTIONS)}: ${skill}`,
+    /** The quiet line at the end: «На паузе: Гитара до 10 октября, Бег». */
+    pausedLine: 'На паузе:',
+    pausedUntil: (date: string) => `до ${keepNumbers(formatDate(date))}`,
+    /** Every skill of the plan rests today. */
+    allPausedTitle: 'Все навыки на паузе',
+    /** Only a pause with a last day ends by itself: «пока не сниму» waits for «Снять паузу». */
+    allPausedText: (allDated: boolean) =>
+      allDated ? 'Они вернутся в план сами. Отметить действие можно и на паузе — на экране навыка.' : 'Снять паузу или отметить действие можно на экране навыка.',
     /** The only coach hint of the app, shown once above the first button. */
     coach: 'Нажмите на кнопку с очками — они сразу достанутся навыку. Ошиблись? «Отменить» в подсказке снизу.',
     /** The chip is one button: its name says it is a hint and that a tap closes it. */
@@ -211,6 +231,21 @@ export const copy = Object.freeze({
     /** ⋯ menu: copies a link that opens this skill (platform/deeplink.ts). */
     link: 'Ссылка на навык',
     linkCopied: 'Ссылка скопирована',
+  },
+  /**
+   * «Пауза» (package 18) in the first paint: the pill, the menu, the return toast. The sheet's
+   * words are lazy (ui/pause/strings.ts).
+   */
+  pause: {
+    pill: (until: string | null) => (until ? `На паузе до ${keepNumbers(formatDate(until))}` : 'На паузе'),
+    menuPause: 'Поставить на паузу',
+    menuEnd: 'Снять паузу',
+    menuChange: 'Изменить дату',
+    end: 'Снять паузу',
+    ended: 'Пауза снята — навык снова в плане',
+    /** The first open after a pause ran out: «Гитара снова в плане», «Гитара и Бег снова в плане». */
+    back: (...names: string[]) =>
+      `${names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names.at(-1)}` : (names[0] ?? 'Навык')} снова в плане`,
   },
   /** The link sheet: the clipboard was unavailable, the link is shown to copy by hand. */
   skillLink: {
@@ -476,6 +511,9 @@ export const copy = Object.freeze({
     // «Неделей раньше», not «на прошлой неделе»: a browsed past week compares with the one before it.
     morePoints: 'Больше очков, чем неделей раньше',
     moreDays: 'Больше активных дней, чем неделей раньше',
+    /** A skill that rested during the week (package 18): what happened, not silence. */
+    rested: 'Отдых',
+    restedRow: (days: number) => (days >= 7 ? 'всю неделю' : count(days, DAYS)),
     best: 'Лучшее за неделю',
     topSkill: 'Больше всего очков',
     topAction: 'Чаще всего',
@@ -501,14 +539,21 @@ export const copy = Object.freeze({
     fastestFlask: 'Самый быстрый уровень',
     points: (n: number) => formatPoints(n),
     completions: (n: number) => count(n, ACTIONS),
-    streak: (days: number) => `${count(days, DAYS)} подряд`,
+    /**
+     * A run of days; one bridged over rest days of a pause (package 18) is longer than its count,
+     * so «подряд» would contradict its dates: «12 дней с паузой · 14–26 сентября».
+     */
+    streak: (days: number, bridged = false) => `${count(days, DAYS)} ${bridged ? 'с паузой' : 'подряд'}`,
     minutes: (n: number) => formatMinutes(n),
     /** Days between two completed levels: 0 — «в тот же день», 2 — «за 2 дня». */
     flaskDays: (days: number) => (days === 0 ? 'в тот же день' : `за ${count(days, DAYS)}`),
     date: (date: string) => keepNumbers(formatDate(date)),
     week: (monday: string) => keepNumbers(formatWeek(monday)),
-    /** A run of days: «5–7 сентября». */
-    streakDates: (start: string, days: number) => keepNumbers(formatDaySpan(start, days)),
+    /**
+     * A run of days: «5–7 сентября», from its first to its last day of practice — rest days of a
+     * pause inside it (package 18) make it longer than its count of days.
+     */
+    streakDates: (start: string, end: string) => keepNumbers(isValidLocalDate(end) ? formatDateRange(start, end) : formatDate(start)),
     // A no-break space before each «·», so a wrapped line never starts with the dot.
     withSkill: (skillName: string, detail: string) => `${skillName}\u00a0· ${detail}`,
     bySkill: (n: number) => `Лучший день по навыкам · ${n}`,
@@ -710,6 +755,12 @@ export const copy = Object.freeze({
     /** The search chunk did not load (package 17). */
     searchChunk: 'Поиск не открылся — обновите приложение в «Настройках»',
     recapChunk: 'Итоги не открылись — обновите приложение в «Настройках»',
+    /** A sheet's chunk did not load (a new build on the server): reloading picks it up. */
+    sheetChunk: 'Не удалось открыть — перезапустите приложение',
+    /** The settings chunk did not load (package 18): reloading picks up the new build. */
+    settingsChunk: 'Настройки не открылись — перезагрузите приложение',
+    /** The pause sheet's chunk did not load (package 18). */
+    pauseChunk: 'Пауза не открылась — обновите приложение в «Настройках»',
   },
   db: {
     opening: 'Открываем данные…',

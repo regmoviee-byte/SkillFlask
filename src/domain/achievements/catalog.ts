@@ -61,10 +61,12 @@ export const LADDERS: readonly LadderDef[] = [
     unit: ['день', 'дня', 'дней'],
     icon: 'chain',
     description: 'Самая длинная цепочка дней подряд с практикой — личный рекорд.',
-    howTo: 'Личный рекорд дней подряд. Рекорд остаётся навсегда.',
+    howTo: 'Личный рекорд дней подряд. Дни, когда все навыки на паузе, цепочку не прерывают. Рекорд остаётся навсегда.',
     tiers: tiers([3, B], [7, S], [14, G], [30, G]),
     value: (s) => s.global.bestDayStreak,
-    tierDescription: (n) => `Рекорд: ${count(n, ['день', 'дня', 'дней'])} подряд`,
+    // Not «подряд»: a run bridged over rest days is not consecutive on the calendar (the records
+    // row says «N дней с паузой» for it), so the tier names only its length.
+    tierDescription: (n) => `Рекорд серии: ${count(n, ['день', 'дня', 'дней'])}`,
   },
   {
     id: 'hours',

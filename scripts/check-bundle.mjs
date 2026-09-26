@@ -71,6 +71,13 @@
 // «Спрашивать заметку» with its read after a tap, the note field of «Сколько минут?», the
 // Timeline's highlight hook, the skill screen's lazy search slot with its same-height placeholder,
 // the `/search` route and the home header’s search icon. 203.2 KB measured.
+// v0.5 package 18 (the pause and the compact «Сегодня») keeps the budget: the pause sheet and its
+// strings are a lazy chunk (≈ 1.8 KB), and «Настройки» became a lazy tab (≈ −4.6 KB, the backup
+// file, import and error log screens behind it) to pay for what the first paint needs: the pause
+// rules (domain/pause.ts: the days, the rest days that bridge a streak), the pause service the
+// skill screen's «Снять паузу» and the start's «… снова в плане» toast call, the pill, the
+// «Сегодня» pause line, the week strip's rest dash, the folded «Сделано» and the skill-by-skill
+// «Осталось». 203.6 KB measured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

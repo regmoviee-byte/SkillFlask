@@ -11,15 +11,21 @@ import type { LevelThreshold, Milestone, Skill, StepDefinition } from '../domain
 import { publishEarned } from './achievements';
 import { afterWrite, syncInTransaction } from './afterWrite';
 import { journalTables, requireSkill, syncMilestone, ValidationError } from './core';
+import { closePauseInTransaction } from './pauses';
 
-/** ACTIVE → ARCHIVED: the skill leaves «Сегодня» and the active list, its history stays. */
+/**
+ * ACTIVE → ARCHIVED: the skill leaves «Сегодня» and the active list, its history stays. A
+ * running pause is taken off as «Снять паузу» does: a restore brings the skill back into the
+ * plan, not a forgotten «пока не сниму».
+ */
 export async function archiveSkill(id: string): Promise<void> {
   const now = nowIso();
   await db.transaction('rw', journalTables(), async () => {
     const skill = await requireSkill(id);
     if (skill.status !== 'ACTIVE') throw new ValidationError('В архив можно убрать только активный навык');
     await db.skills.update(id, { status: 'ARCHIVED', archivedAt: now, updatedAt: now });
-    // No rule reads the archive state; the sync keeps every write uniform.
+    await closePauseInTransaction(id, localDate(), now);
+    // The sync keeps every write uniform (and a shorter pause may change the rest days).
     await syncInTransaction({ skillId: id, now });
   });
   await afterWrite();

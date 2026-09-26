@@ -34,7 +34,10 @@ export function requireInt(value: number, min: number, what: string): number {
 }
 
 // Computed on demand: `db` is a live binding that tests swap per test.
-/** Every table a mutation may touch, including the achievement sync (services/achievements.ts). */
+/**
+ * Every table a mutation may touch, including the achievement sync (services/achievements.ts),
+ * which reads the pauses for the day streaks.
+ */
 export const journalTables = () => [
   db.skills,
   db.milestones,
@@ -44,6 +47,7 @@ export const journalTables = () => [
   db.transactions,
   db.settings,
   db.achievementUnlocks,
+  db.pauses,
 ];
 
 export async function requireSkill(id: string): Promise<Skill> {

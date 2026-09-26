@@ -3,13 +3,14 @@ import { formatNumber } from '../lib/format';
 import { setClock } from '../lib/clock';
 import { CATALOG, LADDERS } from '../domain/achievements/catalog';
 import { MAX_BUTTON_TEXT } from '../platform/buttons';
-import { BUTTON_TEXT_MAX, copy, levelCopy } from './copy';
+import { BUTTON_TEXT_MAX, copy, keepNumbers, levelCopy } from './copy';
 import { PROGRESS_THEME_KEYS } from './progress/contract';
 import { THEME_TEXT } from './progress/texts';
 import { insightsCopy } from './insights/strings';
 import { timerCopy } from './timer/strings';
 import { templatesCopy } from './templates/strings';
 import { searchCopy } from './search/strings';
+import { pauseCopy } from './pause/strings';
 import { TEMPLATES } from '../domain/templates';
 
 const flask = levelCopy(THEME_TEXT.flask);
@@ -70,6 +71,9 @@ describe('copy dictionary', () => {
   collect(timerCopy, 'timerCopy', strings);
   // «Поиск по истории» (ui/search/strings.ts, package 17).
   collect(searchCopy, 'searchCopy', strings);
+  // The pause sheet (ui/pause/strings.ts, package 18); the names of the return toast for real.
+  collect(pauseCopy, 'pauseCopy', strings);
+  strings.push(['copy.pause.back(1)', copy.pause.back('Гитара')], ['copy.pause.back(3)', copy.pause.back('Гитара', 'Бег', 'Чтение')]);
   // The skill templates (package 16): the chooser and form strings, the plan line in every
   // theme's words, and the catalogue's own texts (names, lines, labels, milestones, actions).
   const { plan, ...actions } = templatesCopy.actions;
@@ -181,6 +185,29 @@ describe('copy dictionary', () => {
     expect(insightsCopy.activity.cell('2026-09-24', 3, 25)).toBe('24 сентября: 3 действия, 25 очков');
     expect(insightsCopy.activity.summary(64)).toBe('За полгода: 64 дня с занятиями');
     expect(Object.isFrozen(insightsCopy)).toBe(true);
+  });
+
+  it('tells about a pause quietly: the pill, the line, the return, the folded «Сделано»', () => {
+    setClock(() => new Date('2026-09-24T12:00:00'));
+    onTestFinished(() => setClock(null));
+    expect(copy.pause.pill('2026-10-10')).toBe('На паузе до 10\u00a0октября');
+    expect(copy.pause.pill(null)).toBe('На паузе');
+    expect(copy.pause.back('Гитара')).toBe('Гитара снова в плане');
+    expect(copy.pause.back('Гитара', 'Бег')).toBe('Гитара и Бег снова в плане');
+    expect(copy.pause.back('Гитара', 'Бег', 'Чтение')).toBe('Гитара, Бег и Чтение снова в плане');
+    expect(copy.today.doneSummary(7, 54)).toBe('Отмечено: 7 · +54 очка');
+    expect(copy.today.dueMore(2)).toBe('Ещё 2');
+    expect(copy.recap.restedRow(3)).toBe('3 дня');
+    expect(copy.recap.restedRow(7)).toBe('всю неделю');
+    // A streak across rest days spans from its first to its last day of practice.
+    expect(copy.records.streakDates('2026-09-14', '2026-09-26')).toBe(keepNumbers('14–26 сентября'));
+    // …so its count does not say «подряд».
+    expect(copy.records.streak(12)).toBe('12 дней подряд');
+    expect(copy.records.streak(12, true)).toBe('12 дней с паузой');
+    expect(pauseCopy.until('2026-10-02')).toBe('до 2\u00a0октября');
+    expect(pauseCopy.paused('Гитара', null)).toBe('Гитара на паузе');
+    expect(pauseCopy.submit.length).toBeLessThanOrEqual(BUTTON_TEXT_MAX);
+    expect(Object.isFrozen(pauseCopy)).toBe(true);
   });
 
   it('is frozen', () => {

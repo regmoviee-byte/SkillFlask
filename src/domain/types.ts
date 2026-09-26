@@ -137,6 +137,28 @@ export interface Mark extends Timestamps {
   totalPoints: number;
 }
 
+/**
+ * «Пауза» (v0.5 package 18): a stretch of days on which a skill rests — a holiday, an illness,
+ * an exam season — without being archived. The skill stays ACTIVE; everything the pause does is
+ * derived from these rows on every read (domain/pause.ts), nothing else is stored. The skill is
+ * paused on every date `from`..`until`, both included; `until` null means «пока не сниму».
+ */
+export interface Pause {
+  id: string;
+  skillId: string;
+  /** Local YYYY-MM-DD of the first day of rest (the day the pause was set). */
+  from: string;
+  /** Local YYYY-MM-DD of the last day of rest, included; null while it runs «пока не сниму». */
+  until: string | null;
+  createdAt: string;
+  /**
+   * When the pause stopped: «Снять паузу» (which also moves `until` to yesterday), or the first
+   * open of the app after its last day (the «снова в плане» toast has been shown). Null while it
+   * runs or before that first open. It never changes which days are paused.
+   */
+  endedAt: string | null;
+}
+
 /** What has already been shown for an achievement; the achievement itself is derived from the journal. */
 export interface AchievementUnlock {
   /** Achievement id from the catalogue. */

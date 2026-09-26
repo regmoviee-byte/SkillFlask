@@ -1433,7 +1433,11 @@ function cloudStoreFor(json) {
   await page.getByRole('button', { name: 'Очистить поиск' }).click();
   await page.getByRole('group', { name: 'Что искать' }).getByRole('button', { name: 'С заметками' }).click();
   await page.getByText('Найдено: 2').waitFor();
-  if ((await page.locator('.search-results .history-note').count()) !== 2) errors.push('«С заметками» does not list the two notes');
+  // «Найдено: 2» of the cleared query may still be on screen for a moment: wait for the filter's own results.
+  const twoNotes = await page
+    .waitForFunction(() => document.querySelectorAll('.search-results .history-note').length === 2, null, { timeout: 5000 })
+    .then(() => true, () => false);
+  if (!twoNotes) errors.push('«С заметками» does not list the two notes');
   await scrollToHeading(page.getByRole('heading', { name: 'История', exact: true }));
   await page.waitForTimeout(300);
   await shot('history-search-notes');
@@ -1517,6 +1521,276 @@ function cloudStoreFor(json) {
   if ((await globalField.inputValue()) !== 'путешеств') errors.push('«Назад» from a result lost the search');
   await page.getByText('Найдено: 3').waitFor();
   await notesContext.close();
+}
+
+// Pause and the compact «Сегодня» (v0.5 package 18), in their own context on an imported history
+// of six skills (a schema-5 backup built here: «Английский» practised daily until two days ago,
+// yesterday a day the whole app rested — the week strip draws it neutral — and «Чтение» back
+// from a pause that ended yesterday, told once after the next start). Six skills make «Сегодня»
+// compact: «Осталось» skill by skill with colour dots and «Ещё 1», «Сделано» folded into one
+// line. Then «Гитара» goes on pause for a week from its ⋯ menu: the sheet, the pill on its screen
+// and card, «Сегодня» without it and the line «На паузе: Гитара до …»; «Лучшая серия» is the
+// same before and after; «Снять паузу» brings it back. 320 px and the three modes.
+{
+  const pauseContext = await browser.newContext(contextOptions);
+  await setupContext(pauseContext);
+  page = await openPage(pauseContext);
+  const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const forbidden = /просроч|пропущ|штраф|долг|провал|сгорел|потерян|отста/i;
+  await page.goto(baseUrl);
+  await page.getByText('Первый навык').first().waitFor();
+  const today = await page.evaluate(() => {
+    const d = new Date();
+    return [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((v) => String(v).padStart(2, '0')).join('-');
+  });
+  const shiftDate = (date, days) => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  };
+  const at = (date, hour = 10) => new Date(`${date}T${String(hour).padStart(2, '0')}:00:00`).toISOString();
+  const yesterday = shiftDate(today, -1);
+  const start = shiftDate(today, -30);
+
+  // The backup: six skills (created a month ago), daily actions, a history, three kinds of pause.
+  const spec = [
+    { id: 'skill-guitar', name: 'Гитара', theme: 'flask', color: 'amber', steps: ['Аккорды', 'Гаммы', 'Песня', 'Ритм'] },
+    { id: 'skill-english', name: 'Английский', theme: 'flask', color: 'sky', steps: ['Разговор', 'Новые слова'] },
+    { id: 'skill-running', name: 'Бег', theme: 'car', color: 'green', steps: ['Пробежка'] },
+    { id: 'skill-reading', name: 'Чтение', theme: 'book', color: 'violet', steps: ['Глава'] },
+    { id: 'skill-yoga', name: 'Йога', theme: 'flask', color: 'teal', steps: ['Растяжка'] },
+    { id: 'skill-chess', name: 'Шахматы', theme: 'flask', color: 'coral', steps: ['Задача'] },
+  ];
+  const tables = { skills: [], milestones: [], levelThresholds: [], steps: [], completions: [], transactions: [], settings: [], achievementUnlocks: [], marks: [], pauses: [] };
+  for (const [i, s] of spec.entries()) {
+    const created = at(start, 8 + i);
+    tables.skills.push({
+      id: s.id, name: s.name, description: '', status: 'ACTIVE', startLabel: '', targetLabel: '', capacityBase: 100, capacityIncrement: 50,
+      completedAt: null, archivedAt: null, originSkillId: null, theme: s.theme, color: s.color, createdAt: created, updatedAt: created,
+    });
+    tables.milestones.push({ id: `ms-${s.id}`, skillId: s.id, name: 'Цель', targetFlaskNumber: 5, reachedAt: null, decision: null, createdAt: created, updatedAt: created });
+    s.steps.forEach((name, k) => {
+      tables.steps.push({
+        id: `${s.id}-step-${k}`, skillId: s.id, name, type: 'BOOLEAN', points: 5, pointsPerMinute: null, defaultMinutes: null,
+        schedule: { kind: 'DAILY' }, scheduleFrom: start, isActive: true, createdAt: at(start, 8 + i), updatedAt: at(start, 8 + i),
+      });
+    });
+  }
+  let seq = 0;
+  const complete = (stepId, date) => {
+    const step = tables.steps.find((s) => s.id === stepId);
+    const id = `c-${++seq}`;
+    const createdAt = new Date(new Date(at(date, 18)).getTime() + seq * 1000).toISOString();
+    tables.completions.push({
+      id, skillId: step.skillId, stepId, stepName: step.name, stepType: 'BOOLEAN', pointsSnapshot: 5, durationMinutes: null, pointsAwarded: 5,
+      date, source: 'SCHEDULED', status: 'ACTIVE', cancelledAt: null, note: null, createdAt, updatedAt: createdAt,
+    });
+    tables.transactions.push({ id: `t-${seq}`, skillId: step.skillId, completionId: id, delta: 5, reason: 'COMPLETION', createdAt });
+  };
+  // «Английский» every day for eleven days up to the day before yesterday; the others now and then.
+  for (let d = 12; d >= 2; d--) complete('skill-english-step-0', shiftDate(today, -d));
+  for (const d of [9, 6, 3]) complete('skill-running-step-0', shiftDate(today, -d));
+  for (const d of [8, 4]) complete('skill-guitar-step-0', shiftDate(today, -d));
+  // «Чтение» rested five days up to yesterday, not told yet; the rest rested yesterday only (told).
+  tables.pauses.push({ id: 'p-reading', skillId: 'skill-reading', from: shiftDate(today, -5), until: yesterday, createdAt: at(shiftDate(today, -5), 9), endedAt: null });
+  for (const s of spec.filter((x) => x.id !== 'skill-reading')) {
+    tables.pauses.push({ id: `p-${s.id}`, skillId: s.id, from: yesterday, until: yesterday, createdAt: at(yesterday, 9), endedAt: at(today, 7) });
+  }
+  const pauseBackup = `${outDir}/backup-pause.json`;
+  writeFileSync(pauseBackup, JSON.stringify({ format: 'skill-flask-backup', schemaVersion: 5, appVersion: 'walkthrough', exportedAt: at(today, 7), installId: 'walkthrough', tables }));
+
+  await tab('Настройки').click();
+  await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+  await page.locator('.import-sheet input[type="file"]').setInputFiles(pauseBackup);
+  await page.locator('.import-sheet').getByText(/^Навыков: 6/).waitFor();
+  await page.locator('.import-sheet').getByRole('button', { name: 'Заменить данные' }).click();
+  await page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) }).getByRole('button', { name: 'Заменить', exact: true }).click();
+  await page.getByText('Импортировано').waitFor();
+
+  // The next start: «Чтение» is back, said once.
+  await page.goto(`${baseUrl}#/today`);
+  await page.reload();
+  await page.locator('.toast', { hasText: 'Чтение снова в плане' }).waitFor({ timeout: 10000 });
+  await shot('pause-return-toast');
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+
+  // Six skills: compact. «Гитара» (four rows) first, three shown and «Ещё 1».
+  const remaining = page.locator('.today-due');
+  await remaining.locator('.step-row').first().waitFor();
+  if ((await remaining.locator('.step-row-name').first().innerText()) !== 'Аккорды') errors.push('the busiest skill does not lead a compact «Осталось»');
+  if ((await remaining.locator('.step-row .step-row-dot').count()) === 0) errors.push('a compact «Осталось» has no colour dots');
+  const dueMore = remaining.getByRole('button', { name: 'Показать ещё 1 действие: Гитара' });
+  await dueMore.waitFor();
+  // Yesterday, when everything rested: a dash, not an empty day.
+  const restDay = page.getByRole('group', { name: 'День для отметок' }).getByRole('button', { name: /: пауза$/ });
+  if ((await restDay.count()) !== 1) errors.push(`the week strip shows ${await restDay.count()} rest days, expected yesterday`);
+  await shot('today-compact');
+  await dueMore.click();
+  await remaining.getByText('Ритм').waitFor();
+  await shot('today-compact-more');
+  const tapRow = async (name) => {
+    const row = page.locator('.today-due .step-row', { hasText: name });
+    await row.locator('.check-button[aria-busy="false"]').waitFor();
+    await row.locator('.check-button').click();
+    await page.locator('.toast').waitFor();
+  };
+  await tapRow('Разговор');
+  await tapRow('Пробежка');
+  const doneFold = page.locator('details.today-done-fold');
+  await doneFold.locator('summary', { hasText: 'Отмечено: 2 · +10 очков' }).waitFor();
+  if (await page.getByRole('heading', { name: 'Сделано сегодня' }).count()) errors.push('a compact «Сегодня» still lists «Сделано сегодня» as a section');
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-compact-done');
+  await doneFold.locator('summary').click();
+  await doneFold.locator('.done-row').first().waitFor();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-compact-done-open');
+  // The fold is remembered.
+  await page.reload();
+  await page.locator('details.today-done-fold[open] .done-row').first().waitFor();
+  // Nothing of it for Гитара: the streak record before the pause.
+  await tab('Ачивки').click();
+  const streakRow = page.locator('.records .info-row', { hasText: 'Лучшая серия' });
+  await streakRow.waitFor();
+  const streakBefore = await streakRow.innerText();
+
+  // «Поставить на паузу» from the ⋯ menu of «Гитара»: a week.
+  await page.goto(`${baseUrl}#/skills/skill-guitar`);
+  await page.locator('.hero').waitFor();
+  await page.getByRole('button', { name: 'Меню навыка' }).click();
+  const menu = page.locator('.sheet', { has: page.getByRole('button', { name: 'Добавить засечку' }) });
+  await menu.getByRole('button', { name: 'Поставить на паузу' }).click();
+  await menu.waitFor({ state: 'detached' });
+  const pauseSheet = page.locator('.pause-sheet');
+  await pauseSheet.getByRole('radio', { name: /^На неделю/ }).waitFor();
+  if (forbidden.test(await pauseSheet.innerText())) errors.push('the pause sheet pressures the user');
+  await settled();
+  await shot('pause-sheet');
+  await pauseSheet.getByRole('radio', { name: 'До даты…' }).click();
+  await pauseSheet.getByLabel('Последний день паузы').waitFor();
+  await settled();
+  await shot('pause-sheet-date');
+  await pauseSheet.getByRole('radio', { name: /^На неделю/ }).click();
+  await pauseSheet.getByRole('button', { name: 'Поставить на паузу' }).click();
+  await pauseSheet.waitFor({ state: 'detached' });
+  const pill = page.locator('.pause-line .pause-pill');
+  await pill.waitFor();
+  if (!/^На паузе до \d+\s\S+$/.test((await pill.innerText()).replace(/ /g, ' '))) errors.push(`the skill's pill reads «${await pill.innerText()}»`);
+  await page.locator('.toast', { hasText: 'Гитара на паузе до' }).waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot('skill-paused');
+  if (await page.locator('.forecast-line').count()) errors.push('a skill on pause shows a forecast');
+  // Still completes from its screen.
+  await page.locator('.actions .step-row', { hasText: 'Гаммы' }).locator('.check-button').click();
+  await page.locator('.toast', { hasText: 'Гаммы' }).waitFor();
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+
+  // «Сегодня» without it, and the line at the end.
+  await page.goto(`${baseUrl}#/today`);
+  const pausedLine = page.locator('.today-paused');
+  await pausedLine.waitFor();
+  if (!/^На паузе: Гитара до \d+\s\S+$/.test((await pausedLine.innerText()).replace(/ /g, ' ').trim())) errors.push(`the pause line reads «${await pausedLine.innerText()}»`);
+  if (await page.locator('.today-due .step-row', { hasText: 'Аккорды' }).count()) errors.push('a paused skill is still in «Осталось»');
+  if (forbidden.test(await page.locator('.screen-body').innerText())) errors.push('«Сегодня» with a pause pressures the user');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-paused');
+  // «Итоги недели» of this week: who rested, and for how long — not silence.
+  const weekday = ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  await page.goto(`${baseUrl}#/recap/${shiftDate(today, 1 - weekday)}`);
+  const restSection = page.locator('.recap-section', { has: page.getByRole('heading', { name: 'Отдых' }) });
+  await restSection.locator('.info-row', { hasText: 'Гитара' }).waitFor();
+  if (!(await restSection.locator('.info-row', { hasText: 'Чтение' }).innerText()).includes('дн')) errors.push('«Отдых» does not count the days of «Чтение»');
+  await restSection.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot('recap-rest');
+  // Records unaffected: the streak record stays what it was.
+  await page.goto(`${baseUrl}#/achievements`);
+  await streakRow.waitFor();
+  if ((await streakRow.innerText()) !== streakBefore) errors.push(`«Лучшая серия» changed with a pause: ${streakBefore} → ${await streakRow.innerText()}`);
+  // The home card's pill.
+  await tab('Навыки').click();
+  const card = page.locator('.skill-card', { hasText: 'Гитара' });
+  await card.locator('.pause-pill').waitFor();
+  await card.scrollIntoViewIfNeeded();
+  await shot('home-paused');
+
+  // A second pause «пока не сниму» leaves four skills in the plan: «Сегодня» as before.
+  await page.goto(`${baseUrl}#/skills/skill-chess`);
+  await page.locator('.hero').waitFor();
+  await page.getByRole('button', { name: 'Меню навыка' }).click();
+  await menu.getByRole('button', { name: 'Поставить на паузу' }).click();
+  await pauseSheet.getByRole('radio', { name: 'Пока не сниму' }).click();
+  await pauseSheet.getByRole('button', { name: 'Поставить на паузу' }).click();
+  await pauseSheet.waitFor({ state: 'detached' });
+  await page.locator('.pause-line .pause-pill', { hasText: /^На паузе$/ }).waitFor();
+  await page.goto(`${baseUrl}#/today`);
+  await page.getByRole('heading', { name: 'Сделано сегодня' }).waitFor();
+  if (await page.locator('.today-due .step-row-dot').count()) errors.push('four skills in the plan still get the compact «Осталось»');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-paused-two');
+
+  // 320 px: the pill, the sheet, «Сегодня» with the line; nothing sideways.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`${baseUrl}#/skills/skill-guitar`);
+  await pill.waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  if ((await sideways()) > 0) errors.push(`a paused skill's screen scrolls sideways by ${await sideways()}px at 320 px`);
+  await shot('skill-paused-320');
+  await page.getByRole('button', { name: 'Меню навыка' }).click();
+  await menu.getByRole('button', { name: 'Изменить дату' }).click();
+  await pauseSheet.getByRole('radio', { name: 'До даты…' }).waitFor();
+  const optionOverflow = await pauseSheet.locator('.pause-option').evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 0.5).length);
+  if (optionOverflow) errors.push(`${optionOverflow} pause options overflow at 320 px`);
+  await settled();
+  await shot('pause-sheet-320');
+  await page.keyboard.press('Escape');
+  await pauseSheet.waitFor({ state: 'detached' });
+  await page.goto(`${baseUrl}#/today`);
+  await pausedLine.waitFor();
+  if ((await sideways()) > 0) errors.push(`«Сегодня» with the pause line scrolls sideways by ${await sideways()}px at 320 px`);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-paused-320');
+  await tab('Навыки').click();
+  await card.locator('.pause-pill').waitFor();
+  await card.scrollIntoViewIfNeeded();
+  if ((await sideways()) > 0) errors.push(`the home screen with a paused card scrolls sideways by ${await sideways()}px at 320 px`);
+  await shot('home-paused-320');
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // «Снять паузу» beside the pill: back in the plan today.
+  await page.goto(`${baseUrl}#/skills/skill-guitar`);
+  await page.locator('.pause-line').getByRole('button', { name: 'Снять паузу' }).click();
+  await page.locator('.toast', { hasText: 'Пауза снята' }).waitFor();
+  await page.locator('.pause-line').waitFor({ state: 'detached' });
+  await shot('skill-unpaused');
+  await page.goto(`${baseUrl}#/today`);
+  await page.locator('.today-due .step-row', { hasText: 'Аккорды' }).waitFor();
+  if (!/^На паузе: Шахматы$/.test((await pausedLine.innerText()).trim())) errors.push(`after «Снять паузу» the pause line reads «${await pausedLine.innerText()}»`);
+
+  // Every skill on pause (the same history, each skill resting «пока не сниму» since
+  // yesterday): «Сегодня» says so calmly, with the line naming them all; nothing to plan.
+  const allPaused = { ...tables, pauses: spec.map((s) => ({ id: `all-${s.id}`, skillId: s.id, from: yesterday, until: null, createdAt: at(yesterday, 9), endedAt: null })) };
+  const allPausedBackup = `${outDir}/backup-all-paused.json`;
+  writeFileSync(allPausedBackup, JSON.stringify({ format: 'skill-flask-backup', schemaVersion: 5, appVersion: 'walkthrough', exportedAt: at(today, 7), installId: 'walkthrough', tables: allPaused }));
+  await tab('Настройки').click();
+  await page.getByRole('button', { name: 'Загрузить из файла…' }).click();
+  await page.locator('.import-sheet input[type="file"]').setInputFiles(allPausedBackup);
+  await page.locator('.import-sheet').getByText(/^Навыков: 6/).waitFor();
+  await page.locator('.import-sheet').getByRole('button', { name: 'Заменить данные' }).click();
+  await page.locator('.sheet', { has: page.getByRole('button', { name: 'Заменить', exact: true }) }).getByRole('button', { name: 'Заменить', exact: true }).click();
+  await page.getByText('Импортировано').waitFor();
+  await page.goto(`${baseUrl}#/today`);
+  await page.getByText('Все навыки на паузе').waitFor();
+  if (await page.locator('.today-due .step-row').count()) errors.push('«Сегодня» plans an action while every skill rests');
+  if (!/^На паузе: /.test((await pausedLine.innerText()).trim())) errors.push(`with every skill resting the pause line reads «${await pausedLine.innerText()}»`);
+  if (forbidden.test(await page.locator('.screen-body').innerText())) errors.push('«Сегодня» with every skill on pause pressures the user');
+  await page.locator('.toast').waitFor({ state: 'detached', timeout: 10000 });
+  await shot('today-all-paused');
+  await page.setViewportSize({ width: 320, height: 640 });
+  if ((await sideways()) > 0) errors.push(`«Сегодня» with every skill on pause scrolls sideways by ${await sideways()}px at 320 px`);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot('today-all-paused-320');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await pauseContext.close();
 }
 
 // Big days on a small phone: a 1 250-point action on a 320 px screen. The tile numbers shrink
@@ -2315,6 +2589,21 @@ await page.getByText('Засечка добавлена').waitFor();
 await tgMarkSheet.waitFor({ state: 'detached' });
 await page.getByRole('button', { name: 'Засечка: Экзамен', exact: true }).waitFor();
 if (await page.locator('#tg-main', { hasText: 'Сохранить' }).count()) errors.push('the native «Сохранить» stayed after the mark sheet closed');
+// The pause sheet inside Telegram: «Поставить на паузу» is the native MainButton, no HTML copy
+// in the sheet; pressed, it sets the pause, and «Снять паузу» takes it off again.
+await skillMenu('Поставить на паузу');
+const tgPauseSheet = page.locator('.pause-sheet');
+await tgPauseSheet.getByRole('radio', { name: /^На неделю/ }).waitFor();
+await page.locator('#tg-main', { hasText: 'Поставить на паузу' }).waitFor();
+if (await tgPauseSheet.getByRole('button', { name: 'Поставить на паузу' }).count()) errors.push('the pause sheet shows an HTML «Поставить на паузу» next to the native MainButton');
+await settled();
+await shot('tg-pause-sheet');
+await page.locator('#tg-main', { hasText: 'Поставить на паузу' }).click();
+await tgPauseSheet.waitFor({ state: 'detached' });
+await page.locator('.pause-line .pause-pill').waitFor();
+if (await page.locator('#tg-main', { hasText: 'Поставить на паузу' }).count()) errors.push('the native «Поставить на паузу» stayed after the pause sheet closed');
+await page.locator('.pause-line').getByRole('button', { name: 'Снять паузу' }).click();
+await page.locator('.pause-line').waitFor({ state: 'detached' });
 await page.locator('#tg-back').click();
 await tab('Настройки').click();
 await page.getByText('Есть несохранённые изменения').waitFor();

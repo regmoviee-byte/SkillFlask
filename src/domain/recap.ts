@@ -11,6 +11,7 @@ import { evaluateAchievements } from './achievements/evaluate';
 import { buildEvents, type HistorySnapshot } from './achievements/events';
 import type { AchievementState } from './achievements/types';
 import { milestoneReachedAt, operationDate } from './events';
+import { restedDaysIn } from './pause';
 import { fromDeci, toDeci } from './points';
 import { activeCompletions, computeRecords, flaskFills, RECORD_KINDS, recordDate, timelinesBySkill, type RecordKind, type Records } from './records';
 import type { StepCompletion } from './types';
@@ -41,6 +42,11 @@ export interface WeekRecap {
    * completion: a record needs something before it.
    */
   records: RecordKind[];
+  /**
+   * Skills that rested this week (package 18) with their days of pause in it, up to `today`
+   * when given: «Гитара — отдых 3 дня» says what happened instead of leaving it silent.
+   */
+  rested: { skillId: string; days: number }[];
   /** Only ever true in the user's favour; there is no «less» flag. */
   morePointsThanWeekBefore: boolean;
   moreDaysThanWeekBefore: boolean;
@@ -72,6 +78,8 @@ export interface RecapOptions {
   achievements?: readonly AchievementState[];
   /** The records of the same snapshot, when the caller has them. */
   records?: Records;
+  /** Local date the week is read on: pause days after it are not rest yet. */
+  today?: string;
 }
 
 /** The recap of the week containing `weekStartDate` (any date of the week is accepted). */
@@ -122,6 +130,15 @@ export function weekRecap(snapshot: HistorySnapshot, weekStartDate: string, opti
     return date !== null && inWeek(date);
   }) : [];
 
+  const restUntil = options.today !== undefined && options.today < to ? options.today : to;
+  const rested: WeekRecap['rested'] = [];
+  // Oldest skill first, like the home list's order of creation; only the days the skill was in
+  // progress — an archived or completed skill does not rest in every later week.
+  for (const skill of [...snapshot.skills].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))) {
+    const days = restedDaysIn(skill, (snapshot.pauses ?? []).filter((p) => p.skillId === skill.id), from, restUntil);
+    if (days > 0) rested.push({ skillId: skill.id, days });
+  }
+
   return {
     weekStart: from,
     weekEnd: to,
@@ -135,6 +152,7 @@ export function weekRecap(snapshot: HistorySnapshot, weekStartDate: string, opti
     topSkill: bestSkill && { skillId: bestSkill[0], points: fromDeci(bestSkill[1]) },
     topAction: bestStep && { stepId: bestStep[0], skillId: list.find((c) => c.stepId === bestStep[0])!.skillId, name: stepName, count: bestStep[1] },
     records: recordsSet,
+    rested,
     morePointsThanWeekBefore: before.deci > 0 && week.deci > before.deci,
     moreDaysThanWeekBefore: before.dates.size > 0 && week.dates.size > before.dates.size,
   };

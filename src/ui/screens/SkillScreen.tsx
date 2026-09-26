@@ -1,12 +1,13 @@
-import { Suspense, useEffect, useRef, useState, type RefObject } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type ComponentType, type RefObject } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { markHeight, marksForFlask } from '../../domain/marks';
 import { fromDeci, toDeci } from '../../domain/points';
 import { flaskCapacity, type Progress } from '../../domain/progression';
-import type { Skill } from '../../domain/types';
+import type { Pause, Skill } from '../../domain/types';
 import { getSkillHistory, HISTORY_PAGE } from '../../services/history';
 import { restartSkill, restoreSkill } from '../../services/lifecycle';
+import { endPause } from '../../services/pauses';
 import { deleteSkill } from '../../services/skills';
 import { getSkillDetails, type SkillDetails } from '../../services/queries';
 import { setStepActive } from '../../services/steps';
@@ -40,10 +41,28 @@ import { colorScope, copyForSkill, skillTheme } from '../progress/registry';
 import { AppearanceSheet } from '../sheets/AppearanceSheet';
 import { CompletionSheet } from '../sheets/CompletionSheet';
 import { MarkSheet, type MarkSheetTarget } from '../sheets/MarkSheet';
+import { PauseSheet } from '../pause/lazy';
 
 // The link fallback is a lazy chunk (v0.5 package 14 won back the initial load with it): it
-// starts loading with the screen, long before a refused clipboard could need it.
-const LinkSheet = lazySafe(() => import('../sheets/LinkSheet').then((m) => ({ default: m.LinkSheet })), 'LinkSheet');
+// starts loading with the screen, long before a refused clipboard could need it. Where the chunk
+// does not load, the link cannot be shown: a toast says so instead of the tap doing nothing.
+function LinkUnavailable({ link, onClose }: { link: string | null; onClose(): void }) {
+  const { showToast } = useToast();
+  useEffect(() => {
+    if (link === null) return;
+    showToast(copy.errors.sheetChunk);
+    onClose();
+  }, [link, onClose, showToast]);
+  return null;
+}
+
+type LinkSheetProps = Parameters<typeof import('../sheets/LinkSheet').LinkSheet>[0];
+
+const LinkSheet = lazySafe<ComponentType<LinkSheetProps>>(
+  () => import('../sheets/LinkSheet').then((m) => ({ default: m.LinkSheet })),
+  'LinkSheet',
+  LinkUnavailable,
+);
 
 // Wireframe 2: the skill's progress theme as the hero (the flask by default, ProgressHero) with
 // the level number in big numerals, the forecast line («В таком темпе…», ui/insights), the
@@ -54,6 +73,8 @@ const LinkSheet = lazySafe(() => import('../sheets/LinkSheet').then((m) => ({ de
 // appearance («Оформление»), add a mark, copy a link that opens it («Ссылка на навык»).
 // «История» starts with «Поиск по истории» (ui/search, package 17); a result of the global
 // search opens this screen with its completion's (or mark's) sheet on top (SkillOpenRequest).
+// A skill on pause (package 18) says so under its name — «На паузе до 10 октября» with «Снять
+// паузу» — and can still be completed here; the menu sets the pause or changes its last day.
 
 /** Navigation state from the global search: the sheet to open on arrival, once. */
 export interface SkillOpenRequest {
@@ -71,6 +92,9 @@ export function SkillScreen() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [markTarget, setMarkTarget] = useState<MarkSheetTarget | null>(null);
   const [linkShown, setLinkShown] = useState<string | null>(null);
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const closePause = useCallback(() => setPauseOpen(false), []);
+  const unpausing = useRef(false);
   const copying = useRef<Promise<boolean> | null>(null);
   const { showToast } = useToast();
 
@@ -107,6 +131,23 @@ export function SkillScreen() {
 
   const skill = details?.skill;
   const active = skill?.status === 'ACTIVE';
+  const pause = details?.pause ?? null;
+
+  /** «Снять паузу»: back in the plan today, from the menu or the line under the name; a double tap ends it once. */
+  async function unpause(id: string) {
+    if (unpausing.current) return;
+    unpausing.current = true;
+    try {
+      await endPause(id);
+      haptics.success();
+      showToast(copy.pause.ended, { icon: 'play' });
+    } catch (error) {
+      haptics.error();
+      showToast(errorMessage(error));
+    } finally {
+      unpausing.current = false;
+    }
+  }
 
   return (
     <Screen
@@ -143,7 +184,7 @@ export function SkillScreen() {
       <Skeleton layout="skill" loading={details === undefined}>
         {details && (
           <div className="liquid-scope" {...colorScope(details.skill.color)}>
-            <SkillContent details={details} today={today} onMark={setMarkTarget} />
+            <SkillContent details={details} today={today} onMark={setMarkTarget} onUnpause={() => void unpause(details.skill.id)} />
           </div>
         )}
       </Skeleton>
@@ -152,16 +193,24 @@ export function SkillScreen() {
           open={menuOpen && active}
           title={skill.name}
           onClose={() => setMenuOpen(false)}
-          items={skillMenu(skill.id, navigate, () => setAppearanceOpen(true), () => setMarkTarget({ kind: 'new' }), {
-            start: () => startCopy(skill.id),
-            finish: () => void finishCopy(skill.id),
-          })}
+          items={skillMenu(
+            skill.id,
+            navigate,
+            () => setAppearanceOpen(true),
+            () => setMarkTarget({ kind: 'new' }),
+            {
+              start: () => startCopy(skill.id),
+              finish: () => void finishCopy(skill.id),
+            },
+            { paused: pause !== null, open: () => setPauseOpen(true), end: () => void unpause(skill.id) },
+          )}
         />
       )}
       <Suspense fallback={null}>
         <LinkSheet link={linkShown} telegram={isTelegram()} onClose={() => setLinkShown(null)} onCopied={linkCopied} />
       </Suspense>
       {skill && active && <AppearanceSheet skill={skill} open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />}
+      {skill && active && <PauseSheet skill={skill} pause={pause} open={pauseOpen} today={today} onClose={closePause} />}
       {details && (
         <MarkSheet
           target={markTarget}
@@ -184,16 +233,24 @@ function skillMenu(
   appearance: () => void,
   addMark: () => void,
   copyLink: { start(): void; finish(): void },
+  pause: { paused: boolean; open(): void; end(): void },
 ): ContextItem[] {
+  const t = copy.pause;
   return [
     { icon: 'edit', label: copy.skill.edit, onSelect: () => navigate(`/skills/${skillId}/edit`) },
     { icon: 'palette', label: copy.appearance.title, onSelect: appearance },
     { icon: 'pennant', label: copy.marks.add, onSelect: addMark },
+    ...(pause.paused
+      ? [
+          { icon: 'play', label: t.menuEnd, onSelect: pause.end } satisfies ContextItem,
+          { icon: 'calendar', label: t.menuChange, onSelect: pause.open } satisfies ContextItem,
+        ]
+      : [{ icon: 'pause', label: t.menuPause, onSelect: pause.open } satisfies ContextItem]),
     { icon: 'link', label: copy.skill.link, onTap: copyLink.start, onSelect: copyLink.finish },
   ];
 }
 
-function SkillContent({ details, today, onMark }: { details: SkillDetails; today: string; onMark(target: MarkSheetTarget): void }) {
+function SkillContent({ details, today, onMark, onUnpause }: { details: SkillDetails; today: string; onMark(target: MarkSheetTarget): void; onUnpause(): void }) {
   const { skill } = details;
   const active = skill.status === 'ACTIVE';
   const labels = [skill.startLabel, skill.targetLabel].filter(Boolean).join(' → ');
@@ -237,6 +294,8 @@ function SkillContent({ details, today, onMark }: { details: SkillDetails; today
       {(labels || skill.description) && <p className="t-caption skill-subtitle">{[labels, skill.description].filter(Boolean).join(' · ')}</p>}
 
       {skill.status === 'ARCHIVED' && <ArchivedBanner skill={skill} busy={lifecycle.busy} onRestore={lifecycle.restore} onRestart={lifecycle.restart} />}
+
+      {details.pause && <PauseLine pause={details.pause} onEnd={onUnpause} />}
 
       <Hero
         details={details}
@@ -366,6 +425,21 @@ function useLifecycle(skill: Skill) {
   }
 
   return { busy, restore, restart, remove };
+}
+
+/** «На паузе до 10 октября» under the name, with «Снять паузу» beside it (package 18). */
+function PauseLine({ pause, onEnd }: { pause: Pause; onEnd(): void }) {
+  return (
+    <div className="pause-line">
+      <span className="pause-pill">
+        <Icon name="pause" filled size={14} />
+        {copy.pause.pill(pause.until)}
+      </span>
+      <button type="button" className="text-button pause-end" onClick={onEnd}>
+        {copy.pause.end}
+      </button>
+    </div>
+  );
 }
 
 function ArchivedBanner({ skill, busy, onRestore, onRestart }: { skill: Skill; busy: boolean; onRestore(): void; onRestart(): void }) {

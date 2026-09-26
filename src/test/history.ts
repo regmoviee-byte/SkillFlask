@@ -2,7 +2,7 @@
 // tables of a HistorySnapshot, written the way the services write them.
 
 import type { HistorySnapshot } from '../domain/achievements/events';
-import type { LevelThreshold, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
+import type { LevelThreshold, Milestone, Pause, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 
 // Every write takes the next minute, so the order is explicit. Dates default to the UTC date of
 // the write; the start (09:00 UTC) keeps that the local date in every zone the tests run in.
@@ -13,6 +13,7 @@ export class History {
   steps: StepDefinition[] = [];
   completions: StepCompletion[] = [];
   transactions: PointTransaction[] = [];
+  pauses: Pause[] = [];
   private t: number;
   private seq = 0;
 
@@ -149,8 +150,16 @@ export class History {
     return at;
   }
 
+  /** A pause of the skill from..until (both included; null — «пока не сниму»). */
+  mkPause(skillId: string, from: string, until: string | null): Pause {
+    const pause: Pause = { id: this.id('p'), skillId, from, until, createdAt: this.tick(), endedAt: null };
+    this.pauses.push(pause);
+    return pause;
+  }
+
   snapshot(): HistorySnapshot {
     return structuredClone({
+      pauses: this.pauses,
       skills: this.skills,
       milestones: this.milestones,
       thresholds: this.thresholds,

@@ -1,12 +1,13 @@
 import { db } from '../data/db';
 import { newId } from '../lib/ids';
-import { nowIso } from '../lib/dates';
+import { localDate, nowIso } from '../lib/dates';
 import { DEFAULT_PROGRESS_THEME, isProgressTheme, isSkillColor, type ProgressThemeKey, type SkillColor } from '../domain/appearance';
 import { canCompleteSkill } from '../domain/milestone';
 import type { Milestone, Skill } from '../domain/types';
 import { publishEarned } from './achievements';
 import { afterWrite, syncInTransaction } from './afterWrite';
 import { journalTables, requireActiveSkill, requireInt, requireName, requireSkill, syncMilestone, ValidationError } from './core';
+import { closePauseInTransaction } from './pauses';
 import { newStepRow, validateNewStep, type NewStepInput } from './steps';
 
 // Skill lifecycle. Steps live in ./steps.ts and the journal in ./completions.ts; both are
@@ -180,8 +181,8 @@ export async function setSkillAppearance(id: string, appearance: Partial<SkillAp
 }
 
 /**
- * Permanently deletes the skill with its whole history and its marks (FR-SK-006, FR-SK-007,
- * FR-HS-006). A copy made by «Начать заново» is a skill of its own and stays; its
+ * Permanently deletes the skill with its whole history, its marks and its pauses (FR-SK-006,
+ * FR-SK-007, FR-HS-006). A copy made by «Начать заново» is a skill of its own and stays; its
  * `originSkillId` simply points nowhere.
  */
 export async function deleteSkill(id: string): Promise<void> {
@@ -191,6 +192,7 @@ export async function deleteSkill(id: string): Promise<void> {
     async () => {
       await Promise.all([
         db.marks.where('skillId').equals(id).delete(),
+        db.pauses.where('skillId').equals(id).delete(),
         db.milestones.where('skillId').equals(id).delete(),
         db.levelThresholds.where('skillId').equals(id).delete(),
         db.steps.where('skillId').equals(id).delete(),
@@ -219,7 +221,10 @@ export async function continueAfterMilestone(skillId: string): Promise<void> {
   await afterWrite();
 }
 
-/** "Завершить навык": explicit user action once the milestone is reached (section 6). */
+/**
+ * "Завершить навык": explicit user action once the milestone is reached (section 6). A running
+ * pause is taken off, as on the archive (lifecycle.ts): the skill has nothing left to rest from.
+ */
 export async function completeSkill(skillId: string): Promise<void> {
   const now = nowIso();
   const earned = await db.transaction('rw', journalTables(), async () => {
@@ -227,6 +232,7 @@ export async function completeSkill(skillId: string): Promise<void> {
     const milestone = await db.milestones.where('skillId').equals(skillId).first();
     if (!canCompleteSkill(skill, milestone)) throw new ValidationError('Навык можно завершить только после достижения вехи');
     await db.skills.update(skillId, { status: 'COMPLETED', completedAt: now, updatedAt: now });
+    await closePauseInTransaction(skillId, localDate(), now);
     return syncInTransaction({ skillId, now });
   });
   await afterWrite();

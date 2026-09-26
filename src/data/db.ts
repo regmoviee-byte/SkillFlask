@@ -3,6 +3,7 @@ import type {
   AchievementUnlock,
   LevelThreshold,
   Mark,
+  Pause,
   Milestone,
   PointTransaction,
   SettingRow,
@@ -13,6 +14,7 @@ import type {
 import { upgradeCompletionV2, upgradeSkillV2, upgradeStepV2 } from './migrations/v2';
 import { upgradeV3 } from './migrations/v3';
 import { upgradeV4 } from './migrations/v4';
+import { upgradeV5 } from './migrations/v5';
 
 // Local IndexedDB storage (section 11.1). Schema rules:
 // - Dexie's version number is the schema version and equals `schemaVersion` of a backup file.
@@ -34,6 +36,7 @@ export class SkillFlaskDb extends Dexie {
   settings!: Table<SettingRow, string>;
   achievementUnlocks!: EntityTable<AchievementUnlock, 'id'>;
   marks!: EntityTable<Mark, 'id'>;
+  pauses!: EntityTable<Pause, 'id'>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -88,11 +91,26 @@ export class SkillFlaskDb extends Dexie {
         marks: 'id, skillId, [skillId+date]',
       })
       .upgrade(upgradeV4);
+    // Version 5: skill pauses («Пауза», package 18), a new table read by skill.
+    this.version(5)
+      .stores({
+        skills: 'id, status, createdAt',
+        milestones: 'id, skillId',
+        levelThresholds: '[skillId+flaskNumber], skillId',
+        steps: 'id, skillId',
+        completions: 'id, skillId, stepId, date, [skillId+date], [stepId+date], [status+date]',
+        transactions: 'id, skillId, completionId, createdAt, [skillId+createdAt]',
+        settings: 'key',
+        achievementUnlocks: 'id',
+        marks: 'id, skillId, [skillId+date]',
+        pauses: 'id, skillId',
+      })
+      .upgrade(upgradeV5);
   }
 }
 
 /** Current schema version; a backup file with a higher `schemaVersion` cannot be imported. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export function createDb(name?: string): SkillFlaskDb {
   return new SkillFlaskDb(name);

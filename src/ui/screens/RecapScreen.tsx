@@ -17,7 +17,8 @@ import { useToday } from '../hooks/useToday';
 // «Итоги недели» (`/recap`, the last completed week, and `/recap/:weekStart`): a week switcher,
 // four bento tiles, «Лучшее за неделю» (the top skill and action, milestones, records set) and
 // the achievements of the week. Facts only: a week without completions says so plainly, and
-// the week before is mentioned only when this one did better (tone rules 3 and 5).
+// the week before is mentioned only when this one did better (tone rules 3 and 5). A skill that
+// rested during the week (package 18) is named under «Отдых» — what happened, not silence.
 
 const t = copy.recap;
 
@@ -74,6 +75,7 @@ function RecapContent({ view, isCurrent, today }: { view: RecapView; isCurrent: 
     return (
       <>
         <EmptyState illustration="history" title={isCurrent ? t.emptyCurrentTitle : t.emptyTitle} text={isCurrent ? undefined : t.emptyText} />
+        <WeekRest view={view} />
         <WeekAchievements view={view} />
       </>
     );
@@ -130,8 +132,30 @@ function RecapContent({ view, isCurrent, today }: { view: RecapView; isCurrent: 
         </section>
       )}
 
+      <WeekRest view={view} />
       <WeekAchievements view={view} />
     </>
+  );
+}
+
+/** «Отдых»: the skills on pause during the week and for how many of its days. */
+function WeekRest({ view }: { view: RecapView }) {
+  const { rested } = view.recap;
+  if (rested.length === 0) return null;
+  const rows: InfoRowSpec[] = rested.map(({ skillId, days }) => ({
+    key: `rest:${skillId}`,
+    icon: 'pause',
+    title: view.skillNames[skillId] ?? '',
+    meta: t.restedRow(days),
+    to: `/skills/${skillId}`,
+  }));
+  return (
+    <section className="recap-section" aria-labelledby="recap-rest">
+      <h2 className="section-title" id="recap-rest">
+        {t.rested}
+      </h2>
+      <InfoList rows={rows} />
+    </section>
   );
 }
 

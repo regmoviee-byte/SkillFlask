@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 }
 
 /** «Сохранить копию данных»: the file export cascade; its last step shows the text in place. */
-function SaveCopyButton() {
+export function SaveCopyButton() {
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [text, setText] = useState<string | null>(null);

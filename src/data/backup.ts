@@ -43,7 +43,8 @@ export const backupMessages = {
 /**
  * Settings that describe this device rather than the journal: kept from the current database
  * on import instead of taken from the file (the spec names installId; the backup timestamps,
- * the restore offer flag, the appearance switches and «Спрашивать заметку» are just as device-bound).
+ * the restore offer flag, the appearance switches, «Спрашивать заметку» and the fold of «Сделано»
+ * on «Сегодня» are just as device-bound).
  */
 export const DEVICE_SETTINGS = [
   'installId',
@@ -57,6 +58,7 @@ export const DEVICE_SETTINGS = [
   'motion',
   'appearance',
   'askNote',
+  'todayDoneOpen',
 ] as const satisfies readonly SettingKey[];
 
 /**
@@ -69,7 +71,7 @@ export const LOCAL_ONLY_SETTINGS = ['activeTimer'] as const satisfies readonly S
 const isLocalOnly = (row: unknown) => (LOCAL_ONLY_SETTINGS as readonly unknown[]).includes((row as { key?: unknown } | null)?.key);
 
 /** Schema version that introduced a table; tables absent here exist since version 1. */
-const TABLE_SINCE: Record<string, number> = { settings: 2, achievementUnlocks: 2, marks: 3 };
+const TABLE_SINCE: Record<string, number> = { settings: 2, achievementUnlocks: 2, marks: 3, pauses: 5 };
 
 const appVersion = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 
@@ -203,6 +205,14 @@ export const ROW_CHECKS: Record<string, Record<string, Check>> = {
     totalPoints: points,
     ...timestamps,
   },
+  pauses: {
+    id,
+    skillId: id,
+    from: localDate,
+    until: nullable(localDate),
+    createdAt: iso,
+    endedAt: nullable(iso),
+  },
 };
 
 /** Foreign keys checked after the shapes: [table, field, referenced table]; null is allowed only where the shape allows it. */
@@ -216,6 +226,7 @@ const REFERENCES: [string, string, string][] = [
   ['transactions', 'completionId', 'completions'],
   ['achievementUnlocks', 'skillId', 'skills'],
   ['marks', 'skillId', 'skills'],
+  ['pauses', 'skillId', 'skills'],
 ];
 
 /**
@@ -273,6 +284,20 @@ export function validateBackup(tables: Record<string, unknown[]>): void {
   // credit points without a completion.
   (tables.transactions as Row[]).forEach((row, i) => {
     if (row.completionId === null && row.reason !== 'CORRECTION') throw corrupt(`transactions[${i}].completionId`);
+  });
+  // A pause ends on or after its first day; two pauses of a skill never share a day. `endedAt`
+  // never changes which days are paused (domain/pause.ts): one on a pause without a last day
+  // (only a hand-edited file, or an older build after the local date moved back) is dropped
+  // rather than refused, so no copy the app wrote becomes unrestorable over it.
+  const pausesBySkill = new Map<unknown, Row[]>();
+  (tables.pauses as Row[]).forEach((row, i) => {
+    if (row.until !== null && (row.until as string) < (row.from as string)) throw corrupt(`pauses[${i}].until`);
+    if (row.endedAt !== null && row.until === null) row.endedAt = null;
+    const list = pausesBySkill.get(row.skillId) ?? [];
+    const overlaps = list.some((other) => (other.until === null || (other.until as string) >= (row.from as string)) && (row.until === null || (row.until as string) >= (other.from as string)));
+    if (overlaps) throw corrupt(`pauses[${i}].from`);
+    list.push(row);
+    pausesBySkill.set(row.skillId, list);
   });
   for (const [table, field, target] of REFERENCES) {
     const ids = new Set((tables[target] as Row[]).map((row) => row.id));
@@ -408,7 +433,7 @@ export async function importBackup(file: BackupFile): Promise<BackupStats> {
  * hash) does not: a cloud copy kept through the wipe no longer describes this device, so the
  * automatic backup treats it as someone else's and never replaces it silently.
  */
-const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance', 'askNote'] as const satisfies readonly SettingKey[];
+const WIPE_KEEPS = ['installId', 'cloudBackupEnabled', 'motion', 'appearance', 'askNote', 'todayDoneOpen'] as const satisfies readonly SettingKey[];
 
 /** «Удалить все данные»: clears every table, keeping the install id and the device switches. */
 export async function wipeAllData(): Promise<void> {

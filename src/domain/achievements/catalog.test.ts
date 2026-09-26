@@ -73,7 +73,13 @@ describe('achievement catalogue', () => {
 
   it('never describes a current streak, only the record', () => {
     const series = LADDERS.find((l) => l.id === 'series')!;
-    expect(series.howTo).toBe('Личный рекорд дней подряд. Рекорд остаётся навсегда.');
+    expect(series.howTo).toBe('Личный рекорд дней подряд. Дни, когда все навыки на паузе, цепочку не прерывают. Рекорд остаётся навсегда.');
     expect(strings().filter(([, text]) => /текущ/i.test(text))).toEqual([]);
+  });
+
+  it('words a tier of «Лучшая серия» without «подряд»: a run may be bridged over rest days', () => {
+    const series = LADDERS.find((l) => l.id === 'series')!;
+    expect(series.tierDescription(7)).toBe('Рекорд серии: 7 дней');
+    expect(series.tierDescription(3)).toBe('Рекорд серии: 3 дня');
   });
 });

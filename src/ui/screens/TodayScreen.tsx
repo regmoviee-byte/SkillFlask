@@ -6,6 +6,7 @@ import { getSetting, setSetting } from '../../services/settings';
 import { formatWeekdayDate, weekStart } from '../../lib/dates';
 import { formatNumber, plural, POINTS } from '../../lib/format';
 import { fromDeci, toDeci } from '../../domain/points';
+import { haptics } from '../../platform/haptics';
 import { logError } from '../../platform/errorLog';
 import { CoachChip } from '../components/CoachChip';
 import { EmptyState } from '../components/EmptyState';
@@ -30,10 +31,21 @@ import { CompletionSheet } from '../sheets/CompletionSheet';
 // месяце» (never «for today», decision 14.5), «Ещё» (the v1 list by skill, folded while
 // something is left) and «Сделано сегодня». A past day of the week can be picked on the strip:
 // the ✓ then records on that date. A filled flask is told by the TopCard (no flask here).
+//
+// v0.5 package 18: a skill on pause is out of the plan, and one quiet line at the end names it
+// («На паузе: Гитара до 10 октября, Бег»). With COMPACT_SKILLS or more skills in the plan the
+// screen stays short: «Сделано» folds into one line «Отмечено: 7 · +54 очка» (the fold is
+// remembered on the device), «Ещё» stays folded, and «Осталось» lists its rows skill by skill —
+// the skill with the most rows first, each row with the skill's colour dot — showing the first
+// DUE_SHOWN of a skill with more than that and «Ещё N» for the rest. Below that nothing changes.
 
 const t = copy.today;
 /** Buttons «К навыку …» when no active skill has an action yet. */
 const MAX_SKILL_BUTTONS = 3;
+/** Skills in the plan from which «Сегодня» is compact. */
+export const COMPACT_SKILLS = 5;
+/** Rows of one skill shown in a compact «Осталось» before «Ещё N» (only from DUE_SHOWN + 1 rows). */
+const DUE_SHOWN = 3;
 
 export function TodayScreen() {
   const today = useToday();
@@ -41,7 +53,14 @@ export function TodayScreen() {
   // A pick from a week that has since turned (the screen stayed open) falls back to today.
   const date = picked !== null && picked <= today && weekStart(picked) === weekStart(today) ? picked : today;
   // One query for the plan and the coach flag, so the chip never pops in above a row.
-  const view = useLiveQuery(async () => ({ plan: await getDayPlan(date), coachSeen: await getSetting('coachTodaySeen', false) }), [date]);
+  const view = useLiveQuery(
+    async () => ({
+      plan: await getDayPlan(date, today),
+      coachSeen: await getSetting('coachTodaySeen', false),
+      doneOpen: await getSetting('todayDoneOpen', false),
+    }),
+    [date, today],
+  );
   // While another day loads, the previous one stays on screen rather than a skeleton.
   const last = useRef(view);
   if (view) last.current = view;
@@ -52,7 +71,16 @@ export function TodayScreen() {
       <p className="t-caption screen-date">{formatWeekdayDate(today)}</p>
       <Skeleton layout="today" loading={shown === undefined}>
         {/* Picking today again clears the pick, so the screen follows the calendar past midnight. */}
-        {shown && <TodayContent plan={shown.plan} today={today} date={date} onPick={(d) => setPicked(d === today ? null : d)} coach={!shown.coachSeen} />}
+        {shown && (
+          <TodayContent
+            plan={shown.plan}
+            today={today}
+            date={date}
+            onPick={(d) => setPicked(d === today ? null : d)}
+            coach={!shown.coachSeen}
+            doneOpen={shown.doneOpen === true}
+          />
+        )}
       </Skeleton>
     </Screen>
   );
@@ -62,6 +90,11 @@ function seeCoach(): void {
   setSetting('coachTodaySeen', true).catch((error: unknown) => logError(error, 'coach'));
 }
 
+/** The fold of a compact «Сделано», remembered on the device. */
+function rememberDoneOpen(open: boolean): void {
+  setSetting('todayDoneOpen', open).catch((error: unknown) => logError(error, 'todayDoneOpen'));
+}
+
 interface TodayContentProps {
   plan: DayPlan;
   today: string;
@@ -69,32 +102,39 @@ interface TodayContentProps {
   date: string;
   onPick(date: string): void;
   coach: boolean;
+  /** A compact «Сделано» is unfolded (the device's setting). */
+  doneOpen: boolean;
 }
 
-function TodayContent({ plan, today, date, onPick, coach }: TodayContentProps) {
+function TodayContent({ plan, today, date, onPick, coach, doneOpen }: TodayContentProps) {
   const isToday = plan.date === today;
+  // Every active skill rests on this date: no plan, the pause line and what was done anyway.
+  const allPaused = plan.skills.length === 0 && plan.paused.length > 0;
 
-  if (plan.skills.length === 0) {
+  if (plan.skills.length === 0 && !allPaused) {
     // The templates' first run only on a device without any skill; a returning owner whose skills
     // are all archived or reached gets one way to a new skill.
     if (!plan.hasSkills) return <FirstRunEmpty illustration="today" title={t.emptyTitle} />;
     return <EmptyState illustration="today" title={t.noActiveTitle} text={t.noActiveText} action={{ label: copy.home.newSkill, to: '/skills/new' }} />;
   }
 
-  if (plan.due.length === 0 && plan.quota.length === 0 && plan.extra.length === 0) {
+  if (!allPaused && plan.due.length === 0 && plan.quota.length === 0 && plan.extra.length === 0) {
     const [first, ...rest] = plan.skills.slice(0, MAX_SKILL_BUTTONS).map((s) => s.skill);
     return (
-      <EmptyState
-        illustration="steps"
-        title={t.noStepsTitle}
-        text={t.noStepsText}
-        action={{ label: t.toSkill(first!.name), to: `/skills/${first!.id}` }}
-        secondary={rest.map((skill) => (
-          <Link key={skill.id} to={`/skills/${skill.id}`} className="button button-secondary empty-state-action">
-            {t.toSkill(skill.name)}
-          </Link>
-        ))}
-      />
+      <>
+        <EmptyState
+          illustration="steps"
+          title={t.noStepsTitle}
+          text={t.noStepsText}
+          action={{ label: t.toSkill(first!.name), to: `/skills/${first!.id}` }}
+          secondary={rest.map((skill) => (
+            <Link key={skill.id} to={`/skills/${skill.id}`} className="button button-secondary empty-state-action">
+              {t.toSkill(skill.name)}
+            </Link>
+          ))}
+        />
+        <PausedLine paused={plan.paused} />
+      </>
     );
   }
 
@@ -105,7 +145,7 @@ function TodayContent({ plan, today, date, onPick, coach }: TodayContentProps) {
   const summary = !isToday
     ? t.summaryPast(plan.date)
     : plan.totalPlanned === 0
-      ? activeToday
+      ? activeToday || allPaused
         ? null
         : t.summaryNothing
       : plan.totalDone >= plan.totalPlanned
@@ -129,20 +169,68 @@ function TodayContent({ plan, today, date, onPick, coach }: TodayContentProps) {
           )}
         </div>
       )}
-      <WeekPicker today={today} selected={date} counts={plan.weekActivity} onSelect={onPick} />
+      <WeekPicker today={today} selected={date} counts={plan.weekActivity} rest={plan.weekRest} onSelect={onPick} />
+      {allPaused && <EmptyState illustration="today" title={t.allPausedTitle} text={t.allPausedText(plan.paused.every((p) => p.pause.until !== null))} />}
       {/* Keyed by the day: lingering rows, the kept order and the «Ещё» fold belong to one day. */}
-      <DayBody key={plan.date} plan={plan} today={today} coach={coach} />
+      <DayBody key={plan.date} plan={plan} today={today} coach={coach} compact={plan.skills.length >= COMPACT_SKILLS} doneOpen={doneOpen} />
     </>
   );
 }
 
-function DayBody({ plan, today, coach }: { plan: DayPlan; today: string; coach: boolean }) {
+/**
+ * «Осталось» of a busy day in its first order: the skill with the most rows first, then in the
+ * read model's order, the rows of a skill together in their own order. useStableOrder keeps
+ * this first order while the screen is open, so a row completed never reorders the skills.
+ */
+export function bySkillLoad(rows: readonly PlanRow[]): PlanRow[] {
+  const load = new Map<string, number>();
+  const first = new Map<string, number>();
+  rows.forEach((row, i) => {
+    load.set(row.skill.id, (load.get(row.skill.id) ?? 0) + 1);
+    if (!first.has(row.skill.id)) first.set(row.skill.id, i);
+  });
+  return rows
+    .map((row, i) => ({ row, i }))
+    .sort((a, b) => {
+      const sa = a.row.skill.id;
+      const sb = b.row.skill.id;
+      return load.get(sb)! - load.get(sa)! || first.get(sa)! - first.get(sb)! || a.i - b.i;
+    })
+    .map(({ row }) => row);
+}
+
+type Shown<T> = { item: T; leaving: boolean };
+
+/** The rows of «Осталось» grouped by skill, in the order each skill first appears. */
+function groupBySkill(rows: readonly Shown<PlanRow>[]): { skillId: string; rows: Shown<PlanRow>[] }[] {
+  const groups = new Map<string, Shown<PlanRow>[]>();
+  for (const row of rows) {
+    const list = groups.get(row.item.skill.id);
+    if (list) list.push(row);
+    else groups.set(row.item.skill.id, [row]);
+  }
+  return [...groups.entries()].map(([skillId, list]) => ({ skillId, rows: list }));
+}
+
+interface DayBodyProps {
+  plan: DayPlan;
+  today: string;
+  coach: boolean;
+  /** A busy day (COMPACT_SKILLS skills or more): the folds and the grouped «Осталось». */
+  compact: boolean;
+  doneOpen: boolean;
+}
+
+function DayBody({ plan, today, coach, compact, doneOpen }: DayBodyProps) {
   const [openCompletion, setOpenCompletion] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
+  // Skills whose «Осталось» rows were unfolded with «Ещё N».
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [doneShown, setDoneShown] = useState(doneOpen);
   const isToday = plan.date === today;
   const keyOfRow = (row: PlanRow) => row.step.id;
   // Rows keep their place while the screen is open; a completed one shows its ✓ before it goes.
-  const due = useLinger(useStableOrder(plan.due, keyOfRow), keyOfRow, BUSY_TAIL_MS);
+  const due = useLinger(useStableOrder(compact ? bySkillLoad(plan.due) : plan.due, keyOfRow), keyOfRow, BUSY_TAIL_MS);
   const quota = useLinger(useStableOrder(plan.quota, keyOfRow), keyOfRow, BUSY_TAIL_MS);
   const groups = useStableOrder(plan.extra, (g) => g.summary.skill.id);
   const allSteps = useStableOrder(
@@ -163,23 +251,50 @@ function DayBody({ plan, today, coach }: { plan: DayPlan; today: string; coach: 
     ? t.quotaMonthOf(Number(monthQuota[0].item.period!.start.slice(5, 7)))
     : t.quotaMonth;
   const extraCount = groups.reduce((n, g) => n + g.steps.length, 0);
-  const moreIsOpen = moreOpen ?? due.length === 0;
+  // A busy day keeps «Ещё» folded; otherwise it unfolds once nothing is left.
+  const moreIsOpen = moreOpen ?? (compact ? false : due.length === 0);
 
-  const rowsOf = (rows: typeof due, withQuota: boolean) => (
+  const row = ({ item, leaving }: Shown<PlanRow>, withQuota: boolean) => (
+    <StepRow
+      key={item.step.id}
+      step={item.step}
+      skill={item.skill}
+      todayCount={item.count}
+      mode="complete"
+      date={plan.date}
+      context={item.skill.name}
+      quota={withQuota ? { done: item.done, target: item.target } : undefined}
+      marker={compact ? <span className="step-row-dot" aria-hidden="true" {...colorScope(item.skill.color)} /> : undefined}
+      onResult={leaving ? undefined : onResult}
+    />
+  );
+  const rowsOf = (rows: typeof due, withQuota: boolean) => <ul className="list">{rows.map((r) => row(r, withQuota))}</ul>;
+
+  /** A busy day's «Осталось»: skill by skill, a long skill folded after DUE_SHOWN rows. */
+  const dueBySkill = () => (
     <ul className="list">
-      {rows.map(({ item, leaving }) => (
-        <StepRow
-          key={item.step.id}
-          step={item.step}
-          skill={item.skill}
-          todayCount={item.count}
-          mode="complete"
-          date={plan.date}
-          context={item.skill.name}
-          quota={withQuota ? { done: item.done, target: item.target } : undefined}
-          onResult={leaving ? undefined : onResult}
-        />
-      ))}
+      {groupBySkill(due).flatMap(({ skillId, rows }) => {
+        if (rows.length <= DUE_SHOWN || unfolded.has(skillId)) return rows.map((r) => row(r, false));
+        const hidden = rows.length - DUE_SHOWN;
+        return [
+          ...rows.slice(0, DUE_SHOWN).map((r) => row(r, false)),
+          <li key={`more:${skillId}`}>
+            <button
+              type="button"
+              className="due-more pressable-row"
+              aria-label={t.dueMoreLabel(hidden, rows[0]!.item.skill.name)}
+              onClick={() => {
+                haptics.select();
+                setUnfolded((set) => new Set(set).add(skillId));
+              }}
+            >
+              <span className="step-row-dot" aria-hidden="true" {...colorScope(rows[0]!.item.skill.color)} />
+              {t.dueMore(hidden)}
+              <Icon name="chevron-down" size={18} className="disclosure-chevron" />
+            </button>
+          </li>,
+        ];
+      })}
     </ul>
   );
 
@@ -192,7 +307,7 @@ function DayBody({ plan, today, coach }: { plan: DayPlan; today: string; coach: 
       {due.length > 0 && (
         <TodaySection title={isToday ? t.remaining : t.plannedPast} className="today-due">
           {coachChip('due')}
-          <div className="card">{rowsOf(due, false)}</div>
+          <div className="card">{compact ? dueBySkill() : rowsOf(due, false)}</div>
         </TodaySection>
       )}
       {weekQuota.length > 0 && (
@@ -209,7 +324,7 @@ function DayBody({ plan, today, coach }: { plan: DayPlan; today: string; coach: 
       )}
 
       {groups.length > 0 &&
-        (planned ? (
+        (planned || compact ? (
           <details className="disclosure today-more" open={moreIsOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
             <summary>
               {t.moreCount(extraCount)}
@@ -221,34 +336,98 @@ function DayBody({ plan, today, coach }: { plan: DayPlan; today: string; coach: 
           extraGroups
         ))}
 
-      {/* Only what happened: an empty today shows nothing here; a past day says so plainly. */}
-      {(done.length > 0 || !isToday) && (
-        <section className="today-done">
-          <h2 className="section-title">{isToday ? t.done : t.donePast}</h2>
-          {done.length > 0 ? (
-            <ul className="card list">
-              {done.map((row) => (
-                <li key={row.key}>
-                  {/* Opens the latest completion of the row; older ones are in the skill's history. */}
-                  <button type="button" className={`done-row pressable-row${row.cancelled ? ' is-cancelled' : ''}`} onClick={() => setOpenCompletion(row.latestId)}>
-                    <span className="done-row-main">
-                      <span className="done-row-name">{row.stepName}</span>
-                      <span className="done-row-meta">{row.cancelled ? `${row.skillName} · ${t.doneCancelled}` : row.skillName}</span>
-                    </span>
-                    {row.count > 1 && <span className="done-row-count">{t.doneCount(row.count)}</span>}
-                    <span className="done-row-points">{t.donePoints(row.points)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="card card-padded hint today-done-empty">{t.doneEmptyPast}</p>
-          )}
-        </section>
+      {/* Only what happened: an empty today shows nothing here; a past day says so plainly. A
+          busy day folds it into one line, «Отмечено: 7 · +54 очка», remembered on the device —
+          only while something counts: cancelled rows alone keep the plain section. */}
+      {compact && done.some((r) => !r.cancelled) ? (
+        <details
+          className="disclosure today-done today-done-fold"
+          open={doneShown}
+          onToggle={(e) => {
+            const open = e.currentTarget.open;
+            if (open === doneShown) return;
+            setDoneShown(open);
+            rememberDoneOpen(open);
+          }}
+        >
+          <summary>
+            <span className="today-done-line">{doneLine(plan, isToday)}</span>
+            <Icon name="chevron-down" size={18} className="disclosure-chevron" />
+          </summary>
+          {doneList(done, setOpenCompletion)}
+        </details>
+      ) : (
+        (done.length > 0 || !isToday) && (
+          <section className="today-done">
+            <h2 className="section-title">{isToday ? t.done : t.donePast}</h2>
+            {done.length > 0 ? doneList(done, setOpenCompletion) : <p className="card card-padded hint today-done-empty">{t.doneEmptyPast}</p>}
+          </section>
+        )
       )}
+
+      <PausedLine paused={plan.paused} />
 
       <CompletionSheet completionId={openCompletion} onClose={() => setOpenCompletion(null)} />
     </>
+  );
+}
+
+/**
+ * «Отмечено: 7 · +54 очка»: every ACTIVE completion of the day and its points — a paused
+ * skill's and those of «Ещё» too, so not the plan's «Сделано N из M» above.
+ */
+function doneLine(plan: DayPlan, isToday: boolean): string {
+  let n = 0;
+  let deci = 0;
+  for (const { completion } of plan.done) {
+    if (completion.status !== 'ACTIVE') continue;
+    n += 1;
+    deci += toDeci(completion.pointsAwarded);
+  }
+  return isToday ? t.doneSummary(n, fromDeci(deci)) : t.doneSummaryPast(n, fromDeci(deci));
+}
+
+/** «Сделано»: one row per action and status; a row opens its latest completion. */
+function doneList(done: DoneRow[], open: (id: string) => void) {
+  return (
+    <ul className="card list">
+      {done.map((row) => (
+        <li key={row.key}>
+          {/* Opens the latest completion of the row; older ones are in the skill's history. */}
+          <button type="button" className={`done-row pressable-row${row.cancelled ? ' is-cancelled' : ''}`} onClick={() => open(row.latestId)}>
+            <span className="done-row-main">
+              <span className="done-row-name">{row.stepName}</span>
+              <span className="done-row-meta">{row.cancelled ? `${row.skillName} · ${t.doneCancelled}` : row.skillName}</span>
+            </span>
+            {row.count > 1 && <span className="done-row-count">{t.doneCount(row.count)}</span>}
+            <span className="done-row-points">{t.donePoints(row.points)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * «На паузе: Гитара до 10 октября, Бег» at the end of the day (package 18): the skills resting
+ * on it, each a link to its screen, where the pause is taken off. Nothing without one.
+ */
+function PausedLine({ paused }: { paused: DayPlan['paused'] }) {
+  if (paused.length === 0) return null;
+  return (
+    <p className="today-paused">
+      <Icon name="pause" filled size={14} className="today-paused-icon" />
+      <span>
+        {t.pausedLine}{' '}
+        {paused.map(({ skill, pause }, i) => (
+          <span key={skill.id} className="today-paused-item">
+            <Link to={`/skills/${skill.id}`}>{skill.name}</Link>
+            {pause.until !== null && ` ${t.pausedUntil(pause.until)}`}
+            {i < paused.length - 1 && ', '}
+          </span>
+        ))}
+      </span>
+    </p>
   );
 }
 

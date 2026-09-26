@@ -1,13 +1,16 @@
 // «Сегодня» v2 as a read model: what a date holds (domain/schedule.ts planForDate) and what
 // was done on it. The plan is computed on every read and never stored (FR-TD-002/003): a date
 // that passes with something undone simply stops being shown, with no status and no trace.
-// `date` is today (from useToday) or a past day picked on the week strip.
+// `date` is today (from useToday) or a past day picked on the week strip. A skill paused on the
+// date (package 18, domain/pause.ts) is out of the plan altogether — no row in «Осталось», no
+// quota, nothing in «Ещё» — and is named once in `paused` instead.
 
 import { db } from '../data/db';
-import { addDays, monthStart, weekStart } from '../lib/dates';
+import { addDays, localDate, monthStart, weekStart } from '../lib/dates';
 import { compareJournalOrder } from '../domain/progression';
+import { pausedSkills, restDays } from '../domain/pause';
 import { planForDate, type PlannedItem } from '../domain/schedule';
-import type { Skill, StepCompletion, StepDefinition } from '../domain/types';
+import type { Pause, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { byActivity, lastActivityBySkill, overviewTables, readSummaryRows, skillSummaries, type HomeSkillSummary } from './queries';
 
 /** A planned step with its skill and its ACTIVE completions dated on the plan's date. */
@@ -52,8 +55,15 @@ export interface DayPlan {
   totalDone: number;
   /** ACTIVE completions per day, Monday..Sunday of the date's week. */
   weekActivity: number[];
-  /** Active skills, most recently worked on first (the empty states name them). */
+  /**
+   * Monday..Sunday: a rest day of the whole app (every skill in progress paused, domain/pause.ts
+   * restDays) without a completion, up to the plan's week's today — the strip draws it neutral.
+   */
+  weekRest: boolean[];
+  /** Active skills in the plan (not paused on the date), most recently worked on first (the empty states name them). */
   skills: HomeSkillSummary[];
+  /** Active skills paused on the date, in the same order, with their pause: «На паузе: Гитара до 10 октября». */
+  paused: { skill: Skill; pause: Pause }[];
   /** Any skill on the device, archived and completed ones too: without one «Сегодня» is the first run. */
   hasSkills: boolean;
 }
@@ -77,9 +87,10 @@ export async function getWeekActivity(monday: string): Promise<number[]> {
  * of completions: from the earliest quota period start (the Monday or the 1st) to the end of
  * the date's week (the strip's dots; nothing is dated after today). The reads run in two
  * parallel rounds: Dexie keeps a transaction alive across native awaits for a bounded number
- * of microtasks only, so the chain of awaits inside it stays short.
+ * of microtasks only, so the chain of awaits inside it stays short. `today` bounds the rest days
+ * of the strip (a day ahead is no rest yet).
  */
-export async function getDayPlan(date: string): Promise<DayPlan> {
+export async function getDayPlan(date: string, today: string = localDate()): Promise<DayPlan> {
   return db.transaction('r', overviewTables(), async () => {
     const monday = weekStart(date);
     const from = monday < monthStart(date) ? monday : monthStart(date);
@@ -89,7 +100,8 @@ export async function getDayPlan(date: string): Promise<DayPlan> {
       readSummaryRows(),
     ]);
     const onDate = range.filter((c) => c.date === date);
-    const skillById = new Map(summaryRows.skills.filter((s) => s.status === 'ACTIVE').map((s) => [s.id, s]));
+    const isPaused = pausedSkills(summaryRows.pauses);
+    const skillById = new Map(summaryRows.skills.filter((s) => s.status === 'ACTIVE' && !isPaused(s.id, date)).map((s) => [s.id, s]));
     const steps = allSteps.filter((step) => skillById.has(step.skillId));
 
     const count = new Map<string, number>();
@@ -118,8 +130,9 @@ export async function getDayPlan(date: string): Promise<DayPlan> {
         ),
       ),
     ]);
-    const summaries = skillSummaries(summaryRows, lastActivity, onDate);
-    const active = summaries.filter((s) => s.skill.status === 'ACTIVE');
+    const summaries = skillSummaries(summaryRows, lastActivity, onDate, date);
+    const active = summaries.filter((s) => s.skill.status === 'ACTIVE' && s.pause === null);
+    const paused = summaries.flatMap((s) => (s.skill.status === 'ACTIVE' && s.pause ? [{ skill: s.skill, pause: s.pause }] : []));
     const lastDone = new Map<string, string>();
     rest.forEach((step, i) => {
       const c = lastDates[i];
@@ -136,6 +149,8 @@ export async function getDayPlan(date: string): Promise<DayPlan> {
       .filter((group) => group.steps.length > 0);
 
     const names = new Map(summaries.map((s) => [s.skill.id, s.skill.name]));
+    const weekActivity = countWeek(range, monday);
+    const restDay = restDays(summaryRows);
     const done = [...onDate]
       .sort((a, b) => compareJournalOrder(b, a))
       .map((completion) => ({ completion, skillName: names.get(completion.skillId) ?? '' }));
@@ -148,8 +163,13 @@ export async function getDayPlan(date: string): Promise<DayPlan> {
       done,
       totalPlanned: dueOnDate.length,
       totalDone: dueOnDate.filter((row) => row.state === 'DONE').length,
-      weekActivity: countWeek(range, monday),
+      weekActivity,
+      weekRest: weekActivity.map((n, i) => {
+        const day = addDays(monday, i);
+        return n === 0 && day <= today && restDay(day);
+      }),
       skills: active,
+      paused,
       hasSkills: summaryRows.skills.length > 0,
     };
   });

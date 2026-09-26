@@ -24,6 +24,7 @@ import { completeSkill, continueAfterMilestone, createSkill, deleteSkill, update
 import { createStep, setStepActive, updateStep } from '../services/steps';
 import { setSkillAppearance } from '../services/skills';
 import { createMark, deleteMark, updateMark } from '../services/marks';
+import { endPause, pauseSkill } from '../services/pauses';
 import { addDays, localDate } from '../lib/dates';
 
 installFreshDb();
@@ -54,6 +55,7 @@ async function seed(): Promise<string[]> {
   await cancelCompletion(mistake.completionId);
   await completeStep(run, { note: 'Лёгкий темп' });
   await createMark(english, { title: 'Пробный тест', description: '72 из 100', date: addDays(localDate(), -1) });
+  await pauseSkill(sport, addDays(localDate(), 6));
   await setSetting('coachTodaySeen', true);
   return [english, sport];
 }
@@ -82,11 +84,14 @@ describe('export → wipe → import', () => {
     expect(await db.transactions.count()).toBe(0);
 
     // Through text, as a file or a pasted copy would arrive.
-    expect(file.schemaVersion).toBe(4);
+    expect(file.schemaVersion).toBe(5);
     expect(file.tables.marks).toHaveLength(1);
+    expect(file.tables.pauses).toHaveLength(1);
     const stats = await importBackup(parseBackupText(JSON.stringify(file)));
     expect(stats).toMatchObject({ skills: 2, completions: 3 });
     expect(await db.marks.toArray()).toEqual(file.tables.marks);
+    expect(await db.pauses.toArray()).toEqual(file.tables.pauses);
+    expect(details[1]!.pause).toMatchObject({ skillId: ids[1], until: addDays(localDate(), 6) });
     expect(details[0]!.marks).toHaveLength(1);
     expect(await listSkillSummaries()).toEqual(summaries);
     expect(await Promise.all(ids.map((id) => getSkillDetails(id)))).toEqual(details);
@@ -141,6 +146,8 @@ describe('every mutation', () => {
     await updateMark(mark, { title: 'Экзамен B2', description: 'Сдан', date: localDate() });
     await deleteMark(await createMark(english, { title: 'Черновик' }));
     await createMark(sport, { title: 'Забег' });
+    await endPause(sport);
+    await pauseSkill(english, null);
     await continueAfterMilestone(english);
     await updateSkill(english, { ...skillInput('Английский'), capacityBase: 12 });
     await completeSkill(english);
@@ -153,8 +160,11 @@ describe('every mutation', () => {
 
     const file = await exportBackup();
     expect(file.tables.achievementUnlocks.length).toBeGreaterThan(0);
-    // The deleted skill took its marks with it; the other skill keeps its own.
+    // The deleted skill took its marks and its pause with it; the other skill keeps its own.
     expect(file.tables.marks.map((m) => (m as { title: string }).title)).toEqual(['Забег']);
+    expect(file.tables.pauses.map((p) => (p as { skillId: string }).skillId)).toEqual([]);
+    // «Начать заново» does not copy the pause: the copy starts in the plan.
+    expect(await db.pauses.where('skillId').equals(copy).count()).toBe(0);
     const again = migrateBackup(clone(file));
     await wipeAllData();
     await importBackup(again);
@@ -205,6 +215,41 @@ describe('schema-v2 files', () => {
     const file = clone(await exportBackup()) as BackupFile;
     delete (file.tables as Record<string, unknown>).marks;
     expect(() => migrateBackup(file)).toThrow('Файл повреждён: tables.marks');
+  });
+});
+
+describe('schema-v4 files and the pauses', () => {
+  it('import with an empty pauses table', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    // What package 17 wrote: schemaVersion 4 and no pauses table.
+    file.schemaVersion = 4;
+    delete (file.tables as Record<string, unknown>).pauses;
+    const migrated = migrateBackup(file);
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.tables.pauses).toEqual([]);
+    await importBackup(migrated);
+    expect(await db.pauses.count()).toBe(0);
+    expect(await verifyJournal()).toEqual([]);
+  });
+
+  it('are told apart from a damaged v5 file, which must have the table', async () => {
+    await seed();
+    const file = clone(await exportBackup()) as BackupFile;
+    delete (file.tables as Record<string, unknown>).pauses;
+    expect(() => migrateBackup(file)).toThrow('Файл повреждён: tables.pauses');
+  });
+
+  it('round-trip the pause as it was, ended or running', async () => {
+    const [english, sport] = await seed();
+    await pauseSkill(english, null);
+    await endPause(sport);
+    const before = await db.pauses.toArray();
+    const file = await exportBackup();
+    await wipeAllData();
+    expect(await db.pauses.count()).toBe(0);
+    await importBackup(parseBackupText(JSON.stringify(file)));
+    expect(await db.pauses.toArray()).toEqual(before);
   });
 });
 
@@ -320,6 +365,23 @@ describe('rejected files', () => {
     expect(reject((f) => delete rows(f, 'marks')[0].description)).toThrow('Файл повреждён: marks[0].description');
   });
 
+  it('checks the pauses: a real skill, dates in order, one at a time per skill', () => {
+    const pause = rows(file, 'pauses')[0]!;
+    expect(reject((f) => (rows(f, 'pauses')[0].skillId = 'nope'))).toThrow('Файл повреждён: pauses[0].skillId');
+    expect(reject((f) => (rows(f, 'pauses')[0].from = '2026-02-30'))).toThrow('Файл повреждён: pauses[0].from');
+    expect(reject((f) => (rows(f, 'pauses')[0].until = addDays(pause.from as string, -1)))).toThrow('Файл повреждён: pauses[0].until');
+    // Only a pause with a last day can have ended: a stray endedAt is dropped, not refused.
+    const open = clone(file);
+    Object.assign(rows(open, 'pauses')[0], { until: null, endedAt: file.exportedAt });
+    expect(rows(migrateBackup(open), 'pauses')[0]).toMatchObject({ until: null, endedAt: null });
+    expect(reject((f) => (rows(f, 'pauses')[0].endedAt = 'yesterday'))).toThrow('Файл повреждён: pauses[0].endedAt');
+    // Two pauses of one skill never share a day; back to back is fine.
+    const overlapping = { ...pause, id: 'second', from: addDays(pause.from as string, 3), until: null };
+    expect(reject((f) => rows(f, 'pauses').push(overlapping))).toThrow('Файл повреждён: pauses[1].from');
+    const next = { ...pause, id: 'second', from: addDays(pause.until as string, 1), until: null };
+    expect(reject((f) => rows(f, 'pauses').push(next))).not.toThrow();
+  });
+
   it('names the field of a bad value', () => {
     expect(reject((f) => (rows(f, 'completions')[0].date = '2026-13-45'))).toThrow('Файл повреждён: completions[0].date');
     expect(reject((f) => (rows(f, 'transactions')[2].delta = 0.05))).toThrow('Файл повреждён: transactions[2].delta');
@@ -371,6 +433,7 @@ describe('wipeAllData', () => {
     expect(await db.skills.count()).toBe(0);
     expect(await db.completions.count()).toBe(0);
     expect(await db.marks.count()).toBe(0);
+    expect(await db.pauses.count()).toBe(0);
     expect(await getSetting('installId', '')).toBe(installId);
     expect(await getSetting('cloudBackupEnabled', true)).toBe(false);
     // «Спрашивать заметку» is this phone's switch, like «Тема» (package 17).

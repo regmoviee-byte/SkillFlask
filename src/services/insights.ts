@@ -13,6 +13,7 @@ import { localDate } from '../lib/dates';
 import { activityByDay, type DayActivity } from '../domain/activity';
 import { ACTIVITY_WEEKS, activityStart } from '../domain/activityWindow';
 import { forecastMilestone, levelForecast, type ForecastDate, type Pace } from '../domain/forecast';
+import { pausedDays } from '../domain/pause';
 import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
 import type { Milestone, Skill, StepCompletion, StepDefinition } from '../domain/types';
 
@@ -100,27 +101,37 @@ export interface ForecastView {
 
 /**
  * The forecast of a skill («В таком темпе колба 3 заполнится ≈ 12 октября»); null when there is
- * none to show: not an active skill, too few days of practice lately, no pace, or further than
- * the horizon. `excluded` leaves dates out of the pace (paused days, package 18).
+ * none to show: not an active skill, resting today, too few days of practice lately, no pace, or
+ * further than the horizon. The skill's paused days (package 18) are left out of the pace, and
+ * so are the dates `excluded` names.
  */
 export async function getSkillForecast(
   skillId: string,
   today: string = localDate(),
   excluded?: (date: string) => boolean,
 ): Promise<ForecastView | null> {
-  return db.transaction('r', [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions], async () => {
+  return db.transaction('r', [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.pauses], async () => {
     const skill = await db.skills.get(skillId);
     if (!skill || skill.status !== 'ACTIVE') return null;
-    const [milestone, thresholds, steps, completions, transactions] = await Promise.all([
+    const [milestone, thresholds, steps, completions, transactions, pauses] = await Promise.all([
       db.milestones.where('skillId').equals(skillId).first(),
       db.levelThresholds.where('skillId').equals(skillId).sortBy('flaskNumber'),
       db.steps.where('skillId').equals(skillId).toArray(),
       db.completions.where('skillId').equals(skillId).toArray(),
       db.transactions.where('skillId').equals(skillId).toArray(),
+      db.pauses.where('skillId').equals(skillId).toArray(),
     ]);
+    const paused = pausedDays(pauses, skillId);
     const config: CapacityConfig = { base: skill.capacityBase, increment: skill.capacityIncrement, manual: thresholds.map((t) => t.requiredPoints) };
     const progress = computeProgress(foldJournal(transactions.sort(compareJournalOrder).map((t) => t.delta)), config);
-    const forecast = levelForecast({ status: skill.status, progress, today, transactions, completions, excluded });
+    const forecast = levelForecast({
+      status: skill.status,
+      progress,
+      today,
+      transactions,
+      completions,
+      excluded: excluded ? (date) => paused(date) || excluded(date) : paused,
+    });
     if (!forecast) return null;
     const { pace, level } = forecast;
     return {

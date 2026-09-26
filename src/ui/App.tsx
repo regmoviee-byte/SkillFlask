@@ -13,21 +13,25 @@ import { ToastProvider } from './components/Toast';
 import { setMotionPreference, type MotionPreference } from './hooks/useMotion';
 import { AddActionScreen } from './screens/AddActionScreen';
 import { AchievementsScreen } from './screens/AchievementsScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
 import { SkillFormScreen } from './screens/SkillFormScreen';
 import { SkillScreen } from './screens/SkillScreen';
 import { SkillsScreen } from './screens/SkillsScreen';
 import { StepFormScreen } from './screens/StepFormScreen';
 import { TodayScreen } from './screens/TodayScreen';
 import { CompletionNoteHost } from './sheets/CompletionNoteHost';
+import { PauseReturns } from './pause/PauseReturns';
 import { StartRedirect } from './StartRedirect';
 import { RecapRoute } from './screens/recapLazy';
+import { prefetchSettings, SettingsRoute } from './screens/settingsLazy';
 import { SearchRoute } from './search/lazy';
 import { TemplateChooserRoute } from './templates/lazy';
 import { TimerLayer } from './timer/TimerLayer';
 
 // The styleguide exists only in development builds; the dead branch keeps it out of the bundle.
 const StyleguideScreen = import.meta.env.DEV ? lazy(() => import('./screens/StyleguideScreen')) : null;
+
+/** How long after the first paint the settings chunk is fetched in the background. */
+const SETTINGS_PREFETCH_MS = 2000;
 
 // Hash routing works on any static host and inside the Telegram Mini App webview without server rewrites.
 export function App() {
@@ -51,6 +55,13 @@ function Shell() {
     // Files unlocks that appeared without a write (a catalogue entry added in an update):
     // quietly, never celebrated. Idempotent, so StrictMode's second run changes nothing.
     void syncAchievementsOnStart();
+  }, []);
+  useEffect(() => {
+    // «Настройки» is a lazy chunk and the way out of a stale build (screens/settingsLazy.tsx):
+    // it is fetched once the first screen has settled, while the files of this build are still
+    // on the server.
+    const timer = window.setTimeout(prefetchSettings, SETTINGS_PREFETCH_MS);
+    return () => window.clearTimeout(timer);
   }, []);
   // Leaving the app (Telegram `deactivated`, or the page hidden) saves pending changes to the
   // cloud at once instead of after the 30 s debounce.
@@ -83,7 +94,8 @@ function Shell() {
                   <Route path="/search" element={<SearchRoute />} />
                   <Route path="/recap" element={<RecapRoute />} />
                   <Route path="/recap/:weekStart" element={<RecapRoute />} />
-                  <Route path="/settings" element={<SettingsScreen />} />
+                  {/* «Настройки» (lazy since package 18). */}
+                  <Route path="/settings" element={<SettingsRoute />} />
                   <Route path="/todo" element={<Navigate to="/today" replace />} />
                   <Route path="/account" element={<Navigate to="/settings" replace />} />
                   {StyleguideScreen && (
@@ -106,6 +118,8 @@ function Shell() {
           </TimerLayer>
           {/* The completion toast's «Заметка» and «Спрашивать заметку» (package 17). */}
           <CompletionNoteHost />
+          {/* «Гитара снова в плане» once after a pause ran out (package 18). */}
+          <PauseReturns />
           <DialogHost />
         </CelebrationProvider>
       </ToastProvider>

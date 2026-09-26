@@ -494,6 +494,11 @@ button {
   margin-left: auto;
 }
 
+/* Only the last action reaches into the pill's padding: «Заметка» and «Отменить» never overlap. */
+.toast-actions .toast-action:not(:last-child) {
+  margin-right: 0;
+}
+
 /* Dark themes invert the pill to near-white: a darkened accent keeps «Отменить» above 4.5:1. */
 :root[data-theme='dark'] .toast-action {
   color: #1f5fa8;
@@ -705,6 +710,12 @@ html[data-motion='reduced'] .sheet[data-state='open'] {
   gap: var(--sp-3);
   padding: var(--sp-6);
   text-align: center;
+}
+
+/* Inside a screen (the settings chunk that did not load, package 18): no full-height centring. */
+.error-screen--inline {
+  min-height: 0;
+  padding: var(--sp-4) 0;
 }
 
 .error-screen .illustration {
@@ -4409,7 +4420,11 @@ html[data-motion='reduced'] .ach-card-medal {
 .heatmap-cell::before {
   content: '';
   position: absolute;
-  inset: 1px;
+  /* Not `inset`: the @supports fallback below is for engines that lack it too. */
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  left: 1px;
   border-radius: 2px;
   background: var(--heat);
 }
@@ -4931,6 +4946,8 @@ html[data-motion='reduced'] .timer-dial .ring-value {
 }
 
 .first-run-chips .chip {
+  background: var(--color-bg-elevated);
+  box-shadow: inset 0 0 0 0.5px var(--color-border);
   text-decoration: none;
 }
 
@@ -5204,10 +5221,21 @@ html[data-motion='reduced'] .template-action-text {
   margin-top: var(--sp-4);
 }
 
+/* The skill leads its results: stronger than the day headings under it, in the skill's colour. */
 .search-group-title {
   overflow: hidden;
+  margin-top: var(--sp-2);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--liquid-deep);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+:root[data-theme='dark'] .search-group-title {
+  color: var(--liquid-light);
 }
 
 /* A result's note or mark text: up to three lines, so the marked words show (the history keeps one). */
@@ -5232,4 +5260,240 @@ html[data-motion='reduced'] .template-action-text {
   .search-hit {
     background: color-mix(in srgb, var(--liquid-light) 45%, transparent);
   }
+}
+
+/* ---------- Pause («Пауза», package 18) ---------- */
+
+/* «На паузе до 10 октября»: a quiet grey pill, never a warning tone. */
+.pause-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--r-full);
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+:root[data-theme='dark'] .pause-pill {
+  background: var(--color-border);
+}
+
+.pause-pill svg {
+  flex: none;
+}
+
+/* On a home card: a row of its own under the bar, as wide as its words. */
+.pause-pill--card {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 8px 2px 6px;
+  font-size: 13px;
+}
+
+.pause-pill-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The skill screen: the pill under the name, «Снять паузу» beside it. */
+.pause-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 var(--sp-2);
+  margin-top: calc(-1 * var(--sp-1));
+}
+
+.pause-end {
+  font-size: 15px;
+}
+
+/* On the page background the sunken grey all but vanishes in light mode: a card-white pill. */
+.pause-line .pause-pill {
+  background: var(--color-bg-elevated);
+}
+
+/* The pause sheet: the lengths as a radio list, each with its last day. */
+.pause-intro {
+  margin: 0 0 var(--sp-3);
+}
+
+.pause-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pause-options > li + li {
+  border-top: 0.5px solid var(--color-border);
+}
+
+.pause-option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--row-min-height);
+  padding: 0 var(--card-padding) 0 var(--sp-3);
+  border: 0;
+  background: none;
+  color: var(--color-fg);
+  font-size: 17px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pause-option-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--color-border);
+  color: var(--color-on-accent);
+}
+
+.pause-option[aria-checked='true'] .pause-option-mark {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.pause-option-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.pause-option-meta {
+  flex: none;
+  color: var(--color-fg-secondary);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+/* A narrow phone: «На 2 недели» and «до 9 октября» stay on one line each. */
+@media (max-width: 360px) {
+  .pause-option {
+    gap: var(--sp-2);
+    padding-right: var(--sp-3);
+    font-size: 16px;
+  }
+
+  .pause-option-label {
+    white-space: nowrap;
+  }
+
+  .pause-option-meta {
+    font-size: 14px;
+  }
+}
+
+.pause-date {
+  margin-top: var(--sp-3);
+}
+
+.pause-back {
+  margin: var(--sp-3) 0 0;
+  text-align: center;
+}
+
+/* «Сегодня»: the one quiet line of the skills on pause, after everything else. */
+.today-paused {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 0 var(--sp-1);
+  color: var(--color-fg-secondary);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.today-paused-icon {
+  flex: none;
+  margin-top: 4px;
+}
+
+.today-paused a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+
+.today-paused-item {
+  overflow-wrap: anywhere;
+}
+
+/* A busy «Сегодня» (5+ skills): the skill's colour dot in a row's caption. */
+.step-row-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--liquid-mid);
+  vertical-align: 1px;
+}
+
+/* «Ещё 2»: the rest of a skill's rows, unfolded in place. */
+.due-more {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--sp-3) 0 var(--card-padding);
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.due-more .disclosure-chevron {
+  margin-left: 4px;
+}
+
+/* «Отмечено: 7 · +54 очка»: the folded «Сделано» of a busy day, a fold like «Ещё 3 действия». */
+.today-done-fold > summary {
+  padding: 0 var(--sp-1);
+}
+
+.today-done-line {
+  min-width: 0;
+}
+
+.today-done-fold > .card {
+  margin-top: var(--sp-2);
+}
+
+/* A day the whole app rested: a short neutral dash, not an empty day. */
+.week-picker-rest {
+  width: 10px;
+  height: 3px;
+  margin-top: 1px;
+  border-radius: 2px;
+  background: var(--color-fg-tertiary);
+}
+
+.week-picker-day[aria-pressed='true'] .week-picker-rest {
+  background: var(--color-on-accent);
+  opacity: 0.7;
+}
+
+.week-day.is-rest .week-dot {
+  height: 3px;
+  margin: 3.5px 0;
+  border-radius: 2px;
+  background: var(--color-fg-tertiary);
 }

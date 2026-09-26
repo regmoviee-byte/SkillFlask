@@ -61,11 +61,11 @@ export function TileNumber({ value, caption, prefix = '' }: { value: number; cap
 }
 
 /** «СЕГОДНЯ +35 очков» with the week's dots: tile A of «Сегодня» and the first home tile. */
-export function TodayTile({ points, week, today, to }: { points: number; week: boolean[]; today: string; to?: string }) {
+export function TodayTile({ points, week, rest, today, to }: { points: number; week: boolean[]; rest?: boolean[]; today: string; to?: string }) {
   return (
     <Tile label={copy.today.tileToday} to={to} className="tile--today">
       <TileNumber value={points} prefix="+" caption={copy.today.pointsCaption(points)} />
-      <WeekStrip days={week} today={today} />
+      <WeekStrip days={week} today={today} rest={rest} />
     </Tile>
   );
 }

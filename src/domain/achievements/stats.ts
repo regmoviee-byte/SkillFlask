@@ -2,6 +2,7 @@
 // updates it in place. Every rule of the catalogue is a cheap read of these numbers, so
 // evaluating all of them after every event stays O(events × rules).
 
+import { restDays } from '../pause';
 import { DayRecords } from '../streaks';
 import type { HistorySnapshot, ReplayEvent } from './events';
 
@@ -47,7 +48,7 @@ export interface GlobalStats {
   /** The date records below, kept incrementally. */
   days: DayRecords;
   activeDays: number;
-  /** Longest run of consecutive active dates: a record, never a current streak. */
+  /** Longest run of consecutive active dates (rest days bridge it): a record, never a current streak. */
   bestDayStreak: number;
   /** Weeks (Monday..Sunday) with at least three active dates. */
   rhythmWeeks: number;
@@ -66,7 +67,7 @@ export interface Stats {
 
 const RHYTHM_DAYS = 3;
 
-export function createStats(snapshot: Pick<HistorySnapshot, 'skills' | 'milestones'>): Stats {
+export function createStats(snapshot: Pick<HistorySnapshot, 'skills' | 'milestones' | 'pauses'>): Stats {
   const perSkill = new Map<string, SkillStats>();
   for (const skill of snapshot.skills) {
     const milestone = snapshot.milestones.find((m) => m.skillId === skill.id);
@@ -104,7 +105,8 @@ export function createStats(snapshot: Pick<HistorySnapshot, 'skills' | 'mileston
       maxCompletionsInDay: 0,
       maxDistinctSkillsInDay: 0,
       maxDistinctStepsOneSkillInDay: 0,
-      days: new DayRecords(RHYTHM_DAYS),
+      // Rest days of the snapshot's pauses (package 18) bridge a run: «Лучшая серия» follows the records.
+      days: new DayRecords(RHYTHM_DAYS, restDays(snapshot)),
       activeDays: 0,
       bestDayStreak: 0,
       rhythmWeeks: 0,

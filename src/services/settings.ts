@@ -13,6 +13,7 @@ export type SettingKey =
   | 'appearance'
   | 'coachTodaySeen'
   | 'askNote'
+  | 'todayDoneOpen'
   | 'activeTimer'
   | 'installId';
 

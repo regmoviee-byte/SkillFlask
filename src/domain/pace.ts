@@ -13,8 +13,9 @@
 // - A forecast exists for an ACTIVE skill with at least MIN_ACTIVE_DAYS days with an active
 //   completion in the window and a pace above zero; a date further than HORIZON_YEARS away is
 //   not a forecast either.
-// - `excluded` leaves dates out of the window altogether (their points, their days): the seam
-//   for paused days (package 18).
+// - `excluded` leaves dates out of the window altogether (their points, their days): the
+//   skill's paused days (package 18, domain/pause.ts). While the skill rests today there is no
+//   forecast at all: a date «в таком темпе» would count on days it is resting.
 
 import { addDays, diffDays, localDate } from '../lib/dates';
 import { DECI, toDeci } from './points';
@@ -38,7 +39,7 @@ export interface PaceInput {
   entries: readonly DatedDelta[];
   /** The skill's completions: days with an ACTIVE one are its active days. */
   completions: readonly { date: string; status: CompletionStatus }[];
-  /** Dates left out of the window (paused days, package 18); none by default. */
+  /** Dates left out of the window (the skill's paused days, package 18); none by default. */
   excluded?: (date: string) => boolean;
 }
 
@@ -144,7 +145,7 @@ export function levelForecast(input: {
   excluded?: (date: string) => boolean;
 }): LevelForecast | null {
   const { status, progress, today, transactions, completions, excluded } = input;
-  if (status !== 'ACTIVE') return null;
+  if (status !== 'ACTIVE' || excluded?.(today)) return null;
   const pace = measurePace({ today, entries: datedDeltas(transactions, completions), completions, excluded });
   if (!canForecast(status, pace)) return null;
   const level = forecastLevel(progress, pace, today);

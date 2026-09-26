@@ -4,7 +4,8 @@ import { fromDeci, toDeci } from '../domain/points';
 import { compareJournalOrder, computeProgress, foldJournal, type CapacityConfig, type Progress } from '../domain/progression';
 import { newestMarksFirst } from '../domain/marks';
 import { levelForecast } from '../domain/pace';
-import type { LevelThreshold, Mark, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
+import { pausedDays, pauseOn, restDays } from '../domain/pause';
+import type { LevelThreshold, Mark, Milestone, Pause, PointTransaction, Skill, StepCompletion, StepDefinition } from '../domain/types';
 import { getHomeAchievementLine, type HomeAchievementLine } from './achievements';
 import { getLastWeekLine, type LastWeekLine } from './recap';
 import { startLinkPath, type StartLink } from '../platform/deeplink';
@@ -31,11 +32,13 @@ export interface SkillDetails extends SkillSummary {
   /** The skill's marks («Засечки»), newest first. */
   marks: Mark[];
   /**
-   * The skill has a forecast (domain/pace.ts, the same rule as getSkillForecast): the screen
-   * keeps the line's place from the first paint, so the lazy line does not push the page down.
-   * Paused days (package 18) must be left out here as in getSkillForecast (`excluded`).
+   * The skill has a forecast (domain/pace.ts, the same rule as getSkillForecast, paused days
+   * left out and none while resting today): the screen keeps the line's place from the first
+   * paint, so the lazy line does not push the page down.
    */
   hasForecast: boolean;
+  /** The pause the skill rests in on the view's date (package 18), null otherwise. */
+  pause: Pause | null;
 }
 
 function configOf(skill: Skill, manual: number[]): CapacityConfig {
@@ -51,6 +54,7 @@ export type SummaryRows = {
   milestones: Milestone[];
   thresholds: LevelThreshold[];
   transactions: PointTransaction[];
+  pauses: Pause[];
 };
 
 /** Progress of every skill from rows read in one transaction; skills keep their given order. */
@@ -71,17 +75,18 @@ function summarize({ skills, milestones, thresholds, transactions }: SummaryRows
 }
 
 export async function readSummaryRows(): Promise<SummaryRows> {
-  const [skills, milestones, thresholds, transactions] = await Promise.all([
+  const [skills, milestones, thresholds, transactions, pauses] = await Promise.all([
     db.skills.orderBy('createdAt').toArray(),
     db.milestones.toArray(),
     db.levelThresholds.toArray(),
     db.transactions.toArray(),
+    db.pauses.toArray(),
   ]);
-  return { skills, milestones, thresholds, transactions };
+  return { skills, milestones, thresholds, transactions, pauses };
 }
 
 export async function listSkillSummaries(): Promise<SkillSummary[]> {
-  return db.transaction('r', [db.skills, db.milestones, db.levelThresholds, db.transactions], async () => summarize(await readSummaryRows()));
+  return db.transaction('r', [db.skills, db.milestones, db.levelThresholds, db.transactions, db.pauses], async () => summarize(await readSummaryRows()));
 }
 
 // ---- Home and Today ----
@@ -91,6 +96,8 @@ export interface HomeSkillSummary extends SkillSummary {
   todayPoints: number;
   /** createdAt of the latest ACTIVE completion (when the skill was last worked on), null without one. */
   lastActivityAt: string | null;
+  /** The pause an ACTIVE skill rests in on the view's date (package 18): the card's pill. */
+  pause: Pause | null;
 }
 
 export interface HomeView {
@@ -100,6 +107,8 @@ export interface HomeView {
   todayPoints: number;
   /** Monday..Sunday of the current week: true on a date with at least one ACTIVE completion. */
   weekActivity: boolean[];
+  /** Monday..Sunday: a rest day of the whole app (domain/pause.ts restDays) up to today, drawn neutral. */
+  weekRest: boolean[];
   /** Filled flasks over every skill, completed and archived ones included. */
   totalFlasks: number;
   lastMilestone: { skillId: string; skillName: string; name: string; reachedAt: string } | null;
@@ -165,12 +174,17 @@ export async function lastActivityBySkill(transactions: PointTransaction[]): Pro
 }
 
 /**
- * Every skill with its flask, the points of its ACTIVE completions among `dayCompletions` and
- * its last activity, sorted as the home screen lists them. Synchronous over rows already read,
- * so a read model keeps its transaction's chain of awaits short (Dexie keeps a transaction
- * alive across native awaits only for a bounded number of microtasks).
+ * Every skill with its flask, the points of its ACTIVE completions among `dayCompletions`, its
+ * last activity and its pause on `date`, sorted as the home screen lists them. Synchronous over
+ * rows already read, so a read model keeps its transaction's chain of awaits short (Dexie keeps
+ * a transaction alive across native awaits only for a bounded number of microtasks).
  */
-export function skillSummaries(rows: SummaryRows, lastActivity: Map<string, string>, dayCompletions: readonly StepCompletion[]): HomeSkillSummary[] {
+export function skillSummaries(
+  rows: SummaryRows,
+  lastActivity: Map<string, string>,
+  dayCompletions: readonly StepCompletion[],
+  date: string,
+): HomeSkillSummary[] {
   const dayDeci = new Map<string, number>();
   for (const c of dayCompletions) {
     if (c.status === 'ACTIVE') dayDeci.set(c.skillId, (dayDeci.get(c.skillId) ?? 0) + toDeci(c.pointsAwarded));
@@ -180,6 +194,7 @@ export function skillSummaries(rows: SummaryRows, lastActivity: Map<string, stri
       ...s,
       todayPoints: fromDeci(dayDeci.get(s.skill.id) ?? 0),
       lastActivityAt: lastActivity.get(s.skill.id) ?? null,
+      pause: s.skill.status === 'ACTIVE' ? pauseOn(rows.pauses, s.skill.id, date) : null,
     })),
   );
 }
@@ -192,13 +207,19 @@ async function readOverview(today: string) {
     db.completions.where('[status+date]').between(['ACTIVE', week[0]!], ['ACTIVE', week[6]!], true, true).toArray(),
     db.completions.where('date').equals(today).toArray(),
   ]);
-  const summaries = skillSummaries(rows, await lastActivityBySkill(rows.transactions), todayAll);
+  const summaries = skillSummaries(rows, await lastActivityBySkill(rows.transactions), todayAll, today);
   const activeDates = new Set(weekActive.map((c) => c.date));
   const todayPoints = fromDeci(summaries.reduce((sum, s) => sum + toDeci(s.todayPoints), 0));
-  return { summaries, todayPoints, weekActivity: week.map((d) => activeDates.has(d)) };
+  const rest = restDays(rows);
+  return {
+    summaries,
+    todayPoints,
+    weekActivity: week.map((d) => activeDates.has(d)),
+    weekRest: week.map((d) => d <= today && !activeDates.has(d) && rest(d)),
+  };
 }
 
-export const overviewTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions];
+export const overviewTables = () => [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.pauses];
 
 /**
  * The home screen in one live query: the skills with their flask, today's points and the
@@ -207,7 +228,7 @@ export const overviewTables = () => [db.skills, db.milestones, db.levelThreshold
  */
 export async function getHomeView(today: string = localDate()): Promise<HomeView> {
   return db.transaction('r', overviewTables(), async () => {
-    const [{ summaries, todayPoints, weekActivity }, achievements, lastWeek] = await Promise.all([
+    const [{ summaries, todayPoints, weekActivity, weekRest }, achievements, lastWeek] = await Promise.all([
       readOverview(today),
       getHomeAchievementLine(),
       getLastWeekLine(today),
@@ -219,6 +240,7 @@ export async function getHomeView(today: string = localDate()): Promise<HomeView
       summaries,
       todayPoints,
       weekActivity,
+      weekRest,
       totalFlasks: summaries.reduce((sum, s) => sum + s.progress.completedFlasks, 0),
       lastMilestone: reached
         ? { skillId: reached.skill.id, skillName: reached.skill.name, name: reached.milestone!.name, reachedAt: reached.milestone!.reachedAt! }
@@ -259,17 +281,18 @@ export async function resolveStartPath(link: StartLink | null): Promise<string> 
 export async function getSkillDetails(id: string, today: string = localDate()): Promise<SkillDetails | null> {
   return db.transaction(
     'r',
-    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.marks],
+    [db.skills, db.milestones, db.levelThresholds, db.steps, db.completions, db.transactions, db.marks, db.pauses],
     async () => {
       const skill = await db.skills.get(id);
       if (!skill) return null;
-      const [milestone, thresholds, steps, completions, transactions, marks] = await Promise.all([
+      const [milestone, thresholds, steps, completions, transactions, marks, pauses] = await Promise.all([
         db.milestones.where('skillId').equals(id).first(),
         db.levelThresholds.where('skillId').equals(id).sortBy('flaskNumber'),
         db.steps.where('skillId').equals(id).toArray(),
         db.completions.where('skillId').equals(id).toArray(),
         db.transactions.where('skillId').equals(id).toArray(),
         db.marks.where('skillId').equals(id).toArray(),
+        db.pauses.where('skillId').equals(id).toArray(),
       ]);
       const activeSteps = steps.filter((s) => s.isActive).sort(byCreatedAt);
       const doneToday = activeSteps.length
@@ -301,7 +324,8 @@ export async function getSkillDetails(id: string, today: string = localDate()): 
         todayCounts,
         lastDoneAt,
         marks: newestMarksFirst(marks),
-        hasForecast: levelForecast({ status: skill.status, progress, today, transactions, completions }) !== null,
+        hasForecast: levelForecast({ status: skill.status, progress, today, transactions, completions, excluded: pausedDays(pauses, id) }) !== null,
+        pause: skill.status === 'ACTIVE' ? pauseOn(pauses, id, today) : null,
       };
     },
   );

@@ -23,7 +23,7 @@ describe('openDb', () => {
     setDb(createDb(fresh()));
     expect(await openDb()).toEqual({ ok: true });
     expect(db.isOpen()).toBe(true);
-    expect(db.verno).toBe(4);
+    expect(db.verno).toBe(5);
     db.close();
   });
 

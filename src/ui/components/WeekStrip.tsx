@@ -8,21 +8,25 @@ import { copy } from '../copy';
 // - WeekStrip: seven dots on a bento tile (home), filled on a day with a completion.
 // - WeekPicker: the strip of «Сегодня» v2, seven buttons; a past day is picked to see and
 //   record on it, days ahead cannot be picked, small dots count a day's completions.
+// A day the whole app rested (package 18, domain/pause.ts restDays) is drawn neutral — a short
+// dash instead of an empty dot — so a holiday never reads as days without practice.
 
 interface WeekStripProps {
   /** Monday..Sunday: true on a date with an ACTIVE completion (getHomeView). */
   days: boolean[];
   /** Local date the strip is for; its weekday gets the outline. None for a past week («Итоги недели»). */
   today?: string;
+  /** Monday..Sunday: a rest day of the whole app, drawn neutral. */
+  rest?: boolean[];
 }
 
-export function WeekStrip({ days, today }: WeekStripProps) {
+export function WeekStrip({ days, today, rest }: WeekStripProps) {
   const todayIndex = today ? isoWeekday(today) - 1 : -1;
   const active = days.filter(Boolean).length;
   return (
     <div className="week-strip" role="img" aria-label={copy.today.week(active)}>
       {days.map((on, i) => (
-        <span key={i} className={`week-day${on ? ' is-active' : ''}${i === todayIndex ? ' is-today' : ''}`} aria-hidden="true">
+        <span key={i} className={`week-day${on ? ' is-active' : rest?.[i] ? ' is-rest' : ''}${i === todayIndex ? ' is-today' : ''}`} aria-hidden="true">
           <span className="week-dot" />
           <span className="week-initial">{copy.today.weekdays[i]}</span>
         </span>
@@ -40,10 +44,12 @@ interface WeekPickerProps {
   selected: string;
   /** ACTIVE completions per day, Monday..Sunday (getDayPlan().weekActivity). */
   counts: number[];
+  /** Monday..Sunday: a rest day of the whole app without a completion (getDayPlan().weekRest). */
+  rest?: boolean[];
   onSelect(date: string): void;
 }
 
-export function WeekPicker({ today, selected, counts, onSelect }: WeekPickerProps) {
+export function WeekPicker({ today, selected, counts, rest, onSelect }: WeekPickerProps) {
   const monday = weekStart(today);
   const t = copy.today;
   return (
@@ -52,13 +58,14 @@ export function WeekPicker({ today, selected, counts, onSelect }: WeekPickerProp
         const date = addDays(monday, i);
         const ahead = date > today;
         const n = counts[i] ?? 0;
+        const resting = !ahead && n === 0 && rest?.[i] === true;
         return (
           <button
             key={date}
             type="button"
             className={`week-picker-day${date === today ? ' is-today' : ''}`}
             aria-pressed={date === selected}
-            aria-label={t.dayLabel(date, n)}
+            aria-label={resting ? t.dayRestLabel(date) : t.dayLabel(date, n)}
             disabled={ahead}
             onClick={() => {
               if (date === selected) return;
@@ -69,6 +76,7 @@ export function WeekPicker({ today, selected, counts, onSelect }: WeekPickerProp
             <span className="week-picker-name">{short}</span>
             <span className="week-picker-date">{Number(date.slice(8))}</span>
             <span className="week-picker-dots" aria-hidden="true">
+              {resting && <span className="week-picker-rest" />}
               {Array.from({ length: ahead ? 0 : Math.min(n, MAX_DOTS) }, (_, k) => (
                 <span key={k} className="week-picker-dot" />
               ))}

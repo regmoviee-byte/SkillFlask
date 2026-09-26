@@ -36,7 +36,7 @@ export async function getRecapView(week: string, today: string = localDate()): P
     const history = await readHistory();
     const { snapshot } = history;
     const records = history.records();
-    const recap = weekRecap(snapshot, week, { achievements: history.evaluation.states, records });
+    const recap = weekRecap(snapshot, week, { achievements: history.evaluation.states, records, today });
     const first = activeCompletions(snapshot).reduce<string | null>((min, c) => (min === null || c.date < min ? c.date : min), null);
     const fallback = lastCompletedWeek(today);
     return {

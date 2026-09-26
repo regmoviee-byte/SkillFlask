@@ -1,8 +1,9 @@
 // The whole history as one ordered stream of events, for the achievement replay. Built from a
-// plain snapshot of the six journal tables, so the engine stays pure and deterministic.
+// plain snapshot of the six journal tables (and the pauses, which only the day streaks read),
+// so the engine stays pure and deterministic.
 
 import { buildTimeline, compareJournalOrder, type CapacityConfig, type Progress } from '../progression';
-import type { LevelThreshold, Milestone, PointTransaction, Skill, StepCompletion, StepDefinition } from '../types';
+import type { LevelThreshold, Milestone, Pause, PointTransaction, Skill, StepCompletion, StepDefinition } from '../types';
 
 export interface HistorySnapshot {
   skills: readonly Skill[];
@@ -11,6 +12,11 @@ export interface HistorySnapshot {
   steps: readonly StepDefinition[];
   completions: readonly StepCompletion[];
   transactions: readonly PointTransaction[];
+  /**
+   * The skills' pauses (package 18): rest days bridge the day streaks (domain/pause.ts
+   * restDays). Optional: a snapshot without them simply has none.
+   */
+  pauses?: readonly Pause[];
 }
 
 export type ReplayEvent =

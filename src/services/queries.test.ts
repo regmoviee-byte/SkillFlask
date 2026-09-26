@@ -75,6 +75,7 @@ describe('getHomeView', () => {
       summaries: [],
       todayPoints: 0,
       weekActivity: Array(7).fill(false),
+      weekRest: Array(7).fill(false),
       totalFlasks: 0,
       lastMilestone: null,
       lastWeek: null,

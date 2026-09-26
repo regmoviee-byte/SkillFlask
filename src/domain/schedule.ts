@@ -123,13 +123,20 @@ const byCreatedAt = (a: { createdAt: string }, b: { createdAt: string }) => (a.c
  * every quota step whose schedule has started (target N over its period). Only completions up
  * to and including `date` count, so the plan of a past date is what that date looked like at
  * its end — a completion made later in the week does not rewrite Wednesday. MANUAL steps are
- * never planned. Sorted DUE before DONE, then by the step's creation. Pure: no clock.
+ * never planned, nor the steps of a skill `isPaused` on the date (package 18, domain/pause.ts):
+ * a quota period the skill rests through is never shown, and one paused only in part keeps its
+ * whole target. Sorted DUE before DONE, then by the step's creation. Pure: no clock.
  */
-export function planForDate(steps: readonly StepDefinition[], completions: readonly CompletionFacts[], date: string): PlannedItem[] {
+export function planForDate(
+  steps: readonly StepDefinition[],
+  completions: readonly CompletionFacts[],
+  date: string,
+  isPaused: (skillId: string, date: string) => boolean = () => false,
+): PlannedItem[] {
   const active = completions.filter((c) => c.status === 'ACTIVE' && c.date <= date);
   const items: PlannedItem[] = [];
   for (const step of steps) {
-    if (!step.isActive) continue;
+    if (!step.isActive || isPaused(step.skillId, date)) continue;
     if (isDueOn(step.schedule, date, step.scheduleFrom)) {
       const done = active.filter((c) => c.stepId === step.id && c.date === date).length;
       items.push({ step, target: 1, done, state: done >= 1 ? 'DONE' : 'DUE', period: null });

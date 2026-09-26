@@ -6,6 +6,7 @@
 import { V2_MIGRATIONS, type RowMigrations } from './v2';
 import { V3_MIGRATIONS } from './v3';
 import { V4_MIGRATIONS } from './v4';
+import { V5_MIGRATIONS } from './v5';
 
 export type { RowMigrations } from './v2';
 
@@ -13,4 +14,5 @@ export const MIGRATIONS: Record<number, RowMigrations> = {
   2: V2_MIGRATIONS,
   3: V3_MIGRATIONS,
   4: V4_MIGRATIONS,
+  5: V5_MIGRATIONS,
 };

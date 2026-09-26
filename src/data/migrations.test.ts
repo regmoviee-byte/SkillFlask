@@ -79,11 +79,12 @@ describe('fixture', () => {
 });
 
 describe('Dexie v2 upgrade', () => {
-  it('is followed by versions 3 and 4, the current schema version', () => {
-    expect(SCHEMA_VERSION).toBe(4);
-    expect(createDb(dbName()).verno).toBe(4);
-    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([2, 3, 4]);
+  it('is followed by versions 3, 4 and 5, the current schema version', () => {
+    expect(SCHEMA_VERSION).toBe(5);
+    expect(createDb(dbName()).verno).toBe(5);
+    expect(Object.keys(MIGRATIONS).map(Number)).toEqual([2, 3, 4, 5]);
     expect(MIGRATIONS[3]).toEqual({});
+    expect(MIGRATIONS[5]).toEqual({});
     expect(Object.keys(MIGRATIONS[4]!)).toEqual(['skills']);
   });
 
@@ -93,7 +94,7 @@ describe('Dexie v2 upgrade', () => {
 
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(4);
+    expect(upgraded.verno).toBe(5);
     expect(upgraded.tables.map((t) => t.name)).toEqual(
       expect.arrayContaining(['settings', 'achievementUnlocks', 'marks', 'skills', 'completions', 'transactions']),
     );
@@ -195,10 +196,12 @@ describe('Dexie v3 upgrade', () => {
 
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(4);
+    expect(upgraded.verno).toBe(5);
     const after = await dump(upgraded);
     expect(after.marks).toEqual([]);
     delete after.marks;
+    expect(after.pauses).toEqual([]);
+    delete after.pauses;
     // Version 4 then gives every skill its appearance; nothing else changes.
     for (const skill of after.skills!) {
       expect(skill).toMatchObject({ theme: 'flask', color: null });
@@ -245,9 +248,12 @@ describe('Dexie v4 upgrade', () => {
     const before = await writeV3(name);
     const upgraded = createDb(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(4);
+    expect(upgraded.verno).toBe(5);
     const after = await dump(upgraded);
     expect(after.skills!.map((s) => [s.theme, s.color])).toEqual(before.skills!.map(() => ['flask', null]));
+    // Version 5 adds the empty pauses table.
+    expect(after.pauses).toEqual([]);
+    delete after.pauses;
     for (const skill of after.skills!) {
       delete skill.theme;
       delete skill.color;
@@ -287,5 +293,54 @@ describe('Dexie v4 upgrade', () => {
     for (let i = 0; i < 2; i++) for (const row of twice) MIGRATIONS[4]!.skills!(row as never);
     expect(twice).toEqual(once);
     expect(once[0]).toMatchObject({ theme: 'flask', color: null });
+  });
+});
+
+/** The stores of schema version 4 (= version 3's). */
+const V4_STORES = V3_STORES;
+
+describe('Dexie v5 upgrade', () => {
+  async function writeV4(name: string): Promise<Tables> {
+    const v4 = new Dexie(name);
+    v4.version(1).stores(V1_STORES);
+    v4.version(2).stores(V2_STORES);
+    v4.version(3).stores(V3_STORES);
+    v4.version(4).stores(V4_STORES);
+    await v4.open();
+    const rows = structuredClone(tables);
+    for (const v of [2, 4]) for (const [table, fn] of Object.entries(MIGRATIONS[v]!)) for (const row of rows[table]!) fn(row as never);
+    await v4.transaction('rw', v4.tables, async () => {
+      for (const [table, list] of Object.entries(rows)) await v4.table(table).bulkAdd(list);
+      await v4.table('settings').add({ key: 'coachTodaySeen', value: true });
+    });
+    expect(v4.verno).toBe(4);
+    const before = await dump(v4);
+    v4.close();
+    return before;
+  }
+
+  it('adds an empty pauses table and leaves every row as it was; opening again changes nothing', async () => {
+    const name = dbName();
+    const before = await writeV4(name);
+    const first = createDb(name);
+    await first.open();
+    expect(first.verno).toBe(5);
+    const after = await dump(first);
+    expect(after.pauses).toEqual([]);
+    // The new index is queryable.
+    expect(await first.pauses.where('skillId').equals('skill-english').count()).toBe(0);
+    const previous = db;
+    setDb(first);
+    expect(await verifyJournal()).toEqual([]);
+    expect((await getSkillDetails('skill-english'))?.pause).toBeNull();
+    setDb(previous);
+    first.close();
+
+    const second = createDb(name);
+    await second.open();
+    expect(await dump(second)).toEqual(after);
+    second.close();
+    delete after.pauses;
+    expect(after).toEqual(before);
   });
 });

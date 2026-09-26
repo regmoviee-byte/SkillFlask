@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router';
-import { weekStart } from '../../lib/dates';
+import { diffDays, isValidLocalDate, weekStart } from '../../lib/dates';
 import { RECORD_KINDS, type RecordKind, type Records } from '../../domain/records';
 import { copy } from '../copy';
 import { ProgressMini } from '../progress/ProgressHero';
@@ -65,7 +65,9 @@ export function recordRow(
     }
     case 'bestStreak': {
       const r = records.bestStreak;
-      return r && row(t.streakDates(r.start, r.days), t.streak(r.days), weekLinks ? recapOf(r.end) : undefined);
+      // Rest days inside the run make its dates span more days than it counts.
+      const bridged = r !== null && isValidLocalDate(r.end) && diffDays(r.start, r.end) + 1 > r.days;
+      return r && row(t.streakDates(r.start, r.end), t.streak(r.days, bridged), weekLinks ? recapOf(r.end) : undefined);
     }
     case 'longestSession': {
       const r = records.longestSession;
